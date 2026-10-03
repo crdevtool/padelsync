@@ -19,6 +19,12 @@ struct MatchView: View {
                     message: Labels.rejection(store.rejection),
                     button: "Back"
                 ) { store.leave() }
+            } else if store.mode == .guest && store.guestEnded {
+                NoticeView(
+                    title: "Court closed",
+                    message: "The host ended the match or stopped sharing it.",
+                    button: "Back"
+                ) { store.leave() }
             } else if let score = store.score {
                 scoreboard(score)
             } else {

@@ -79,6 +79,9 @@ class Court(
 
     fun heartbeat() = fromHost(host.heartbeat())
 
+    /** The host closes the court. */
+    fun endSession() = fromHost(host.endSession())
+
     fun newMatch(config: MatchConfig) {
         clock += 1_000
         fromHost(host.startNewMatch(config, clock))

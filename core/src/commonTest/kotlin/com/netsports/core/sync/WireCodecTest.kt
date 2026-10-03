@@ -80,6 +80,12 @@ class WireCodecTest {
     }
 
     @Test
+    fun sessionEndedRoundTrips() {
+        assertEquals(Message.SessionEnded, roundTrip(Message.SessionEnded))
+        assertEquals(1, WireCodec.encode(Message.SessionEnded).size)
+    }
+
+    @Test
     fun stateRoundTripsForEveryPointCountAroundByteBoundaries() {
         for (count in listOf(0, 1, 7, 8, 9, 15, 16, 17, 63, 64, 65, 300)) {
             val snapshot = MatchSnapshot(77, 3, count + 5, endless, alternatingGames(count), lastCommandId = -9)
@@ -128,6 +134,7 @@ class WireCodecTest {
             Message.State(MatchSnapshot(1, 1, 20, endless, alternatingGames(20)), 2),
             Message.CommandResult(1, CommandOutcome.ACCEPTED, 1),
             Message.JoinRejected(JoinRejection.BAD_CODE),
+            Message.SessionEnded,
         )
         for (message in messages) {
             val bytes = WireCodec.encode(message)

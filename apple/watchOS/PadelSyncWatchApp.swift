@@ -33,6 +33,15 @@ struct WatchRootView: View {
                 store.leave()
                 screen = .home
             }
+        } else if store.mode == .guest && store.guestEnded {
+            WatchMessageView(
+                title: "Court closed",
+                message: "The host ended the match or stopped sharing it.",
+                button: "Back"
+            ) {
+                store.leave()
+                screen = .home
+            }
         } else if store.mode != .idle {
             if let score = store.score {
                 WatchMatchView(score: score)

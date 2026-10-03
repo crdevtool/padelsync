@@ -51,4 +51,7 @@ sealed class Message {
 
     /** Host to a guest it will not admit. */
     data class JoinRejected(val reason: JoinRejection) : Message()
+
+    /** Host to every guest: the host is closing the court. Do not reconnect. */
+    data object SessionEnded : Message()
 }

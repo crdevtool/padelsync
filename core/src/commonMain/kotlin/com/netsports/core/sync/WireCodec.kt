@@ -38,6 +38,7 @@ object WireCodec {
     private const val TYPE_STATE = 0x10
     private const val TYPE_COMMAND_RESULT = 0x11
     private const val TYPE_JOIN_REJECTED = 0x12
+    private const val TYPE_SESSION_ENDED = 0x13
 
     private const val NO_JOIN_CODE = 0xFFFF
 
@@ -80,6 +81,7 @@ object WireCodec {
                     .u32(message.version)
             }
             is Message.JoinRejected -> out.u8(TYPE_JOIN_REJECTED).u8(message.reason.code)
+            Message.SessionEnded -> out.u8(TYPE_SESSION_ENDED)
         }
         return out.toByteArray()
     }
@@ -113,6 +115,10 @@ object WireCodec {
                 val rejected = Message.JoinRejected(rejectionOf(reader.u8()))
                 reader.expectEnd()
                 rejected
+            }
+            TYPE_SESSION_ENDED -> {
+                reader.expectEnd()
+                Message.SessionEnded
             }
             else -> throw ProtocolException("unknown message type: $type")
         }

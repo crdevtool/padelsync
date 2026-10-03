@@ -73,6 +73,15 @@ fun ScoreScreen(
         ui.mode == CourtMode.GUEST && ui.guestStatus == ClientStatus.REJECTED ->
             Notice(title = "Could not join", body = Labels.rejection(ui.rejection), button = "Back", onClick = leave)
 
+        ui.mode == CourtMode.GUEST && ui.guestStatus == ClientStatus.ENDED ->
+            Notice(
+                title = "Court closed",
+                body = "The host ended the match or stopped sharing it." +
+                    (score?.setSummary?.takeIf { it.isNotEmpty() }?.let { " Final sets: $it." } ?: ""),
+                button = "Back",
+                onClick = leave,
+            )
+
         score == null ->
             Notice(
                 title = "Connecting…",

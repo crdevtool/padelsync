@@ -123,7 +123,7 @@ class HostSession(
             is Message.Hello -> onHello(peerId, link, message)
             is Message.Command -> onCommand(peerId, link, message.command, nowMillis)
             // Host-to-guest messages have no meaning when sent to a host.
-            is Message.State, is Message.CommandResult, is Message.JoinRejected -> emptyList()
+            is Message.State, is Message.CommandResult, is Message.JoinRejected, Message.SessionEnded -> emptyList()
         }
     }
 
@@ -140,6 +140,20 @@ class HostSession(
      * anything a guest missed and lets guests notice a silent host.
      */
     fun heartbeat(): List<Outgoing> = broadcastState()
+
+    /**
+     * Tells every guest that the court is closing, so they stop trying to
+     * reconnect, and forgets them. Send the returned packets before shutting
+     * the Bluetooth link down. The match itself is untouched.
+     */
+    fun endSession(): List<Outgoing> {
+        val bytes = WireCodec.encode(Message.SessionEnded)
+        val farewell = links.entries
+            .filter { it.value.info != null }
+            .map { (peerId, link) -> Outgoing(peerId, Framing.split(bytes, link.maxPacketSize)) }
+        links.clear()
+        return farewell
+    }
 
     /** Replaces the current match with a new one and tells every guest. */
     fun startNewMatch(config: MatchConfig, nowMillis: Long): List<Outgoing> {

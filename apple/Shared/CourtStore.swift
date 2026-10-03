@@ -34,6 +34,8 @@ final class CourtStore: ObservableObject {
     @Published private(set) var guestSynced = false
     /// Guest only: true if the host refused this device; see `rejection`.
     @Published private(set) var guestRejected = false
+    /// Guest only: true if the host closed the court.
+    @Published private(set) var guestEnded = false
     @Published private(set) var rejection: JoinRejection?
     /// Guest only: the label of the court being joined.
     @Published private(set) var courtName: String?
@@ -179,15 +181,24 @@ final class CourtStore: ObservableObject {
 
     /// Stops sharing the court and disconnects every guest. The match carries on locally.
     func closeCourt() {
+        guard hostTransport != nil else { return }
+        shutDownHostTransport()
+        publish()
+    }
+
+    /// Tells the guests the court is closing, then stops the Bluetooth side
+    /// once that message has had a moment to go out.
+    private func shutDownHostTransport() {
         guard let transport = hostTransport else { return }
         hostTransport = nil
         heartbeat?.invalidate()
         heartbeat = nil
-        transport.stop()
         if let host {
-            for guest in host.guests { _ = host.peerDisconnected(peerId: guest.peerId) }
+            for item in host.endSession() {
+                transport.send(peerId: item.peerId, packets: item.packets.map { $0.toData() })
+            }
         }
-        publish()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { transport.stop() }
     }
     #endif
 
@@ -277,8 +288,7 @@ final class CourtStore: ObservableObject {
 
     private func leaveInternal() {
         #if os(iOS)
-        hostTransport?.stop()
-        hostTransport = nil
+        shutDownHostTransport()
         #endif
         heartbeat?.invalidate()
         heartbeat = nil
@@ -323,6 +333,7 @@ final class CourtStore: ObservableObject {
             #endif
             guestSynced = false
             guestRejected = false
+            guestEnded = false
             rejection = nil
             hasSavedMatch = true
         } else if let client {
@@ -334,6 +345,7 @@ final class CourtStore: ObservableObject {
             courtOpen = false
             guestSynced = client.status == ClientStatus.synced
             guestRejected = client.status == ClientStatus.rejected
+            guestEnded = client.status == ClientStatus.ended
             rejection = client.rejection
             hasSavedMatch = UserDefaults.standard.data(forKey: CourtStore.savedMatchKey) != nil
         } else {
@@ -344,6 +356,7 @@ final class CourtStore: ObservableObject {
             courtOpen = false
             guestSynced = false
             guestRejected = false
+            guestEnded = false
             rejection = nil
             hasSavedMatch = UserDefaults.standard.data(forKey: CourtStore.savedMatchKey) != nil
         }

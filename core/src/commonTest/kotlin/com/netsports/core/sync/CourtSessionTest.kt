@@ -6,6 +6,7 @@ import com.netsports.core.match.Action
 import com.netsports.core.match.MatchLog
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -458,6 +459,32 @@ class CourtSessionTest {
         assertEquals(0, court.host.state.totalPointsPlayed, "a tap for the old match is not carried over")
         assertEquals(listOf(TapFeedback.SUPERSEDED), court.feedbackOf("watch"))
         assertAllInSync(court)
+    }
+
+    @Test
+    fun guestsAreToldWhenTheHostClosesTheCourt() {
+        val court = Court()
+        val one = court.join("one")
+        val two = court.join("two")
+        court.hostTap(Action.POINT_A)
+        court.settle()
+        court.tap("one", Action.POINT_B)
+
+        court.endSession()
+        court.settle()
+
+        for (guest in listOf(one, two)) {
+            assertEquals(ClientStatus.ENDED, guest.status)
+            assertEquals(0, guest.pendingCount)
+            // The last score stays readable.
+            assertEquals(1, guest.displayState?.pointsA)
+            assertTrue(guest.submit(Action.POINT_A).isEmpty(), "no scoring after the court has closed")
+        }
+        assertTrue(court.host.guests.isEmpty())
+        assertFalse(court.isLinked("one"), "guests drop the link themselves")
+        // The host's own match is untouched and can carry on alone.
+        court.hostTap(Action.POINT_A)
+        assertEquals(2, court.host.state.pointsA)
     }
 
     @Test

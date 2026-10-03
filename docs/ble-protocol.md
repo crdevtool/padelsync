@@ -43,6 +43,8 @@ No pairing or bonding is used, so players never see a system pairing prompt.
 5. From then on the guest writes `COMMAND`s, and the host notifies `STATE`
    to everyone on each change and every two seconds, and `COMMAND_RESULT` to
    the guest whose tap it was.
+6. When the host ends the match or stops sharing it, it notifies
+   `SESSION_ENDED` and shuts the link down a moment later.
 
 ## Packets
 
@@ -119,6 +121,11 @@ cannot be replayed (for example, points after the match is won) is rejected.
 | Field | Size | Notes |
 | --- | --- | --- |
 | Reason | 1 | 0 wrong code, 1 session full, 2 unsupported version |
+
+### `0x13 SESSION_ENDED` (host to guest)
+
+No fields. The host is closing the court. A guest keeps the last score on
+screen, disconnects, and does not try to reconnect.
 
 ## Rules
 

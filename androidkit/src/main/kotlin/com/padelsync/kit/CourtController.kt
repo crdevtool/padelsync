@@ -175,15 +175,25 @@ class CourtController private constructor(
 
     /** Stops sharing the court and disconnects every guest. The match carries on locally. */
     fun closeCourt() {
+        if (hostTransport == null) return
+        shutDownHostTransport()
+        CourtService.stop(app)
+        publish()
+    }
+
+    /**
+     * Tells the guests the court is closing, then stops the Bluetooth side
+     * once that message has had a moment to go out.
+     */
+    private fun shutDownHostTransport() {
         val transport = hostTransport ?: return
         hostTransport = null
         handler.removeCallbacks(heartbeat)
-        transport.stop()
         host?.let { session ->
-            for (guest in session.guests) session.peerDisconnected(guest.peerId)
+            for (item in session.endSession()) transport.send(item.peerId, item.packets)
         }
-        CourtService.stop(app)
-        publish()
+        transport.stopAdvertising()
+        handler.postDelayed({ transport.stop() }, FAREWELL_MS)
     }
 
     private val hostListener = object : HostTransport.Listener {
@@ -315,9 +325,7 @@ class CourtController private constructor(
     // --- Internals ---------------------------------------------------------
 
     private fun leaveInternal() {
-        handler.removeCallbacks(heartbeat)
-        hostTransport?.stop()
-        hostTransport = null
+        shutDownHostTransport()
         host = null
         joinCode = null
         savedVersion = -1
@@ -393,6 +401,9 @@ class CourtController private constructor(
 
     companion object {
         private const val HEARTBEAT_MS = 2_000L
+
+        /** How long to let the closing message reach guests before the link goes down. */
+        private const val FAREWELL_MS = 400L
 
         @Volatile
         private var instance: CourtController? = null

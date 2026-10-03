@@ -54,6 +54,16 @@ fun WearRoot(controller: CourtController) {
                 },
             )
 
+            ui.mode == CourtMode.GUEST && ui.guestStatus == ClientStatus.ENDED -> MessageScreen(
+                title = "Court closed",
+                body = "The host ended the match or stopped sharing it.",
+                button = "Back",
+                onClick = {
+                    controller.leave()
+                    screen = WearScreen.HOME
+                },
+            )
+
             ui.mode != CourtMode.IDLE && score == null -> MessageScreen(
                 title = "Connecting…",
                 body = "Stay near the host.",

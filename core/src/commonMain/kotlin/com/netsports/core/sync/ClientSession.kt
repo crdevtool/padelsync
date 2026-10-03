@@ -21,6 +21,9 @@ enum class ClientStatus {
 
     /** The host refused this device; see [ClientSession.rejection]. */
     REJECTED,
+
+    /** The host closed the court. The last score stays on screen. */
+    ENDED,
 }
 
 /** What became of a tap made on this device. */
@@ -46,7 +49,7 @@ sealed class ClientEffect {
     /** A tap was resolved; use it for haptics or a brief on-screen cue. */
     data class Feedback(val commandId: Long, val feedback: TapFeedback) : ClientEffect()
 
-    /** Drop the link: the host refused this device. */
+    /** Drop the link and do not reconnect: the host refused this device or closed the court. */
     data object Disconnect : ClientEffect()
 }
 
@@ -133,7 +136,8 @@ class ClientSession(
     fun disconnected() {
         reassembler.reset()
         headSent = false
-        if (status != ClientStatus.REJECTED) status = ClientStatus.DISCONNECTED
+        // A refusal or a closed court is final for this link; keep showing it.
+        if (status != ClientStatus.REJECTED && status != ClientStatus.ENDED) status = ClientStatus.DISCONNECTED
     }
 
     /** A packet arrived from the host. */
@@ -152,6 +156,13 @@ class ClientSession(
                 rejection = message.reason
                 listOf(ClientEffect.Disconnect)
             }
+            Message.SessionEnded -> {
+                status = ClientStatus.ENDED
+                // Nothing still waiting can ever be delivered.
+                pending.clear()
+                headSent = false
+                listOf(ClientEffect.Disconnect)
+            }
             // Guest-to-host messages have no meaning when sent to a guest.
             is Message.Hello, is Message.Command -> emptyList()
         }
@@ -168,7 +179,7 @@ class ClientSession(
      */
     fun submit(action: Action): List<ClientEffect> {
         val snapshot = confirmed ?: return emptyList()
-        if (status == ClientStatus.REJECTED) return emptyList()
+        if (status == ClientStatus.REJECTED || status == ClientStatus.ENDED) return emptyList()
 
         val points = projectedPoints(snapshot)
         val valid = when (action) {
