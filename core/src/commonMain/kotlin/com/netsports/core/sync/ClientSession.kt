@@ -198,6 +198,25 @@ class ClientSession(
         return listOf(send(hello))
     }
 
+    /**
+     * Asks the host to say something, for when it has gone quiet.
+     *
+     * A live host repeats the match every couple of seconds. Silence means
+     * either that its app has stopped while the Bluetooth link stayed up,
+     * which the link itself never reports, or that the app is merely
+     * suspended (an iPhone in the background), in which case a message from
+     * a guest wakes it. So after a few silent seconds the platform layer
+     * calls this; if the host still says nothing, it should drop the link
+     * and look for the court again.
+     *
+     * The question is this device's hello sent again, which every host
+     * answers with the match. Nothing is sent unless a link is up.
+     */
+    fun ping(): List<ClientEffect> {
+        if (status != ClientStatus.SYNCED && status != ClientStatus.JOINING) return emptyList()
+        return listOf(send(Message.Hello(WireCodec.PROTOCOL_VERSION, deviceId, deviceKind, joinCode, deviceName)))
+    }
+
     /** The link to the host dropped. Unresolved taps are kept for the next connection. */
     fun disconnected() {
         reassembler.reset()

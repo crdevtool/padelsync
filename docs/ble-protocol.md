@@ -177,6 +177,9 @@ screen, disconnects, and does not try to reconnect.
   every waiting tap.
 - After reconnecting, wait for the first `STATE`, then re-send the oldest
   unresolved tap if it still applies.
+- If nothing arrives from the host for 8 seconds on a link that is up,
+  send `HELLO` again; a host answers a `HELLO` from a device it has already
+  admitted with `STATE`. If nothing arrives for 16 seconds, drop the link.
 - A guest that has lost its host also scans for a court with the same name
   and tries it with the same join code. It stays only if the first `STATE`
   carries the match id it already holds, with an epoch that is not lower

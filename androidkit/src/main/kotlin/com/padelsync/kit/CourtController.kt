@@ -167,6 +167,38 @@ class CourtController private constructor(
     private var hostLostAt: Long? = null
     private val offerTakeOver = Runnable { publish() }
 
+    /** When the host was last heard from, by the uptime clock. */
+    private var hostHeardAt = 0L
+    private var hostPinged = false
+
+    /**
+     * Notices a host that has gone quiet on a link Bluetooth still calls
+     * connected, which is what happens when the host's app is closed or
+     * crashes: the radio link stays up and nothing reports a problem. A live
+     * host repeats the match every two seconds. After [SILENT_PING_MS] of
+     * silence the host is asked to speak (which also wakes an iPhone host
+     * that is merely suspended); after [SILENT_DROP_MS] the link is dropped,
+     * and the usual reconnecting and looking take over.
+     */
+    private val liveness = object : Runnable {
+        override fun run() {
+            val session = client ?: return
+            val connection = link
+            if (connection != null && connection.isUp) {
+                val quiet = SystemClock.elapsedRealtime() - hostHeardAt
+                if (quiet >= SILENT_DROP_MS) {
+                    hostPinged = false
+                    hostHeardAt = SystemClock.elapsedRealtime()
+                    connection.hostSilent()
+                } else if (quiet >= SILENT_PING_MS && !hostPinged) {
+                    hostPinged = true
+                    handle(session.ping())
+                }
+            }
+            handler.postDelayed(this, LIVENESS_CHECK_MS)
+        }
+    }
+
     /**
      * For the emulator test only: reconnect solely by scanning for the court,
      * never by retrying the address joined. On an emulator the host's address
@@ -492,6 +524,7 @@ class CourtController private constructor(
         enteredCode = code
         link = GuestConnection(app, handler, court, guestListener, directRetry = !scanReconnectOnly)
             .also { it.connect() }
+        handler.postDelayed(liveness, LIVENESS_CHECK_MS)
         CourtService.start(app)
         publish()
     }
@@ -501,6 +534,8 @@ class CourtController private constructor(
             val session = client ?: return
             // A court found by scanning has to show it carries this match
             // before it is believed; the session checks its first answer.
+            hostHeardAt = SystemClock.elapsedRealtime()
+            hostPinged = false
             handle(if (foundByScan) session.connectedToFoundCourt(maxPacketSize) else session.connected(maxPacketSize))
             publish()
         }
@@ -517,6 +552,8 @@ class CourtController private constructor(
 
         override fun onPacket(packet: ByteArray) {
             val session = client ?: return
+            hostHeardAt = SystemClock.elapsedRealtime()
+            hostPinged = false
             val before = session.confirmed
             val effects = session.packetReceived(packet)
             handle(effects)
@@ -663,6 +700,7 @@ class CourtController private constructor(
         enteredCode = null
         hostLostAt = null
         handler.removeCallbacks(offerTakeOver)
+        handler.removeCallbacks(liveness)
 
         error = null
         lastFeedback = null
@@ -841,6 +879,14 @@ class CourtController private constructor(
 
     companion object {
         private const val HEARTBEAT_MS = 2_000L
+
+        private const val LIVENESS_CHECK_MS = 2_000L
+
+        /** Silence from the host, on a link that is up, before it is asked to speak. */
+        private const val SILENT_PING_MS = 8_000L
+
+        /** Silence from the host before the link is treated as dead. */
+        private const val SILENT_DROP_MS = 16_000L
 
         /** How long the host must be out of reach before a guest is offered its place. */
         private const val TAKE_OVER_AFTER_MS = 20_000L

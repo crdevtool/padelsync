@@ -156,6 +156,15 @@ internal class GuestLink(
     val isUp: Boolean
         get() = up
 
+    /**
+     * Treats the link as broken although Bluetooth still reports it up, and
+     * starts over. For a host that has stopped answering: its app can die
+     * while the radio link stays connected.
+     */
+    fun reset() {
+        if (!closed) linkLost()
+    }
+
     private fun open() {
         if (closed || gatt != null) return
         gatt = try {

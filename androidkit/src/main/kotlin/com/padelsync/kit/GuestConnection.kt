@@ -79,6 +79,19 @@ internal class GuestConnection(
         active?.send(packets)
     }
 
+    /** Whether a link is up, whatever the host is doing with it. */
+    val isUp: Boolean
+        get() = active != null
+
+    /**
+     * The host has stopped answering on a link Bluetooth still calls
+     * connected. Drops the link and starts reconnecting and looking, exactly
+     * as if it had broken.
+     */
+    fun hostSilent() {
+        active?.reset()
+    }
+
     /** Disconnects and stops reconnecting and looking. */
     fun close() {
         closed = true

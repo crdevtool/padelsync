@@ -138,6 +138,14 @@ entered. The court's first answer decides:
 A host that is closed and reopened keeps its join code, so guests still
 looking for it are let back in without typing anything.
 
+A host's app can also stop while its Bluetooth link stays up: the app is
+closed or crashes, and the phone's radio keeps the connection. Nothing
+reports that, so a guest goes by the host's silence. A live host repeats the
+match every two seconds. After 8 silent seconds the guest sends its hello
+again, which every host answers with the match, and which wakes an iPhone
+host that was only suspended. After 16 silent seconds the guest treats the
+link as broken and starts reconnecting and looking.
+
 ### Taking over as host
 
 If the host has been out of reach for 20 seconds, or has closed the court, a

@@ -151,6 +151,30 @@ class RefindTest {
     }
 
     @Test
+    fun aQuietHostAnswersAPingWithTheMatch() {
+        val courts = Courts()
+        val host = courts.host(points = 2)
+        val watch = courts.guest("watch")
+        val phone = courts.guest("phone")
+        courts.join(watch, host)
+        courts.join(phone, host)
+        val before = courts.effectsOf(watch).size
+
+        // The ping goes out, the host answers, and nothing about the session changes.
+        courts.ping(watch)
+        assertEquals(ClientStatus.SYNCED, watch.status)
+        assertEquals(host.snapshot(), watch.confirmed)
+        assertEquals(3, host.deviceCount)
+        assertEquals(listOf("watch", "phone"), host.guests.map { it.deviceName })
+        assertTrue(courts.effectsOf(watch).size > before)
+        assertTrue(courts.heardFromHost(watch) > 0)
+
+        // A device with no link has nobody to ask.
+        courts.drop(watch)
+        assertTrue(watch.ping().isEmpty())
+    }
+
+    @Test
     fun onceProvedTheCourtMayStartANewMatch() {
         val courts = Courts()
         val host = courts.host(points = 1)

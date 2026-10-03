@@ -221,7 +221,9 @@ log "--- the host's app is closed and reopened; the guest finds the court again 
 on "$HOST"
 adb shell am force-stop com.padelsync.app
 on "$GUEST"
-expect "$OFFLINE" "guest notices that the host has gone"
+# Killing the host's app leaves the Bluetooth link itself up, so the guest
+# only finds out from the host's silence, after about 16 seconds.
+expect "$OFFLINE" "guest notices that the host has gone" 25
 shot guest-host-gone
 on "$HOST"
 launch_app com.padelsync.app/.MainActivity "Resume last match"

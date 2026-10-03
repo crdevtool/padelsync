@@ -16,6 +16,7 @@ class Courts {
     private val hostOf = HashMap<ClientSession, HostSession>()
     val effects = HashMap<ClientSession, MutableList<ClientEffect>>()
     private var nextId = 1L
+    private val heard = HashMap<ClientSession, Int>()
 
     fun host(
         matchId: Long = 1,
@@ -86,12 +87,24 @@ class Courts {
 
     fun isLinked(guest: ClientSession): Boolean = guest in hostOf
 
+    /** The guest asks a quiet host to say something. */
+    fun ping(guest: ClientSession) {
+        heard[guest] = 0
+        handle(guest, guest.ping())
+    }
+
+    /** Packets [guest] has received from its host since its last [ping]. */
+    fun heardFromHost(guest: ClientSession): Int = heard[guest] ?: 0
+
     fun effectsOf(guest: ClientSession): List<ClientEffect> = effects[guest].orEmpty()
 
     private fun deliver(host: HostSession, outgoing: List<Outgoing>) {
         for (item in outgoing) {
             val guest = links[host]?.get(item.peerId) ?: continue
-            for (packet in item.packets) handle(guest, guest.packetReceived(packet))
+            for (packet in item.packets) {
+                heard[guest] = (heard[guest] ?: 0) + 1
+                handle(guest, guest.packetReceived(packet))
+            }
         }
     }
 
