@@ -33,3 +33,37 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: .github/scripts/publish-log.sh core build.log "${{ job.status }}"
+
+  android:
+    name: Android and Wear OS apps
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build debug APKs
+        run: |
+          set -o pipefail
+          ./gradlew :mobile:assembleDebug :wear:assembleDebug --stacktrace 2>&1 | tee build.log
+      - name: Publish test build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp mobile/build/outputs/apk/debug/mobile-debug.apk PadelSync-phone.apk
+          cp wear/build/outputs/apk/debug/wear-debug.apk PadelSync-watch.apk
+          notes="Test build from commit ${GITHUB_SHA:0:7}, $(date -u '+%Y-%m-%d %H:%M UTC'). PadelSync-phone.apk is for Android phones, PadelSync-watch.apk is for Wear OS watches."
+          if gh release view test-build >/dev/null 2>&1; then
+            gh release edit test-build --notes "$notes"
+          else
+            gh release create test-build --prerelease --title "Latest test build" --notes "$notes"
+          fi
+          gh release upload test-build PadelSync-phone.apk PadelSync-watch.apk --clobber
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/publish-log.sh android build.log "${{ job.status }}"

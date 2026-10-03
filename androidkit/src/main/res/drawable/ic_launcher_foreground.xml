@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- A ball, with the two seams drawn as court-coloured arcs. -->
+    <path
+        android:fillColor="#D7F23C"
+        android:pathData="M54,54m-24,0a24,24 0,1 1,48 0a24,24 0,1 1,-48 0" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#0B1E3A"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M38,37 C48,46 48,62 38,71" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#0B1E3A"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M70,37 C60,46 60,62 70,71" />
+</vector>

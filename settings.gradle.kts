@@ -16,3 +16,6 @@ dependencyResolutionManagement {
 rootProject.name = "padelsync"
 
 include(":core")
+include(":androidkit")
+include(":mobile")
+include(":wear")
