@@ -107,8 +107,19 @@ Allow the Bluetooth permission on both devices when asked.
 
 ## 5. iPhone app, from a Windows computer
 
-Apple's iOS Simulator only runs on a Mac. From Windows, the iPhone app can be
-tried in a hosted simulator that runs in a web browser:
+Apple's iOS Simulator only runs on a Mac, so there are two ways to see the
+iPhone app from Windows.
+
+### Watch the recorded walkthrough
+
+The folder `iphone-preview` holds a video and a screenshot of every screen,
+recorded on an iPhone simulator on the build server: a full match from setup
+to history. Nothing to install; this is the quickest way to see the app.
+
+### Use it yourself in a browser
+
+The iPhone app can be tried hands-on in a hosted simulator that runs in a web
+browser:
 
 1. Create a free account at https://appetize.io.
 2. Choose **Upload**, pick `PadelSync-iOS-simulator.zip`, and select iOS.
