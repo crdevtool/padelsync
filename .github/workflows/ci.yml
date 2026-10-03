@@ -120,10 +120,14 @@ jobs:
         run: .github/scripts/publish-log.sh smoke-${{ matrix.device }} smoke.log "${{ job.status }}" shots
 
   sync:
-    name: Two-device sync (emulators)
+    name: Phone hosts, ${{ matrix.guest }} joins (emulators)
     needs: android
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        guest: [phone, watch]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
@@ -145,12 +149,12 @@ jobs:
           ram-size: 3072M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: bash .github/scripts/smoke-sync.sh 2>&1 | tee smoke.log
+          script: bash .github/scripts/smoke-sync.sh ${{ matrix.guest }} 2>&1 | tee smoke.log
       - name: Publish screenshots and log
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: .github/scripts/publish-log.sh smoke-sync smoke.log "${{ job.status }}" shots
+        run: .github/scripts/publish-log.sh sync-${{ matrix.guest }} smoke.log "${{ job.status }}" shots
 
   # Mac build minutes are expensive, so this runs only when asked for: put
   # "[apple]" in the commit message, or start the workflow by hand.
