@@ -23,6 +23,13 @@ class Court(
     maxGuests: Int = HostSession.DEFAULT_MAX_GUESTS,
 ) {
     var clock = 1_000L
+
+    /**
+     * Time that passes before each tap. The default is longer than the
+     * same-rally window, so consecutive taps are separate rallies; set it to
+     * zero to make devices tap for the same rally.
+     */
+    var rallyGapMillis = 10_000L
     val host = HostSession(MatchLog.start(1, config, clock), HOST_DEVICE_ID, joinCode, SequentialIds(1_000_000), maxGuests)
     val guests = LinkedHashMap<String, ClientSession>()
     val feedback = HashMap<String, MutableList<TapFeedback>>()
@@ -70,10 +77,13 @@ class Court(
         fromHost(host.peerDisconnected(name))
     }
 
-    fun tap(name: String, action: Action) = fromGuest(name, guests.getValue(name).submit(action))
+    fun tap(name: String, action: Action) {
+        clock += rallyGapMillis
+        fromGuest(name, guests.getValue(name).submit(action))
+    }
 
     fun hostTap(action: Action) {
-        clock += 1_000
+        clock += rallyGapMillis
         fromHost(host.submit(action, clock))
     }
 

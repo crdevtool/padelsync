@@ -49,6 +49,11 @@ struct MatchView: View {
                     : "The match carries on for the other players."
             )
         }
+        // A gentle buzz when someone else scores, so players know the point is
+        // in and do not score it again.
+        .onChange(of: store.remoteScoreCount) { _, _ in
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
         // Keep the score visible for the length of the match.
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }

@@ -33,6 +33,8 @@ class CourtFuzzTest {
 
         repeat(5_000) {
             val name = names.random(random)
+            // Mix taps for the same rally with taps for separate rallies.
+            court.rallyGapMillis = if (random.nextBoolean()) 0 else 10_000
             when (random.nextInt(100)) {
                 in 0..24 -> court.tap(name, randomAction(random))
                 in 25..29 -> court.hostTap(randomAction(random))

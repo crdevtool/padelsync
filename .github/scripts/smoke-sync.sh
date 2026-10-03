@@ -123,6 +123,8 @@ if guest_join; then
   expect "Team A. Points 30." "guest shows 30 after two host taps"
 
   log "--- a point scored on the guest reaches the host"
+  # Leave a gap, so this is a new rally and not the previous one reported twice.
+  sleep 5
   tap_many "Team B" 1
   expect "Team B. Points 15." "guest shows its own tap"
   on "$HOST"
@@ -135,6 +137,7 @@ if guest_join; then
   expect "Team B. Points 0." "host shows the guest's undo"
 
   log "--- both tap the same point at the same moment"
+  sleep 5
   on "$HOST"; host_xy=$(find_center "Team A")
   on "$GUEST"; guest_xy=$(find_center "Team A")
   adb -s "$HOST" shell input tap $host_xy &
@@ -145,10 +148,25 @@ if guest_join; then
   # second emulator, which runs in the background for the whole script.
   wait "$host_tap" "$guest_tap"
   sleep 4
-  on "$HOST"; log "host after simultaneous taps: $(screen_text)"
+  on "$HOST"
+  expect "Team A. Points 40." "host counted the simultaneous taps once"
   shot host-after-race
-  on "$GUEST"; log "guest after simultaneous taps: $(screen_text)"
+  on "$GUEST"
+  expect "Team A. Points 40." "guest shows the same score"
   shot guest-after-race
+
+  log "--- the guest scores the same rally a second after the host"
+  sleep 5
+  adb -s "$HOST" shell input tap $host_xy
+  sleep 1
+  adb -s "$GUEST" shell input tap $guest_xy
+  sleep 3
+  on "$HOST"
+  expect "Team A. Points 0. Games 1." "host counted the rally once"
+  on "$GUEST"
+  expect "Team A. Points 0. Games 1." "guest shows one game, not a second point"
+  shot guest-same-rally
+  sleep 5
 
   log "--- guest leaves, then joins again"
   guest_leave

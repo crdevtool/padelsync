@@ -85,14 +85,16 @@ message. The host also repeats the state every two seconds.
 
 | Situation | What happens |
 | --- | --- |
-| Two players tap the same point | The host counts the first. The second was made against an older version, so it is refused and that device shows "already scored". |
+| Two players tap the same point at the same instant | The host counts the first. The second was made against an older version, so it is refused and that device shows "already scored". |
+| A second player scores the same point a second or two later | Also refused. Two real points cannot be scored on different devices within 4 seconds, so the host treats the second as the same rally. One player tapping several times in a row is allowed, for catching up the score. |
+| Someone else scores | Every other device buzzes, so players know the point is in without looking. |
 | A watch loses the link for a few seconds | Taps made meanwhile are kept. On reconnection they are sent if the score has not moved, and dropped if someone else scored in the meantime. |
 | A tap is sent twice because of a retry | Each tap has an id; the host recognises the repeat and ignores it. |
 | A player mis-taps and immediately undoes | Taps go to the host one at a time, so an undo can only ever remove that player's own point, never somebody else's. |
 | A device joins mid-match | It receives the whole match in the first message. |
 | The host's app is closed | The match is saved on the host and can be resumed. Any guest also holds a full copy and can take over hosting (the protocol supports this; the apps do not offer it yet). |
 
-All of these are covered by tests in `core/`, including a randomised test
+Every row except the buzz is covered by tests in `core/`, including a randomised test
 that throws 200,000 events at a simulated eight-device court and checks that
 every device ends up on the host's score.
 

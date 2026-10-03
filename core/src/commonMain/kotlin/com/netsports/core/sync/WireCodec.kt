@@ -273,6 +273,7 @@ object WireCodec {
             CommandOutcome.STALE -> 2
             CommandOutcome.MATCH_COMPLETE -> 3
             CommandOutcome.NOTHING_TO_UNDO -> 4
+            CommandOutcome.SAME_RALLY -> 5
         }
 
     private fun outcomeOf(code: Int): CommandOutcome = when (code) {
@@ -281,6 +282,7 @@ object WireCodec {
         2 -> CommandOutcome.STALE
         3 -> CommandOutcome.MATCH_COMPLETE
         4 -> CommandOutcome.NOTHING_TO_UNDO
+        5 -> CommandOutcome.SAME_RALLY
         else -> throw ProtocolException("unknown command outcome: $code")
     }
 

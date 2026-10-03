@@ -54,4 +54,10 @@ enum class CommandOutcome {
 
     /** Undo was requested with no points recorded. */
     NOTHING_TO_UNDO,
+
+    /**
+     * Another device scored a point moments ago, so this point is taken to be
+     * the same rally reported twice. Nothing changed.
+     */
+    SAME_RALLY,
 }

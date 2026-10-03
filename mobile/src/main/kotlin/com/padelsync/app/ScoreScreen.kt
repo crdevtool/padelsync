@@ -162,6 +162,12 @@ private fun Scoreboard(
         }
     }
 
+    // A gentle buzz when someone else scores, so players know the point is in
+    // and do not score it again.
+    LaunchedEffect(ui.remoteScoreCount) {
+        if (ui.remoteScoreCount > 0) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+
     val tap = { action: Action ->
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         controller.tap(action)

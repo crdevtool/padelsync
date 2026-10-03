@@ -7,6 +7,7 @@ import com.netsports.core.engine.MatchConfig
 import com.netsports.core.history.MatchHistory
 import com.netsports.core.history.MatchRecord
 import com.netsports.core.match.Action
+import com.netsports.core.match.CommandOutcome
 import com.netsports.core.match.MatchLog
 import com.netsports.core.match.MatchSnapshot
 import com.netsports.core.sync.ClientEffect
@@ -61,6 +62,8 @@ data class CourtUiState(
     /** The outcome of the most recent tap, for haptics. [feedbackCount] changes on every new one. */
     val lastFeedback: TapFeedback? = null,
     val feedbackCount: Int = 0,
+    /** Changes each time another device changes the score, so this one can signal it. */
+    val remoteScoreCount: Int = 0,
     /** Whether a hosted match from an earlier run can be resumed. */
     val hasSavedMatch: Boolean = false,
 )
@@ -116,6 +119,7 @@ class CourtController private constructor(
     private var error: String? = null
     private var lastFeedback: TapFeedback? = null
     private var feedbackCount = 0
+    private var remoteScoreCount = 0
 
     private val heartbeat = object : Runnable {
         override fun run() {
@@ -225,7 +229,9 @@ class CourtController private constructor(
 
         override fun onPacket(peerId: String, packet: ByteArray) {
             val session = host ?: return
+            val before = session.log.version
             deliver(session.packetReceived(peerId, packet, now()))
+            if (session.log.version != before) remoteScoreCount++
             publish()
         }
 
@@ -284,7 +290,14 @@ class CourtController private constructor(
 
         override fun onPacket(packet: ByteArray) {
             val session = client ?: return
-            handle(session.packetReceived(packet))
+            val before = session.confirmed
+            val effects = session.packetReceived(packet)
+            handle(effects)
+            val after = session.confirmed
+            val ownTap = effects.any { it is ClientEffect.Feedback && it.feedback == TapFeedback.ACCEPTED }
+            val changed = before != null && after != null &&
+                (after.version != before.version || after.matchId != before.matchId)
+            if (changed && !ownTap) remoteScoreCount++
             publish()
         }
     }
@@ -314,6 +327,10 @@ class CourtController private constructor(
     fun tap(action: Action) {
         host?.let { session ->
             deliver(session.submit(action, now()))
+            if (session.lastSubmitOutcome == CommandOutcome.SAME_RALLY) {
+                lastFeedback = TapFeedback.SUPERSEDED
+                feedbackCount++
+            }
         }
         client?.let { session ->
             handle(session.submit(action))
@@ -390,6 +407,9 @@ class CourtController private constructor(
                 courtOpen = hostTransport != null,
                 joinCode = joinCode,
                 error = error,
+                lastFeedback = lastFeedback,
+                feedbackCount = feedbackCount,
+                remoteScoreCount = remoteScoreCount,
                 hasSavedMatch = true,
             )
             guestSession != null -> {
@@ -406,6 +426,7 @@ class CourtController private constructor(
                     error = error,
                     lastFeedback = lastFeedback,
                     feedbackCount = feedbackCount,
+                    remoteScoreCount = remoteScoreCount,
                     hasSavedMatch = store.load() != null,
                 )
             }

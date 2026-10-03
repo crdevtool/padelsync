@@ -113,7 +113,7 @@ cannot be replayed (for example, points after the match is won) is rejected.
 | Field | Size | Notes |
 | --- | --- | --- |
 | Command id | 8 | |
-| Outcome | 1 | 0 accepted, 1 duplicate, 2 stale, 3 match complete, 4 nothing to undo |
+| Outcome | 1 | 0 accepted, 1 duplicate, 2 stale, 3 match complete, 4 nothing to undo, 5 same rally |
 | Version | 4 | Host's version after handling the command |
 
 ### `0x12 JOIN_REJECTED` (host to guest)
@@ -133,6 +133,9 @@ screen, disconnects, and does not try to reconnect.
 - Accept a command only if its epoch and base version equal the host's
   current epoch and version. Otherwise answer `stale`.
 - A command id already applied is answered `duplicate` and changes nothing.
+- A point from one device arriving less than 4 seconds after an accepted
+  point from a different device is answered `same rally` and changes
+  nothing. Undo is exempt, and so are consecutive points from one device.
 - On acceptance, notify `STATE` to every guest first, then `COMMAND_RESULT`
   to the sender.
 - Ignore commands from a device that has not been admitted.

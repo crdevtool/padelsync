@@ -22,7 +22,8 @@ class MatchLogTest {
         ScoreCommand(++sequence, log.epoch, baseVersion, action)
 
     private fun accept(log: MatchLog, action: Action, deviceId: Long = 7): MatchLog {
-        val result = log.apply(command(log, action), deviceId, startedAt + sequence * 1000)
+        // Each command arrives ten seconds after the previous one: separate rallies.
+        val result = log.apply(command(log, action), deviceId, startedAt + sequence * 10_000)
         assertEquals(CommandOutcome.ACCEPTED, result.outcome)
         return result.log
     }
@@ -85,6 +86,23 @@ class MatchLogTest {
     }
 
     @Test
+    fun aPointFromAnotherDeviceMomentsAfterAPointIsTheSameRally() {
+        val first = newLog().apply(command(newLog(), Action.POINT_A), 1, 100_000).log
+
+        fun outcome(action: Action, deviceId: Long, at: Long) =
+            first.apply(command(first, action), deviceId, at).outcome
+
+        val window = MatchLog.RALLY_WINDOW_MILLIS
+        assertEquals(CommandOutcome.SAME_RALLY, outcome(Action.POINT_A, 2, 100_000))
+        assertEquals(CommandOutcome.SAME_RALLY, outcome(Action.POINT_B, 2, 100_000 + window - 1))
+        assertEquals(CommandOutcome.ACCEPTED, outcome(Action.POINT_A, 2, 100_000 + window))
+        assertEquals(CommandOutcome.ACCEPTED, outcome(Action.POINT_A, 1, 100_001), "same device")
+        assertEquals(CommandOutcome.ACCEPTED, outcome(Action.UNDO, 2, 100_001), "undo is never refused")
+        // A host clock that jumped backwards must not block scoring.
+        assertEquals(CommandOutcome.ACCEPTED, outcome(Action.POINT_A, 2, 50_000))
+    }
+
+    @Test
     fun aCommandFromAnotherEpochIsStale() {
         val log = newLog()
         val result = log.apply(ScoreCommand(1, epoch = 2, baseVersion = 0, action = Action.POINT_A), 1, startedAt)
@@ -101,8 +119,8 @@ class MatchLogTest {
     @Test
     fun recordsCompletionTimeAndDuration() {
         val log = score(newLog(MatchConfig.padel().copy(bestOf = 1)), Action.POINT_A, 24)
-        assertEquals(startedAt + 24_000, log.completedAtMillis)
-        assertEquals(24_000, log.durationMillis)
+        assertEquals(startedAt + 240_000, log.completedAtMillis)
+        assertEquals(240_000, log.durationMillis)
     }
 
     @Test

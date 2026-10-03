@@ -73,6 +73,12 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
         }
     }
 
+    // Two quick ticks when someone else scores, so the wearer knows the point
+    // is in without looking, and does not score it again.
+    LaunchedEffect(ui.remoteScoreCount) {
+        if (ui.remoteScoreCount > 0) vibrate(context, longArrayOf(0, 20, 70, 20))
+    }
+
     val tap = { action: Action ->
         vibrate(context, longArrayOf(0, 25))
         controller.tap(action)

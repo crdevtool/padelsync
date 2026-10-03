@@ -57,6 +57,11 @@ struct WatchMatchView: View {
         .onChange(of: store.note) { _, note in
             if note != nil { WKInterfaceDevice.current().play(.failure) }
         }
+        // A distinct tap when someone else scores, so the wearer knows the
+        // point is in without looking, and does not score it again.
+        .onChange(of: store.remoteScoreCount) { _, _ in
+            WKInterfaceDevice.current().play(.directionUp)
+        }
         .sheet(isPresented: $menuOpen) {
             WatchMenuView(close: { menuOpen = false })
         }

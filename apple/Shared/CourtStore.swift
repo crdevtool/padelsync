@@ -43,6 +43,8 @@ final class CourtStore: ObservableObject {
     @Published private(set) var error: String?
     /// A short-lived remark about the last tap, such as "already scored".
     @Published private(set) var note: String?
+    /// Changes each time another device changes the score, so this one can signal it.
+    @Published private(set) var remoteScoreCount = 0
     /// Courts found by the current scan, nearest first.
     @Published private(set) var nearby: [NearbyCourt] = []
     /// Whether a hosted match from an earlier run can be resumed.
@@ -104,7 +106,12 @@ final class CourtStore: ObservableObject {
         }
         guestTransport.onPacket = { [weak self] packet in
             guard let self, let client = self.client else { return }
-            self.handle(client.packetReceived(packet: packet.toKotlinByteArray()))
+            let before = client.confirmed
+            let ownTap = self.handle(client.packetReceived(packet: packet.toKotlinByteArray()))
+            if let before, let after = client.confirmed,
+               after.version != before.version || after.matchId != before.matchId, !ownTap {
+                self.remoteScoreCount += 1
+            }
             self.publish()
         }
     }
@@ -170,7 +177,9 @@ final class CourtStore: ObservableObject {
         }
         transport.onPacket = { [weak self] peerId, packet in
             guard let self, let host = self.host else { return }
+            let before = host.log.version
             self.deliver(host.packetReceived(peerId: peerId, packet: packet.toKotlinByteArray(), nowMillis: self.now()))
+            if host.log.version != before { self.remoteScoreCount += 1 }
             self.publish()
         }
         transport.onFailed = { [weak self] reason in
@@ -246,12 +255,18 @@ final class CourtStore: ObservableObject {
         publish()
     }
 
-    private func handle(_ effects: [ClientEffect]) {
+    /// Carries out a guest session's effects. Returns true if one of them
+    /// confirmed a tap made on this device.
+    @discardableResult
+    private func handle(_ effects: [ClientEffect]) -> Bool {
+        var ownTapAccepted = false
         for effect in effects {
             if let send = effect as? ClientEffect.Send {
                 guestTransport.send(send.packets.map { $0.toData() })
             } else if let feedback = effect as? ClientEffect.Feedback {
-                if feedback.feedback == TapFeedback.superseded {
+                if feedback.feedback == TapFeedback.accepted {
+                    ownTapAccepted = true
+                } else if feedback.feedback == TapFeedback.superseded {
                     show(note: "Already scored on another device")
                 } else if feedback.feedback == TapFeedback.matchComplete {
                     show(note: "The match is over")
@@ -262,6 +277,7 @@ final class CourtStore: ObservableObject {
                 guestTransport.close()
             }
         }
+        return ownTapAccepted
     }
 
     // MARK: Scoring
@@ -270,6 +286,9 @@ final class CourtStore: ObservableObject {
     func tap(_ action: Action) {
         if let host {
             deliver(host.submit(action: action, nowMillis: now()))
+            if host.lastSubmitOutcome == CommandOutcome.sameRally {
+                show(note: "Already scored on another device")
+            }
         }
         if let client {
             handle(client.submit(action: action))

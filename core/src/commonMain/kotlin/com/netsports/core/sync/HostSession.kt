@@ -127,11 +127,20 @@ class HostSession(
         }
     }
 
-    /** The player holding the host device tapped. */
+    /**
+     * What became of the most recent [submit]. The host's own tap can be
+     * refused too, for example when a guest scored the same rally a moment
+     * earlier ([CommandOutcome.SAME_RALLY]).
+     */
+    var lastSubmitOutcome: CommandOutcome = CommandOutcome.ACCEPTED
+        private set
+
+    /** The player holding the host device tapped. The verdict is in [lastSubmitOutcome]. */
     fun submit(action: Action, nowMillis: Long): List<Outgoing> {
         val command = ScoreCommand(ids.next(), log.epoch, log.version, action)
         val result = log.apply(command, hostDeviceId, nowMillis)
         log = result.log
+        lastSubmitOutcome = result.outcome
         return if (result.outcome == CommandOutcome.ACCEPTED) broadcastState() else emptyList()
     }
 

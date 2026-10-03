@@ -77,6 +77,7 @@ class MatchLog private constructor(
         val team = command.action.team
         if (team != null) {
             if (state.isComplete) return ApplyResult(this, CommandOutcome.MATCH_COMPLETE)
+            if (isSameRally(deviceId, atMillis)) return ApplyResult(this, CommandOutcome.SAME_RALLY)
             if (points.size >= MatchSnapshot.MAX_POINTS) return ApplyResult(this, CommandOutcome.MATCH_COMPLETE)
             val record = PointRecord(team, command.commandId, deviceId, atMillis)
             return accepted(command, points + record, ScoringEngine.pointWonBy(state, team))
@@ -88,6 +89,25 @@ class MatchLog private constructor(
         // game or set boundary, and a match is only a few hundred points.
         val remaining = points.dropLast(1)
         return accepted(command, remaining, ScoringEngine.replay(config, remaining.map { it.team }))
+    }
+
+    /**
+     * Whether a point arriving now from [deviceId] is the previous rally
+     * being reported a second time.
+     *
+     * Players do not tap at the same instant: one scores the point, and a
+     * second or two later a partner, who has not looked at their own screen
+     * yet, scores it too. By then the second device already holds the new
+     * score, so the version check cannot catch it. Two points from different
+     * devices cannot genuinely be [RALLY_WINDOW_MILLIS] apart, so the second
+     * is refused. Several quick points from one device are allowed: that is
+     * a player catching up the score on purpose. Undo is never refused.
+     */
+    private fun isSameRally(deviceId: Long, atMillis: Long): Boolean {
+        val last = points.lastOrNull() ?: return false
+        if (last.deviceId == deviceId || last.deviceId == UNKNOWN_DEVICE) return false
+        val elapsed = atMillis - last.atMillis
+        return elapsed in 0 until RALLY_WINDOW_MILLIS
     }
 
     private fun accepted(command: ScoreCommand, points: List<PointRecord>, state: MatchState) = ApplyResult(
@@ -108,6 +128,13 @@ class MatchLog private constructor(
     companion object {
         /** Device id recorded for points inherited from a previous host. */
         const val UNKNOWN_DEVICE = 0L
+
+        /**
+         * Shortest time that can pass between two real points scored on
+         * different devices. Even an ace followed by a quick next serve takes
+         * longer than this.
+         */
+        const val RALLY_WINDOW_MILLIS = 4_000L
 
         /** Starts an empty log for a new match. */
         fun start(matchId: Long, config: MatchConfig, startedAtMillis: Long): MatchLog = MatchLog(

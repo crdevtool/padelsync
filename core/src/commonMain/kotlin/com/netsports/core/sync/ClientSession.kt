@@ -31,7 +31,11 @@ enum class TapFeedback {
     /** The host counted it. */
     ACCEPTED,
 
-    /** The score changed before the tap arrived, so it was not counted. */
+    /**
+     * Not counted, because another device had already scored: either the
+     * score changed before the tap arrived, or another device scored the same
+     * rally moments earlier.
+     */
     SUPERSEDED,
 
     /** The match was already over. */
@@ -252,7 +256,7 @@ class ClientSession(
             // state was lost in transit the next heartbeat does the same, and
             // keeping the tap until then avoids the score flickering back.
             CommandOutcome.ACCEPTED, CommandOutcome.DUPLICATE -> emptyList()
-            CommandOutcome.STALE -> dropPending(TapFeedback.SUPERSEDED)
+            CommandOutcome.STALE, CommandOutcome.SAME_RALLY -> dropPending(TapFeedback.SUPERSEDED)
             CommandOutcome.MATCH_COMPLETE -> dropPending(TapFeedback.MATCH_COMPLETE, result.commandId)
             CommandOutcome.NOTHING_TO_UNDO -> dropPending(TapFeedback.NOTHING_TO_UNDO, result.commandId)
         }

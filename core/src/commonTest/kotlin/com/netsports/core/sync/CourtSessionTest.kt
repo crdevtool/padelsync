@@ -209,6 +209,84 @@ class CourtSessionTest {
     }
 
     @Test
+    fun aSecondPlayerScoringTheSameRallyMomentsLaterIsRefused() {
+        val court = Court()
+        court.join("one")
+        court.join("two")
+
+        court.tap("one", Action.POINT_A)
+        court.settle()
+        // "two" has already received the new score, then taps for the same rally.
+        court.clock += 1_500
+        court.rallyGapMillis = 0
+        court.tap("two", Action.POINT_A)
+        court.settle()
+
+        assertEquals(1, court.host.state.pointsA, "the rally is counted once")
+        assertEquals(listOf(TapFeedback.SUPERSEDED), court.feedbackOf("two"))
+        assertAllInSync(court)
+
+        // The host's own late tap for that rally is refused as well.
+        court.hostTap(Action.POINT_A)
+        assertEquals(1, court.host.state.pointsA)
+        assertEquals(com.netsports.core.match.CommandOutcome.SAME_RALLY, court.host.lastSubmitOutcome)
+
+        // A late tap for the other team is refused too: the first report stands.
+        court.tap("two", Action.POINT_B)
+        court.settle()
+        assertEquals(0, court.host.state.pointsB)
+    }
+
+    @Test
+    fun theNextRallyCountsOnceEnoughTimeHasPassed() {
+        val court = Court()
+        court.join("one")
+        court.join("two")
+        court.tap("one", Action.POINT_A)
+        court.settle()
+
+        court.clock += com.netsports.core.match.MatchLog.RALLY_WINDOW_MILLIS
+        court.rallyGapMillis = 0
+        court.tap("two", Action.POINT_A)
+        court.settle()
+        assertEquals(2, court.host.state.pointsA)
+        assertAllInSync(court)
+    }
+
+    @Test
+    fun onePlayerCanCatchUpSeveralPointsQuickly() {
+        val court = Court()
+        court.join("one")
+        court.rallyGapMillis = 0
+        repeat(3) { court.tap("one", Action.POINT_B) }
+        court.settle()
+        assertEquals(3, court.host.state.pointsB)
+
+        repeat(2) { court.hostTap(Action.POINT_A) }
+        court.settle()
+        // The host's first tap came right after the guest's and is refused as
+        // the same rally; nothing after a refusal slips through either.
+        assertEquals(0, court.host.state.pointsA)
+        assertAllInSync(court)
+    }
+
+    @Test
+    fun anotherPlayerCanUndoStraightAway() {
+        val court = Court()
+        court.join("one")
+        court.join("two")
+        court.tap("one", Action.POINT_A)
+        court.settle()
+
+        court.rallyGapMillis = 0
+        court.tap("two", Action.UNDO)
+        court.settle()
+        assertEquals(0, court.host.state.pointsA)
+        assertEquals(listOf(TapFeedback.ACCEPTED), court.feedbackOf("two"))
+        assertAllInSync(court)
+    }
+
+    @Test
     fun aMisTapAndQuickUndoBothApply() {
         val court = Court()
         val watch = court.join("watch")
