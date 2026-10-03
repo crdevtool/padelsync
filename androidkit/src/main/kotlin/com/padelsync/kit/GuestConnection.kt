@@ -5,6 +5,7 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Handler
 import android.os.SystemClock
+import com.netsports.core.sync.CourtName
 
 /**
  * A guest's connection to its court, which survives the host changing its
@@ -154,7 +155,7 @@ internal class GuestConnection(
         if (closed || active != null || candidate != null) return
         val now = SystemClock.uptimeMillis()
         val found = lastSeen.firstOrNull { court ->
-            court.name == courtName &&
+            CourtName.matches(courtName, court.name) &&
                 (avoidUntil[court.id] ?: 0L) <= now &&
                 // The device already being retried directly needs no second attempt.
                 !(directRetry && court.device.address == primary.device.address)

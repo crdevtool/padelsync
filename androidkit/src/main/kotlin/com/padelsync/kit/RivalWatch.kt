@@ -8,6 +8,7 @@ import com.netsports.core.match.MatchSnapshot
 import com.netsports.core.sync.ClientEffect
 import com.netsports.core.sync.ClientSession
 import com.netsports.core.sync.ClientStatus
+import com.netsports.core.sync.CourtName
 
 /**
  * A host's lookout for another court hosting the same match.
@@ -77,7 +78,7 @@ internal class RivalWatch(
     private fun consider(courts: List<NearbyCourt>) {
         if (!running || asking != null) return
         val now = SystemClock.uptimeMillis()
-        val rival = courts.firstOrNull { it.name == courtName && (avoidUntil[it.id] ?: 0L) <= now } ?: return
+        val rival = courts.firstOrNull { CourtName.matches(courtName, it.name) && (avoidUntil[it.id] ?: 0L) <= now } ?: return
         asking = rival
         scanner.stop()
         session = newSession()
