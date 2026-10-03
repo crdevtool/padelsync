@@ -16,6 +16,15 @@ final class WalkthroughTests: XCTestCase {
     override func setUp() {
         continueAfterFailure = true
         try? FileManager.default.createDirectory(at: shotsDirectory, withIntermediateDirectories: true)
+        // If the system asks for Bluetooth permission, answer it so the
+        // walkthrough is not left staring at an alert.
+        addUIInterruptionMonitor(withDescription: "System permission alert") { alert in
+            for title in ["Allow", "OK", "Don\u{2019}t Allow"] where alert.buttons[title].exists {
+                alert.buttons[title].tap()
+                return true
+            }
+            return false
+        }
         app.launch()
     }
 
