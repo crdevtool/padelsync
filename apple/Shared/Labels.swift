@@ -167,6 +167,18 @@ enum Labels {
         return "The host did not let this device join."
     }
 
+    // Taking over as host. The same wording as on Android.
+    static let takeOverButton = "Host this court from this device"
+    static let takeOverButtonShort = "Host this court"
+    static let takeOverTitle = "Host this court from this device?"
+    static let takeOverBody =
+        "Do this only if the host's device has left or stopped working, and make sure only one player does it. "
+        + "The match carries on from the score on this screen, and the other players' devices follow by themselves."
+    static let takeOverConfirm = "Host the court"
+    static let hostUnreachable = "The host cannot be reached."
+    /// An Apple Watch cannot host a court, so it cannot take one over.
+    static let askPhoneToHost = "Ask a player with a phone to host this court from their device."
+
     static func devices(_ count: Int) -> String {
         count == 1 ? "1 device" : "\(count) devices"
     }

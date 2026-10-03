@@ -1,5 +1,6 @@
 import CoreBluetooth
 import Foundation
+import PadelSyncCore
 
 /// A court found nearby.
 struct NearbyCourt: Identifiable {
@@ -67,6 +68,11 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     private var active: CBPeripheral?
     /// The name the court advertised when it was joined: what to look for again.
     private var courtLabel: String?
+    /// The court to join may have been found by another transport (a host's
+    /// lookout for rival courts hands one over). Core Bluetooth only connects
+    /// a peripheral through the manager it came from, so this transport's own
+    /// object for it is fetched before the first attempt.
+    private var primaryUnresolved = false
 
     private var toHost: CBCharacteristic?
     private var outbox: [Data] = []
@@ -102,6 +108,7 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         close()
         stopScan()
         primary = court.peripheral
+        primaryUnresolved = true
         courtLabel = court.name
         court.peripheral.delegate = self
         connectPrimaryIfPossible()
@@ -114,6 +121,19 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         guard active != nil else { return }
         outbox.append(contentsOf: packets)
         pump()
+    }
+
+    /// Whether a link is up, whatever the host is doing with it.
+    var isUp: Bool {
+        active != nil
+    }
+
+    /// The host has stopped answering on a link Bluetooth still calls
+    /// connected. Drops the link; the disconnection that follows is handled
+    /// exactly as if the link had broken: direct retry, then looking.
+    func hostSilent() {
+        guard let silent = active else { return }
+        cancel(silent)
     }
 
     /// Disconnects and stops reconnecting and looking.
@@ -180,10 +200,19 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
 
     private func connectPrimaryIfPossible() {
         let central = manager()
-        guard let primary, central.state == .poweredOn else { return }
+        guard var target = primary, central.state == .poweredOn else { return }
+        if primaryUnresolved {
+            primaryUnresolved = false
+            let known = central.retrievePeripherals(withIdentifiers: [target.identifier])
+            if let own = known.first, own !== target {
+                own.delegate = self
+                primary = own
+                target = own
+            }
+        }
         // A connection request never times out: if the host is out of range
         // it completes as soon as the host comes back.
-        central.connect(primary, options: nil)
+        central.connect(target, options: nil)
     }
 
     private func cancel(_ peripheral: CBPeripheral) {
@@ -304,7 +333,7 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         let nearestFirst = sighted.values.sorted { $0.rssi > $1.rssi }
         let match = nearestFirst.first { court in
             let rested = (avoidUntil[court.id] ?? Date.distantPast) <= now
-            return rested && court.name == courtLabel && court.id != primary.identifier
+            return rested && CourtName.shared.matches(joined: courtLabel, seen: court.name) && court.id != primary.identifier
         }
         guard let match else { return }
         let peripheral = match.peripheral

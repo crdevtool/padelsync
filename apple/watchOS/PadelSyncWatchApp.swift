@@ -37,7 +37,9 @@ struct WatchRootView: View {
             WatchMessageView(
                 title: "Court closed",
                 message: "The host ended the match or stopped sharing it.",
-                button: "Back"
+                button: "Back",
+                // The match could carry on from another device, but not from a watch.
+                extra: store.canTakeOver ? Labels.askPhoneToHost : nil
             ) {
                 store.leave()
                 screen = .home
@@ -121,6 +123,8 @@ struct WatchMessageView: View {
     let title: String
     let message: String
     let button: String
+    /// A further line of advice, or nil for none.
+    var extra: String?
     let action: () -> Void
 
     var body: some View {
@@ -131,6 +135,11 @@ struct WatchMessageView: View {
                     .font(.footnote)
                     .foregroundStyle(Palette.muted)
                     .multilineTextAlignment(.center)
+                if let extra = extra {
+                    Text(extra)
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                }
                 Button(button, action: action)
             }
         }

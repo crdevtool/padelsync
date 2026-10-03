@@ -8,6 +8,7 @@ struct MatchView: View {
     let onNewMatch: () -> Void
 
     @State private var confirmLeave = false
+    @State private var confirmTakeOver = false
 
     private var hosting: Bool { store.mode == .host }
 
@@ -22,11 +23,20 @@ struct MatchView: View {
             } else if store.mode == .guest && store.guestEnded {
                 NoticeView(
                     title: "Court closed",
-                    message: "The host ended the match or stopped sharing it." + finalSets,
-                    button: "Back"
-                ) { store.leave() }
+                    message: "The host ended the match or stopped sharing it." + finalSets + problem,
+                    button: "Back",
+                    action: { store.leave() },
+                    // The match need not end with the host: this device holds a full copy.
+                    secondButton: store.canTakeOver ? Labels.takeOverButton : nil,
+                    secondAction: { confirmTakeOver = true }
+                )
             } else if let score = store.score {
-                Scoreboard(score: score, onNewMatch: onNewMatch, onLeave: { confirmLeave = true })
+                Scoreboard(
+                    score: score,
+                    onNewMatch: onNewMatch,
+                    onLeave: { confirmLeave = true },
+                    onTakeOver: { confirmTakeOver = true }
+                )
             } else {
                 NoticeView(
                     title: "Connecting…",
@@ -49,6 +59,12 @@ struct MatchView: View {
                     : "The match carries on for the other players."
             )
         }
+        .alert(Labels.takeOverTitle, isPresented: $confirmTakeOver) {
+            Button(Labels.takeOverConfirm) { store.takeOverAsHost() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(Labels.takeOverBody)
+        }
         // A court in the sun is no place for a screen that dims itself.
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
@@ -58,6 +74,12 @@ struct MatchView: View {
         guard let summary = store.score?.setSummary, !summary.isEmpty else { return "" }
         return " Final sets: \(summary)."
     }
+
+    /// A problem to add to a notice, which has no status line to show it on.
+    private var problem: String {
+        guard let error = store.error else { return "" }
+        return " \(error)"
+    }
 }
 
 private struct NoticeView: View {
@@ -65,6 +87,9 @@ private struct NoticeView: View {
     let message: String
     let button: String
     let action: () -> Void
+    /// A second way on from the notice, or nil for none.
+    var secondButton: String?
+    var secondAction: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 14) {
@@ -77,6 +102,11 @@ private struct NoticeView: View {
             Button(button, action: action)
                 .buttonStyle(.bordered)
                 .padding(.top, 12)
+            if let secondButton = secondButton {
+                Button(secondButton, action: secondAction)
+                    .buttonStyle(.borderedProminent)
+                    .foregroundStyle(Palette.onAccent)
+            }
         }
         .padding(28)
     }
@@ -97,6 +127,7 @@ private struct Scoreboard: View {
     let score: ScoreView
     let onNewMatch: () -> Void
     let onLeave: () -> Void
+    let onTakeOver: () -> Void
 
     @State private var openSheet: MatchSheet?
     /// The winners' screen comes up by itself and can be put away to look at
@@ -120,6 +151,9 @@ private struct Scoreboard: View {
     var body: some View {
         VStack(spacing: 0) {
             statusBar
+            if store.canTakeOver {
+                takeOverOffer
+            }
             court
             if winner != nil && celebrationDismissed {
                 afterMatchButtons
@@ -176,6 +210,24 @@ private struct Scoreboard: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 2)
+    }
+
+    /// The host has been out of reach for a while. The match need not wait
+    /// for it: this device holds a full copy.
+    private var takeOverOffer: some View {
+        HStack(spacing: 8) {
+            Text(Labels.hostUnreachable)
+                .font(.subheadline)
+                .foregroundStyle(Palette.muted)
+            Spacer(minLength: 0)
+            Button(Labels.takeOverButtonShort, action: onTakeOver)
+                .font(.subheadline.weight(.bold))
+                .buttonStyle(.borderedProminent)
+                .foregroundStyle(Palette.onAccent)
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.bottom, 4)
     }
 
     @ViewBuilder private var menuItems: some View {

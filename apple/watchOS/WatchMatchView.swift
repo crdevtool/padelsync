@@ -232,6 +232,13 @@ private struct WatchMenuView: View {
                         .font(.footnote)
                         .foregroundStyle(Palette.muted)
                 }
+                if store.canTakeOver {
+                    // The match could carry on from another device, but an
+                    // Apple Watch cannot host a court.
+                    Text("\(Labels.hostUnreachable) \(Labels.askPhoneToHost)")
+                        .font(.footnote)
+                        .multilineTextAlignment(.center)
+                }
                 // Players choose their serving order each set; this corrects the app's guess.
                 if let score = store.score, score.doubles, let server = score.server, store.canScore {
                     Button("Swap server") {

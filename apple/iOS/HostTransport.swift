@@ -23,9 +23,10 @@ final class HostTransport: NSObject, CBPeripheralManagerDelegate {
     private var label = "PadelSync"
     private var serviceAdded = false
 
-    /// Opens the court under `label`. Safe to call before Bluetooth is ready.
+    /// Opens the court under `label`, cut to the length that is advertised.
+    /// Safe to call before Bluetooth is ready.
     func start(label: String) {
-        self.label = label
+        self.label = CourtUuids.advertisedLabel(label)
         if manager == nil {
             // Creating the manager triggers the system's Bluetooth permission prompt.
             manager = CBPeripheralManager(delegate: self, queue: .main)
