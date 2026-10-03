@@ -90,8 +90,12 @@ if tap "Very close"; then
     on "$HOST"; host_xy=$(find_center "Team A")
     on "$GUEST"; guest_xy=$(find_center "Team A")
     adb -s "$HOST" shell input tap $host_xy &
+    host_tap=$!
     adb -s "$GUEST" shell input tap $guest_xy &
-    wait
+    guest_tap=$!
+    # Wait for the two taps only: a bare "wait" would also wait for the
+    # second emulator, which runs in the background for the whole script.
+    wait "$host_tap" "$guest_tap"
     sleep 4
     on "$HOST"; log "host after simultaneous taps: $(screen_text)"
     shot host-final
