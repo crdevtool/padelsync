@@ -26,20 +26,14 @@ closes the court. Real radios, real distances and real watches can still
 behave differently, so treat this as "the logic and the Bluetooth plumbing
 work", not as "it is proven on a court".
 
-## Try it on Android
+## Try it
 
-1. Open the [latest test build](../../releases/tag/test-build) on the phone
-   (sign in to GitHub; the repository is private).
-2. Download `PadelSync-phone.apk` and open it. Allow installing from the
-   browser when Android asks.
-3. For a Wear OS watch, `PadelSync-watch.apk` has to be installed with `adb`
-   from a computer: enable Developer options and Wireless debugging on the
-   watch, then run `adb pair`, `adb connect` and
-   `adb install PadelSync-watch.apk`.
+The latest builds are on the [test build page](../../releases/tag/test-build):
+`PadelSync-phone.apk`, `PadelSync-watch.apk`, and
+`PadelSync-iOS-simulator.zip` for trying the iPhone app in a browser.
 
-To test syncing: start a match on one device, open the menu and choose
-**Play with others**, then on a second device choose **Join a court** and
-enter the 4-digit code.
+Step-by-step instructions, including the Wear OS pairing steps and a table of
+common error messages, are in [docs/install.md](docs/install.md).
 
 ## Layout
 
