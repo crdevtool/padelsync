@@ -119,8 +119,44 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: .github/scripts/publish-log.sh smoke-${{ matrix.device }} smoke.log "${{ job.status }}" shots
 
+  sync:
+    name: Two-device sync (emulators)
+    needs: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: apks
+      - name: Enable hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Host on one emulator, join from another
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel_5
+          cores: 2
+          ram-size: 3072M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash .github/scripts/smoke-sync.sh 2>&1 | tee smoke.log
+      - name: Publish screenshots and log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/publish-log.sh smoke-sync smoke.log "${{ job.status }}" shots
+
+  # Mac build minutes are expensive, so this runs only when asked for: put
+  # "[apple]" in the commit message, or start the workflow by hand.
   apple:
     name: iPhone and Apple Watch apps
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[apple]')
     runs-on: macos-15
     timeout-minutes: 45
     steps:

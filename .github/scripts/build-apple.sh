@@ -39,4 +39,42 @@ build PadelSync iphonesimulator "generic/platform=iOS Simulator" iphonesimulator
 echo "== Apple Watch app =="
 build PadelSyncWatch watchsimulator "generic/platform=watchOS Simulator" watchsimulator PadelSyncWatch
 
+echo "== Run on simulators =="
+mkdir -p shots
+
+# Boots the first available simulator whose name contains $1, runs the app
+# with a demo match already under way, and saves a screenshot as shots/$4.png.
+run_on_simulator() {
+  local udid
+  udid=$(xcrun simctl list devices available -j | python3 -c "
+import json, sys
+devices = json.load(sys.stdin)['devices']
+for runtime in sorted(devices, reverse=True):
+    for device in devices[runtime]:
+        if sys.argv[1] in device['name']:
+            print(device['udid'])
+            raise SystemExit
+raise SystemExit(1)
+" "$1")
+  echo "simulator for '$1': $udid"
+  xcrun simctl boot "$udid"
+  xcrun simctl bootstatus "$udid" -b >/dev/null
+  xcrun simctl install "$udid" "$2"
+  xcrun simctl launch "$udid" "$3" -demoMatch
+  sleep 10
+  xcrun simctl io "$udid" screenshot "shots/$4.png"
+  # A crashed app is no longer in the list of running services.
+  if xcrun simctl spawn "$udid" launchctl list | grep -q "$3"; then
+    echo "RUNNING: $3 is alive on the simulator"
+  else
+    echo "NOT RUNNING: $3 exited after launch"
+  fi
+  xcrun simctl shutdown "$udid"
+}
+
+run_on_simulator "iPhone" build/apple/Build/Products/Debug-iphonesimulator/PadelSync.app \
+  com.padelsync.app iphone-match || echo "iPhone simulator run did not complete"
+run_on_simulator "Apple Watch" build/apple/Build/Products/Debug-watchsimulator/PadelSyncWatch.app \
+  com.padelsync.app.watchkitapp watch-match || echo "Apple Watch simulator run did not complete"
+
 echo "== Done =="

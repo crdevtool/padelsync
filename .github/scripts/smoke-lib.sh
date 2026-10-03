@@ -38,7 +38,11 @@ try:
 except Exception:
     sys.exit(1)
 for node in root.iter("node"):
-    if node.get("text") == label or (node.get("content-desc") or "").startswith(label):
+    text = node.get("text") or ""
+    # A label ending in "*" matches any text that starts with it.
+    prefix = label[:-1] if label.endswith("*") else None
+    matches_text = text.startswith(prefix) if prefix else text == label
+    if matches_text or (node.get("content-desc") or "").startswith(prefix or label):
         x1, y1, x2, y2 = map(int, re.findall(r"-?\d+", node.get("bounds")))
         print((x1 + x2) // 2, (y1 + y2) // 2)
         sys.exit(0)
@@ -117,12 +121,47 @@ print("[screen] " + " | ".join(seen))
 PY
 }
 
+# Prints everything readable on screen as one line.
+screen_text() {
+  dump_ui
+  python3 - <<'PY'
+import xml.etree.ElementTree as ET
+try:
+    root = ET.parse("ui.xml").getroot()
+except Exception:
+    raise SystemExit
+seen = []
+for node in root.iter("node"):
+    for key in ("text", "content-desc"):
+        value = node.get(key)
+        if value and value not in seen:
+            seen.append(value)
+print(" | ".join(seen))
+PY
+}
+
+# Waits up to 20 seconds for the screen to contain $1; $2 describes the check.
+expect() {
+  local seen=""
+  for _ in $(seq 1 10); do
+    seen=$(screen_text)
+    if echo "$seen" | grep -qF "$1"; then
+      log "PASS: $2"
+      return 0
+    fi
+    sleep 2
+  done
+  log "FAIL: $2 (wanted '$1', screen shows: $seen)"
+  FAILED=1
+  return 1
+}
+
 # Fails the run if the app crashed at any point.
 check_crashes() {
-  adb logcat -d -b crash > shots/crash.txt 2>/dev/null || true
-  if grep -q "com.padelsync" shots/crash.txt; then
+  adb logcat -d -b crash > "shots/crash-${ANDROID_SERIAL:-device}.txt" 2>/dev/null || true
+  if grep -q "com.padelsync" "shots/crash-${ANDROID_SERIAL:-device}.txt"; then
     log "CRASH detected:"
-    cat shots/crash.txt
+    cat "shots/crash-${ANDROID_SERIAL:-device}.txt"
     FAILED=1
   else
     log "no crashes"
