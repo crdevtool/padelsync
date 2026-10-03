@@ -159,8 +159,11 @@ screen, disconnects, and does not try to reconnect.
 - A host looks for other courts under its own name. If one turns out to
   carry the same match, the court with more devices continues; with equal
   numbers the later epoch; with equal epochs the higher version. The other
-  host stops hosting without sending `SESSION_ENDED` and joins as a guest.
-  The host that continues raises its epoch above the other's.
+  host sends `SESSION_ENDED`, stops hosting and joins as a guest. The host
+  that continues raises its epoch above the other's.
+- A court is advertised as the device's name and three hexadecimal
+  characters of its device id, separated by a space and cut to fit; a court
+  taken over from another host keeps that host's label.
 - On acceptance, notify `STATE` to every guest first, then `COMMAND_RESULT`
   to the sender.
 - Ignore commands from a device that has not been admitted.
@@ -186,6 +189,12 @@ screen, disconnects, and does not try to reconnect.
   and, at the same epoch, a version that is not lower. Otherwise it
   disconnects and keeps looking, and treats a `JOIN_REJECTED` there as "not
   my court", not as a refusal to show the player.
+- After `SESSION_ENDED` a guest stops reconnecting to that host but may go
+  on looking for a court with the same name. Having been released, it
+  accepts the match id it holds at any epoch and version.
+- When a `STATE` carries the match and version already held, with the same
+  points, at a later epoch, re-send every unresolved tap as a new command
+  (new id, the new epoch, the same base version) instead of dropping it.
 
 ## Changing the protocol
 
