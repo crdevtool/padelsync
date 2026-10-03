@@ -135,7 +135,7 @@ wait_for "New match" 90
 tap "New match" && wait_for "Start match" 60
 tap "Start match" && wait_for "Team A" 60
 tap "Menu"; tap "Play with others"
-expect "Court open" "host opened the court"
+expect "Court is open" "host opened the court"
 CODE=$(screen_text | grep -oE "Code [0-9]{4}" | grep -oE "[0-9]{4}" | head -1)
 log "join code: ${CODE:-none}"
 if [ -z "$CODE" ]; then fail "no-join-code" "the host's screen shows no join code"; fi

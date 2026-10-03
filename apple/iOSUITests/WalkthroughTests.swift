@@ -40,7 +40,7 @@ final class WalkthroughTests: XCTestCase {
 
         // Match setup
         app.buttons["New match"].tap()
-        XCTAssertTrue(app.buttons["Start match"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Start the match"].waitForExistence(timeout: 10))
         shot("setup-defaults")
         choose("Tennis")
         choose("Best of 5")

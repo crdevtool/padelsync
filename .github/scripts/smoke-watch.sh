@@ -18,7 +18,7 @@ texts
 tap "New padel match"
 wait_for "Team A" && shot score-start
 texts
-tap_many "Team A" 3
+tap_many "Team X" 3
 tap_many "Team B" 3
 shot golden-point
 texts

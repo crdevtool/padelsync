@@ -25,7 +25,7 @@ for _ in 1 2 3; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWI
 sleep 1
 tap "Padel"; tap "Team A"; tap "Best of 3"; tap "Full set"
 shot setup-padel
-tap "Start match"
+tap "Start the match"
 
 # --- A whole padel match, all three sets, without names ----------------------
 wait_for "Team A" && shot score-start
