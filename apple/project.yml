@@ -50,6 +50,21 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.padelsync.app
         TARGETED_DEVICE_FAMILY: "1"
 
+  # Drives the iPhone app through a full match on a simulator and saves
+  # screenshots. Run by the build server; see .github/scripts/build-apple.sh.
+  PadelSyncUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: iOSUITests
+    dependencies:
+      - target: PadelSync
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.padelsync.app.uitests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: PadelSync
+
   PadelSyncWatch:
     type: application
     platform: watchOS
@@ -81,6 +96,9 @@ schemes:
     build:
       targets:
         PadelSync: all
+    test:
+      targets:
+        - PadelSyncUITests
   PadelSyncWatch:
     build:
       targets:

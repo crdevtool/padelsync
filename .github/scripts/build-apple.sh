@@ -48,8 +48,54 @@ fi
 echo "== Apple Watch app =="
 build PadelSyncWatch watchsimulator "generic/platform=watchOS Simulator" watchsimulator PadelSyncWatch
 
-echo "== Run on simulators =="
 mkdir -p shots
+
+echo "== iPhone walkthrough =="
+# Plays a whole match on an iPhone simulator, recording a video and a
+# screenshot of every screen, so the app can be reviewed without a Mac.
+walkthrough() {
+  local udid
+  udid=$(xcrun simctl list devices available -j | python3 -c "
+import json, sys
+devices = json.load(sys.stdin)['devices']
+for runtime in sorted(devices, reverse=True):
+    if 'iOS' not in runtime:
+        continue
+    for device in devices[runtime]:
+        if 'iPhone' in device['name']:
+            print(device['udid'])
+            raise SystemExit
+raise SystemExit(1)
+")
+  echo "walkthrough simulator: $udid"
+  xcrun simctl boot "$udid" || true
+  xcrun simctl bootstatus "$udid" -b >/dev/null
+  rm -rf /tmp/padelsync-shots build/walkthrough.xcresult
+
+  xcrun simctl io "$udid" recordVideo --codec h264 --force shots/iphone-walkthrough.mp4 &
+  local recorder=$!
+  sleep 2
+  xcodebuild test -project apple/PadelSync.xcodeproj -scheme PadelSync \
+    -destination "platform=iOS Simulator,id=$udid" -derivedDataPath build/apple \
+    -resultBundlePath build/walkthrough.xcresult 2>&1 \
+    | grep -E "Test Case|Test Suite .* (passed|failed)|error:|XCTAssert|Executed|\*\* TEST" || true
+  kill -INT "$recorder" 2>/dev/null || true
+  wait "$recorder" 2>/dev/null || true
+
+  if ls /tmp/padelsync-shots/*.png >/dev/null 2>&1; then
+    mkdir -p shots/iphone && cp /tmp/padelsync-shots/*.png shots/iphone/
+  else
+    # The named copies were not written; fall back to the test attachments.
+    xcrun xcresulttool export attachments --path build/walkthrough.xcresult \
+      --output-path shots/iphone 2>&1 | tail -2 || true
+  fi
+  echo "walkthrough screenshots: $(ls shots/iphone 2>/dev/null | wc -l | tr -d ' ')"
+  ls -la shots/iphone-walkthrough.mp4 2>/dev/null || echo "no video was recorded"
+  xcrun simctl shutdown "$udid" || true
+}
+walkthrough || echo "the iPhone walkthrough did not complete"
+
+echo "== Run on simulators =="
 
 # Boots the first available simulator whose name contains $1, runs the app
 # with a demo match already under way, and saves a screenshot as shots/$4.png.
