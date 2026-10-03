@@ -11,7 +11,7 @@ quiet_system_dialogs
 adb install -r PadelSync-phone.apk
 grant_permissions
 adb logcat -c
-adb shell am start -n com.padelsync.app/.MainActivity
+adb shell am start -n "$PHONE_ACTIVITY"
 wait_for "New match" 60 && shot home
 texts
 

@@ -98,7 +98,23 @@ read them fresh each time. Pairing is remembered.
 
 ## 4. Updating from an earlier test build
 
-Install the new files over the old ones; nothing needs uninstalling first:
+**Uninstall the old build first, this once.** The app now installs under its
+permanent ID, `com.crdevtool.padelsync`; builds before this one used
+`com.padelsync.app`. Android treats a different ID as a different app, so
+installing the new build does not replace the old one: both would sit side
+by side, both called PadelSync. Remove the old one on the phone and on the
+watch, either by hand (long-press the icon, Uninstall) or with:
+
+```powershell
+adb uninstall com.padelsync.app
+```
+
+Run it once with the phone connected and once with the watch connected. If
+it answers `Unknown package`, the old build was not on that device. Matches
+and settings saved by the old build go with it.
+
+Then install the new files. From this build on, later builds install over
+earlier ones with nothing to uninstall:
 
 ```powershell
 adb install -r PadelSync-phone.apk

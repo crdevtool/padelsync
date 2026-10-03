@@ -11,7 +11,7 @@ quiet_system_dialogs
 adb install -r PadelSync-watch.apk
 grant_permissions
 adb logcat -c
-launch_app com.padelsync.app/com.padelsync.wear.MainActivity "New padel match"
+launch_app "$WATCH_ACTIVITY" "New padel match"
 shot home
 texts
 

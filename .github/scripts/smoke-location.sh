@@ -43,7 +43,7 @@ if [ "$LOCATION_MODE" != 0 ]; then
   fail "location-still-on" "could not switch the emulator's location off"
 fi
 adb logcat -c
-adb shell am start -n com.padelsync.app/.MainActivity
+adb shell am start -n "$PHONE_ACTIVITY"
 wait_for "Join a court" 60 && shot home
 texts
 
@@ -64,7 +64,7 @@ sleep 3
 shot location-settings
 texts
 # texts has just read the screen into ui.xml; every element there names its app.
-if ! grep -q "<node" ui.xml || grep -q 'package="com.padelsync.app"' ui.xml; then
+if ! grep -q "<node" ui.xml || grep -q "package=\"$APP_ID\"" ui.xml; then
   fail "settings-did-not-open" "'$NOTICE_BUTTON' did not leave the app for the system's location settings"
 fi
 log "PASS: '$NOTICE_BUTTON' opened another screen"
@@ -75,7 +75,7 @@ if [ "$LOCATION_MODE" = 0 ]; then
   fail "location-still-off" "could not switch the emulator's location back on"
 fi
 # Back to the app, as the player would come back from the settings screen.
-adb shell am start -n com.padelsync.app/.MainActivity
+adb shell am start -n "$PHONE_ACTIVITY"
 sleep 2
 shot back-in-app
 

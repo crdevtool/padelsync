@@ -6,6 +6,13 @@
 # call fail, which saves a screenshot and the screen's text, looks for a
 # crash, and exits non-zero. Nothing carries on past a missing screen.
 
+# The ID the apps are installed under (the phone and the watch app share
+# it), and their start screens. The code's own package names are different,
+# so the activities are written out in full.
+APP_ID=com.crdevtool.padelsync
+PHONE_ACTIVITY="$APP_ID/com.padelsync.app.MainActivity"
+WATCH_ACTIVITY="$APP_ID/com.padelsync.wear.MainActivity"
+
 mkdir -p shots
 STEP=0
 FAILED=0
@@ -264,7 +271,8 @@ expect() {
 # Fails the run if the app crashed at any point.
 check_crashes() {
   timeout "$ADB_TIMEOUT" adb logcat -d -b crash > "shots/crash-${ANDROID_SERIAL:-device}.txt" 2>/dev/null || true
-  if grep -q "com.padelsync" "shots/crash-${ANDROID_SERIAL:-device}.txt"; then
+  # A crash names the app by its ID, and its code by its package names.
+  if grep -qE "$APP_ID|com\.padelsync\." "shots/crash-${ANDROID_SERIAL:-device}.txt"; then
     log "CRASH detected:"
     cat "shots/crash-${ANDROID_SERIAL:-device}.txt"
     FAILED=1
@@ -277,6 +285,6 @@ grant_permissions() {
   # ACCESS_FINE_LOCATION is what Android 11 and older ask for instead of the
   # Bluetooth permissions; each version refuses the ones it does not have.
   for permission in BLUETOOTH_SCAN BLUETOOTH_CONNECT BLUETOOTH_ADVERTISE POST_NOTIFICATIONS ACCESS_FINE_LOCATION; do
-    adb shell pm grant com.padelsync.app "android.permission.$permission" 2>/dev/null || true
+    adb shell pm grant "$APP_ID" "android.permission.$permission" 2>/dev/null || true
   done
 }

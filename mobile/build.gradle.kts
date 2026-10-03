@@ -11,7 +11,9 @@ android {
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.padelsync.app"
+        // The ID the app is installed and published under. It is not the Kotlin
+        // package: the code stays in the namespace above.
+        applicationId = "com.crdevtool.padelsync"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

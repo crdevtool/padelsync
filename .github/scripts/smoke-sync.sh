@@ -19,14 +19,14 @@ if [ "$GUEST_KIND" = watch ]; then
   GUEST_IMAGE="system-images;android-33;android-wear;x86_64"
   GUEST_PROFILE=wearos_large_round
   GUEST_APK=PadelSync-watch.apk
-  GUEST_ACTIVITY=com.padelsync.app/com.padelsync.wear.MainActivity
+  GUEST_ACTIVITY=$WATCH_ACTIVITY
   UNDO=UNDO
   OFFLINE=OFFLINE
 else
   GUEST_IMAGE="system-images;android-34;default;x86_64"
   GUEST_PROFILE=pixel_5
   GUEST_APK=PadelSync-phone.apk
-  GUEST_ACTIVITY=com.padelsync.app/.MainActivity
+  GUEST_ACTIVITY=$PHONE_ACTIVITY
   UNDO=Undo
   OFFLINE="Reconnecting"
 fi
@@ -130,7 +130,7 @@ done
 
 log "--- host: start a match and open the court"
 on "$HOST"
-adb shell am start -n com.padelsync.app/.MainActivity
+adb shell am start -n "$PHONE_ACTIVITY"
 wait_for "New match" 90
 tap "New match" && wait_for "Start match" 60
 tap "Start match" && wait_for "Team A" 60
@@ -219,14 +219,14 @@ expect "2 devices" "host shows the guest again"
 
 log "--- the host's app is closed and reopened; the guest finds the court again by scanning"
 on "$HOST"
-adb shell am force-stop com.padelsync.app
+adb shell am force-stop "$APP_ID"
 on "$GUEST"
 # Killing the host's app leaves the Bluetooth link itself up, so the guest
 # only finds out from the host's silence, after about 16 seconds.
 expect "$OFFLINE" "guest notices that the host has gone" 25
 shot guest-host-gone
 on "$HOST"
-launch_app com.padelsync.app/.MainActivity "Resume last match"
+launch_app "$PHONE_ACTIVITY" "Resume last match"
 tap "Resume last match"
 wait_for "Team A" 60
 # The court was open when the app was closed, so it opens again by itself.

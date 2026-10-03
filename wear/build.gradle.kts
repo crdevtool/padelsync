@@ -12,7 +12,9 @@ android {
 
     defaultConfig {
         // Same id as the phone app, so the stores treat them as one product.
-        applicationId = "com.padelsync.app"
+        // The ID the app is installed and published under. It is not the Kotlin
+        // package: the code stays in the namespace above.
+        applicationId = "com.crdevtool.padelsync"
         minSdk = 30
         targetSdk = 35
         versionCode = 1
