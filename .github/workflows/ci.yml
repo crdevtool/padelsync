@@ -7,9 +7,12 @@ name: CI
 #   - Emulators "none": shared tests and the Android APKs (about 10 minutes).
 #   - Emulators "phone" or "watch": also runs that app through a solo match
 #     on an emulator, with screenshots (stopped after 15 minutes each).
+#   - Emulators "location": on an Android 11 phone emulator, checks that
+#     "Join a court" explains itself while the phone's location is switched
+#     off, and starts searching once it is on (stopped after 15 minutes).
 #   - Emulators "sync-phone" or "sync-watch": a phone hosts and a second
 #     emulator joins over virtual Bluetooth (stopped after 20 minutes each).
-#   - Emulators "all": all four of the above.
+#   - Emulators "all": all five of the above.
 #   - Apple: also builds and runs the iPhone and Apple Watch apps (about 15
 #     minutes on a Mac, which GitHub counts ten times over).
 # An emulator run stops at the first screen or button it cannot find, and the
@@ -20,7 +23,7 @@ on:
       emulators:
         description: Android emulator tests to run after the build
         type: choice
-        options: [none, phone, watch, sync-phone, sync-watch, all]
+        options: [none, phone, watch, location, sync-phone, sync-watch, all]
         default: none
       apple:
         description: Also build the iPhone and Apple Watch apps (about 15 Mac minutes, counted 10x)
@@ -98,7 +101,7 @@ jobs:
 
   smoke:
     name: Emulator run (${{ matrix.device }})
-    if: contains(fromJSON('["phone", "watch", "all"]'), inputs.emulators)
+    if: contains(fromJSON('["phone", "watch", "location", "all"]'), inputs.emulators)
     needs: android
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -108,7 +111,7 @@ jobs:
         # Built as whole entries: a fixed "include" list would add the other
         # device back in as an extra combination.
         include: >-
-          ${{ fromJSON(inputs.emulators == 'all' && '[{"device": "phone", "api": 34, "target": "default", "profile": "pixel_5"}, {"device": "watch", "api": 33, "target": "android-wear", "profile": "wearos_large_round"}]' || inputs.emulators == 'watch' && '[{"device": "watch", "api": 33, "target": "android-wear", "profile": "wearos_large_round"}]' || '[{"device": "phone", "api": 34, "target": "default", "profile": "pixel_5"}]') }}
+          ${{ fromJSON(inputs.emulators == 'all' && '[{"device": "phone", "api": 34, "target": "default", "profile": "pixel_5"}, {"device": "watch", "api": 33, "target": "android-wear", "profile": "wearos_large_round"}, {"device": "location", "api": 30, "target": "default", "profile": "pixel_5"}]' || inputs.emulators == 'watch' && '[{"device": "watch", "api": 33, "target": "android-wear", "profile": "wearos_large_round"}]' || inputs.emulators == 'location' && '[{"device": "location", "api": 30, "target": "default", "profile": "pixel_5"}]' || '[{"device": "phone", "api": 34, "target": "default", "profile": "pixel_5"}]') }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4

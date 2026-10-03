@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,6 +38,7 @@ import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
 import com.netsports.core.ui.ScoreView
+import com.padelsync.kit.BlePermissions
 import com.padelsync.kit.Labels
 import com.padelsync.kit.CourtController
 import com.padelsync.kit.CourtMode
@@ -136,13 +138,39 @@ fun JoinScreen(
 ) {
     val courts by controller.nearby.collectAsState()
     val gate = rememberBluetoothGate()
+    val context = LocalContext.current
+    val locationOff = rememberLocationOff()
+    var noSettingsScreen by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { gate { controller.startScan() } }
+    // Searching starts as soon as it can find anything: straight away, or
+    // when the player comes back from switching Location on, with no tap.
+    LaunchedEffect(locationOff) {
+        if (locationOff) controller.stopScan() else gate { controller.startScan() }
+    }
     DisposableEffect(Unit) { onDispose { controller.stopScan() } }
 
     ScalingLazyColumn(Modifier.fillMaxSize()) {
         item { Text("Join a court", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
-        if (error != null) {
+        if (locationOff) {
+            // Wear OS 3 (Android 11): no court can be found while Location is off.
+            item { Text(Labels.LOCATION_OFF_TITLE, fontWeight = FontWeight.Bold, fontSize = 14.sp, textAlign = TextAlign.Center) }
+            item { Text(Labels.LOCATION_OFF_BODY, color = WearPalette.Muted, fontSize = 13.sp, textAlign = TextAlign.Center) }
+            item {
+                PrimaryChip(Labels.LOCATION_OFF_BUTTON) {
+                    noSettingsScreen = !BlePermissions.openLocationSettings(context)
+                }
+            }
+            if (noSettingsScreen) {
+                item {
+                    Text(
+                        Labels.LOCATION_OFF_NO_SETTINGS,
+                        color = WearPalette.Muted,
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        } else if (error != null) {
             item { Text(error, color = WearPalette.Danger, fontSize = 13.sp, textAlign = TextAlign.Center) }
             item { SecondaryChip("Try again") { gate { controller.startScan() } } }
         } else if (courts.isEmpty()) {

@@ -151,4 +151,15 @@ object Labels {
         JoinRejection.UNSUPPORTED_VERSION -> "This court uses a different version of the app. Update both devices."
         null -> "The host did not let this device join."
     }
+
+    // Shown on "Join a court" on Android 11 and older while the device's
+    // Location switch is off; see BlePermissions.needsLocationSwitch.
+    const val LOCATION_OFF_TITLE = "Location is switched off"
+    const val LOCATION_OFF_BODY =
+        "On this version of Android, Bluetooth can only find nearby courts while Location is switched on. " +
+            "PadelSync does not use or store your location."
+    const val LOCATION_OFF_BUTTON = "Open location settings"
+
+    /** Shown instead of the button's screen on a device that has no location settings screen to open. */
+    const val LOCATION_OFF_NO_SETTINGS = "Open the Settings app and switch on Location, then come back here."
 }

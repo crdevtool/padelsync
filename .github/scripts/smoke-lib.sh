@@ -253,7 +253,9 @@ check_crashes() {
 }
 
 grant_permissions() {
-  for permission in BLUETOOTH_SCAN BLUETOOTH_CONNECT BLUETOOTH_ADVERTISE POST_NOTIFICATIONS; do
+  # ACCESS_FINE_LOCATION is what Android 11 and older ask for instead of the
+  # Bluetooth permissions; each version refuses the ones it does not have.
+  for permission in BLUETOOTH_SCAN BLUETOOTH_CONNECT BLUETOOTH_ADVERTISE POST_NOTIFICATIONS ACCESS_FINE_LOCATION; do
     adb shell pm grant com.padelsync.app "android.permission.$permission" 2>/dev/null || true
   done
 }

@@ -5,12 +5,14 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.padelsync.kit.BlePermissions
+import kotlinx.coroutines.delay
 
 /**
  * Runs an action that needs Bluetooth, first asking for permission and for
@@ -58,3 +60,27 @@ fun rememberBluetoothGate(): (action: () -> Unit) -> Unit {
         }
     }
 }
+
+/**
+ * Whether "Join a court" is held up by the device's Location switch, which
+ * only matters on Android 11 and older. Read again every second while the
+ * screen is up: the switch can be flipped from the quick settings shade,
+ * which neither pauses nor resumes the app, as well as from the settings
+ * screen.
+ */
+@Composable
+fun rememberLocationOff(): Boolean {
+    val context = LocalContext.current
+    var off by remember { mutableStateOf(BlePermissions.needsLocationSwitch(context)) }
+    if (BlePermissions.scanNeedsLocationSwitch) {
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(LOCATION_RECHECK_MS)
+                off = BlePermissions.needsLocationSwitch(context)
+            }
+        }
+    }
+    return off
+}
+
+private const val LOCATION_RECHECK_MS = 1000L
