@@ -496,6 +496,33 @@ class CourtSessionTest {
         assertEquals(newHost.snapshot(), other.confirmed)
     }
 
+    @Test
+    fun aSavedMatchCanBeRestoredAndResumed() {
+        val court = Court()
+        repeat(6) { court.hostTap(Action.POINT_B) }
+        val saved = court.host.savedState()
+
+        val snapshot = HostSession.restoreSnapshot(saved)
+        assertEquals(court.host.snapshot(), snapshot)
+        val resumed = HostSession(MatchLog.takeOver(snapshot!!, nowMillis = 1), hostDeviceId = 100)
+        assertEquals(court.host.state, resumed.state)
+        resumed.submit(Action.POINT_B, 2)
+        assertEquals(3, resumed.state.pointsB)
+
+        assertNull(HostSession.restoreSnapshot(byteArrayOf(1, 2, 3)))
+        assertNull(HostSession.restoreSnapshot(ByteArray(0)))
+    }
+
+    @Test
+    fun aLargerPacketSizeIsUsedOnceNegotiated() {
+        val court = Court()
+        court.host.peerConnected("watch", 20)
+        court.host.peerPacketSizeChanged("watch", 512)
+        val hello = WireCodec.encode(Message.Hello(WireCodec.PROTOCOL_VERSION, 5, DeviceKind.WATCH, null, "watch"))
+        val replies = Framing.split(hello, 20).flatMap { court.host.packetReceived("watch", it, 0) }
+        assertEquals(1, replies.single().packets.size, "the whole state fits one large packet")
+    }
+
     /** Runs a guest's effects against a host and feeds the replies back, until quiet. */
     private fun deliver(effects: List<ClientEffect>, host: HostSession, peerId: String, guest: ClientSession) {
         val queue = ArrayDeque(effects)

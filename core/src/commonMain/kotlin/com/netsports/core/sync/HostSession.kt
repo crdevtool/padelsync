@@ -53,7 +53,7 @@ class HostSession(
     private val ids: IdSource = RandomIdSource(),
     private val maxGuests: Int = DEFAULT_MAX_GUESTS,
 ) {
-    private class Link(val maxPacketSize: Int) {
+    private class Link(var maxPacketSize: Int) {
         val reassembler = Reassembler()
         var info: PeerInfo? = null
     }
@@ -80,6 +80,12 @@ class HostSession(
     fun snapshot(): MatchSnapshot = log.snapshot()
 
     /**
+     * The current match encoded for saving to disk, so a match survives the
+     * app being closed. Restore with [restoreSnapshot] and [MatchLog.takeOver].
+     */
+    fun savedState(): ByteArray = WireCodec.encode(Message.State(log.snapshot(), 1))
+
+    /**
      * A device opened a connection. It is not part of the session until it
      * sends a valid hello.
      *
@@ -87,6 +93,14 @@ class HostSession(
      */
     fun peerConnected(peerId: String, maxPacketSize: Int) {
         links[peerId] = Link(maxOf(maxPacketSize, Framing.MIN_PACKET_SIZE))
+    }
+
+    /**
+     * The packet size of an existing connection changed, which Android
+     * reports separately once the two sides have negotiated it.
+     */
+    fun peerPacketSizeChanged(peerId: String, maxPacketSize: Int) {
+        links[peerId]?.maxPacketSize = maxOf(maxPacketSize, Framing.MIN_PACKET_SIZE)
     }
 
     /** A device's connection dropped. */
@@ -174,5 +188,12 @@ class HostSession(
 
     companion object {
         const val DEFAULT_MAX_GUESTS = 7
+
+        /** Decodes [savedState] output, or returns `null` if it is unreadable. */
+        fun restoreSnapshot(saved: ByteArray): MatchSnapshot? = try {
+            (WireCodec.decode(saved) as? Message.State)?.snapshot
+        } catch (_: ProtocolException) {
+            null
+        }
     }
 }
