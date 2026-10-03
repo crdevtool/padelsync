@@ -73,6 +73,28 @@ struct WatchRootView: View {
     }
 }
 
+/// The two formats a match can be started in from the watch, where there is
+/// no room for a setup screen.
+enum WatchFormats {
+    /// Club padel: best of 3, golden point, doubles. Every set is played,
+    /// as social padel usually is whatever the score.
+    static var padel: MatchConfig {
+        Sessions.shared.config(
+            sport: Sport.padel,
+            bestOf: 3,
+            deuceRule: DeuceRule.goldenPoint,
+            finalSetRule: FinalSetRule.sameAsOtherSets,
+            firstServer: Team.a,
+            playAllSets: true,
+            doubles: true
+        )
+    }
+
+    static var tennis: MatchConfig {
+        MatchConfig.companion.tennis()
+    }
+}
+
 struct WatchHomeView: View {
     @EnvironmentObject private var store: CourtStore
     let onJoin: () -> Void
@@ -83,9 +105,9 @@ struct WatchHomeView: View {
                 Text("PadelSync")
                     .font(.headline.weight(.black))
                     .foregroundStyle(Palette.accent)
-                Button("New padel match") { store.startMatch(MatchConfig.companion.padel()) }
+                Button("New padel match") { store.startMatch(WatchFormats.padel) }
                     .tint(Palette.accent)
-                Button("New tennis match") { store.startMatch(MatchConfig.companion.tennis()) }
+                Button("New tennis match") { store.startMatch(WatchFormats.tennis) }
                 Button("Join a court", action: onJoin)
                 if store.hasSavedMatch {
                     Button("Resume last match") { store.resumeSavedMatch() }

@@ -22,11 +22,11 @@ struct MatchView: View {
             } else if store.mode == .guest && store.guestEnded {
                 NoticeView(
                     title: "Court closed",
-                    message: "The host ended the match or stopped sharing it.",
+                    message: "The host ended the match or stopped sharing it." + finalSets,
                     button: "Back"
                 ) { store.leave() }
             } else if let score = store.score {
-                scoreboard(score)
+                Scoreboard(score: score, onNewMatch: onNewMatch, onLeave: { confirmLeave = true })
             } else {
                 NoticeView(
                     title: "Connecting…",
@@ -49,120 +49,14 @@ struct MatchView: View {
                     : "The match carries on for the other players."
             )
         }
-        // A gentle buzz when someone else scores, so players know the point is
-        // in and do not score it again.
-        .onChange(of: store.remoteScoreCount) { _, _ in
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        }
-        // Keep the score visible for the length of the match.
+        // A court in the sun is no place for a screen that dims itself.
         .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
         .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
     }
 
-    private func scoreboard(_ score: ScoreView) -> some View {
-        let finished = score.winner != nil
-        let callout = Labels.highlight(score, config: store.config)
-        return VStack(spacing: 6) {
-            statusBar
-
-            TeamPanel(
-                team: Team.a,
-                color: Palette.teamA,
-                points: score.pointsA,
-                games: Int(score.gamesA),
-                sets: Int(score.setsA),
-                serving: score.server == Team.a,
-                enabled: !finished
-            ) { tap(Action.pointA) }
-
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    if let text = store.note ?? callout {
-                        Text(text)
-                            .font(.title3.weight(.black))
-                            .foregroundStyle(store.note != nil ? Palette.danger : Palette.accent)
-                    }
-                    if !score.setSummary.isEmpty {
-                        Text(score.setSummary)
-                            .font(.headline)
-                            .foregroundStyle(Palette.muted)
-                    }
-                }
-                Spacer()
-                Button("Undo") { tap(Action.undo) }
-                    .font(.headline)
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .disabled(!score.canUndo)
-            }
-            .padding(.horizontal, 16)
-
-            TeamPanel(
-                team: Team.b,
-                color: Palette.teamB,
-                points: score.pointsB,
-                games: Int(score.gamesB),
-                sets: Int(score.setsB),
-                serving: score.server == Team.b,
-                enabled: !finished
-            ) { tap(Action.pointB) }
-
-            if finished && hosting {
-                BigButton(title: "New match", filled: true, action: onNewMatch)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
-            }
-        }
-    }
-
-    private var statusBar: some View {
-        HStack {
-            Text(statusText)
-                .font(.subheadline.weight(.bold))
-                .foregroundStyle(statusColor)
-            Spacer()
-            Menu {
-                if hosting {
-                    if store.courtOpen {
-                        Button("Stop sharing this court") { store.closeCourt() }
-                    } else {
-                        Button("Play with others") { store.openCourt() }
-                    }
-                    Button("New match", action: onNewMatch)
-                }
-                Button(hosting ? "End match" : "Leave court", role: .destructive) { confirmLeave = true }
-            } label: {
-                // A touch target of at least 44 points, as Apple recommends.
-                Text("Menu")
-                    .font(.subheadline.weight(.bold))
-                    .frame(minWidth: 64, minHeight: 44, alignment: .trailing)
-                    .contentShape(Rectangle())
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-    }
-
-    private var statusText: String {
-        // A problem is shown here, where a call-out cannot hide it.
-        if let error = store.error { return error }
-        if hosting && store.courtOpen {
-            return "Court open · Code \(store.joinCode.map { String($0) } ?? "") · \(Labels.devices(store.deviceCount))"
-        }
-        if hosting { return "This device only" }
-        if store.guestSynced { return "\(store.courtName ?? "Court") · \(Labels.devices(store.deviceCount))" }
-        return "Reconnecting…"
-    }
-
-    private var statusColor: Color {
-        if store.error != nil { return Palette.danger }
-        if hosting { return store.courtOpen ? Palette.accent : Palette.muted }
-        return store.guestSynced ? Palette.accent : Palette.danger
-    }
-
-    private func tap(_ action: Action) {
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        store.tap(action)
+    private var finalSets: String {
+        guard let summary = store.score?.setSummary, !summary.isEmpty else { return "" }
+        return " Final sets: \(summary)."
     }
 }
 
@@ -188,79 +82,395 @@ private struct NoticeView: View {
     }
 }
 
-/// Half of the screen for one team. The whole panel is the tap target.
-private struct TeamPanel: View {
-    let team: Team
-    let color: Color
-    let points: String
-    let games: Int
-    let sets: Int
-    let serving: Bool
-    let enabled: Bool
-    let action: () -> Void
+/// Which of the match sheets is open.
+private enum MatchSheet: String, Identifiable {
+    case whoCanScore
+    case voice
+    case players
+
+    var id: String { rawValue }
+}
+
+/// The court with both halves, the net strip, the status line and the menu.
+private struct Scoreboard: View {
+    @EnvironmentObject private var store: CourtStore
+    let score: ScoreView
+    let onNewMatch: () -> Void
+    let onLeave: () -> Void
+
+    @State private var openSheet: MatchSheet?
+    /// The winners' screen comes up by itself and can be put away to look at
+    /// the scoreboard. A new winner (after an undo, or a new match) brings it back.
+    @State private var celebrationDismissed = false
+    /// Once the match is decided the result can be opened from the menu, even
+    /// if the remaining sets are never played.
+    @State private var resultRequested = false
+    @State private var event: MatchEvent?
+    @State private var eventCount = 0
+
+    private var hosting: Bool { store.mode == .host }
+    private var winner: Team? { score.winner }
+    private var decided: Team? { score.winner ?? score.decidedWinner }
+
+    private var showResult: Bool {
+        if winner != nil { return !celebrationDismissed }
+        return decided != nil && resultRequested
+    }
 
     var body: some View {
-        Button(action: action) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 24).fill(color.opacity(0.16))
-
-                Text(points)
-                    .font(.system(size: 132, weight: .black, design: .rounded))
-                    .minimumScaleFactor(0.4)
-                    .lineLimit(1)
-                    .foregroundStyle(.white)
-
-                VStack {
-                    HStack(spacing: 10) {
-                        Text(Labels.team(team).uppercased())
-                            .font(.title3.weight(.black))
-                            .foregroundStyle(color)
-                        if serving {
-                            Circle().fill(Palette.accent).frame(width: 14, height: 14)
-                            Text("SERVE")
-                                .font(.footnote.weight(.bold))
-                                .foregroundStyle(Palette.accent)
-                        }
-                        Spacer()
-                    }
-                    Spacer()
-                    HStack(spacing: 28) {
-                        Counter(label: "GAMES", value: games)
-                        Counter(label: "SETS", value: sets)
-                        Spacer()
-                    }
-                }
-                .padding(20)
+        VStack(spacing: 0) {
+            statusBar
+            court
+            if winner != nil && celebrationDismissed {
+                afterMatchButtons
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(RoundedRectangle(cornerRadius: 24))
         }
-        .buttonStyle(.plain)
-        // Not `.disabled`: that would grey out the final score when the
-        // match is over. The panel just stops responding to taps.
-        .allowsHitTesting(enabled)
+        .overlay {
+            // When this goes away (an undo, a rematch) it fades out as it
+            // last was, so the result is not rewritten in mid-air.
+            if showResult, let decided = decided {
+                resultScreen(decided)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: showResult)
+        .onChange(of: winner) { _, _ in celebrationDismissed = false }
+        .onChange(of: decided) { _, _ in resultRequested = false }
+        .onChange(of: score) { before, after in announceEvent(before: before, after: after) }
+        // A gentle buzz when someone else scores, so players know the point is
+        // in and do not score it again. `onChange` does not run for the value
+        // the screen starts with, so the buzz cannot replay on a rebuild.
+        .onChange(of: store.remoteScoreCount) { _, _ in
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
+        .sheet(item: $openSheet) { which in
+            Group {
+                switch which {
+                case .whoCanScore: WhoCanScoreSheet()
+                case .voice: VoiceSheet()
+                case .players: PlayersSheet(score: score)
+                }
+            }
+            .environmentObject(store)
+        }
+    }
+
+    // MARK: Status bar and menu
+
+    private var statusBar: some View {
+        HStack {
+            Text(statusText)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(statusColor)
+                .lineLimit(2)
+            Spacer()
+            Menu {
+                menuItems
+            } label: {
+                // A touch target of at least 44 points, as Apple recommends.
+                Text("Menu")
+                    .font(.subheadline.weight(.bold))
+                    .frame(minWidth: 64, minHeight: 44, alignment: .trailing)
+                    .contentShape(Rectangle())
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder private var menuItems: some View {
+        if hosting {
+            if store.courtOpen {
+                Button("Stop sharing this court") { store.closeCourt() }
+            } else {
+                Button("Play with others") { store.openCourt() }
+            }
+            Button("Who can score") { openSheet = .whoCanScore }
+            Button("Players") { openSheet = .players }
+        }
+        // Players choose their serving order each set; this corrects the app's guess.
+        if score.doubles, let server = score.server, store.canScore {
+            Button(swapLabel(server)) {
+                tap(server == Team.a ? Action.swapServerA : Action.swapServerB)
+            }
+        }
+        Button("Voice") { openSheet = .voice }
+        if winner == nil && decided != nil {
+            Button("Result so far") { resultRequested = true }
+        }
+        if hosting {
+            Button("New match", action: onNewMatch)
+        }
+        Button(hosting ? "End match" : "Leave court", role: .destructive, action: onLeave)
+    }
+
+    /// Names the player who would serve if the team's serving order were swapped now.
+    private func swapLabel(_ team: Team) -> String {
+        let players = score.playersOf(team: team)
+        let other = 1 - Int(score.serverPlayerIndex)
+        if other >= 0 && other < players.count { return "Swap server to \(players[other])" }
+        return "Swap server"
+    }
+
+    private var statusText: String {
+        // A problem is shown here, where a call-out cannot hide it.
+        if let error = store.error { return error }
+        if hosting && store.courtOpen {
+            return "Court open · Code \(store.joinCode.map { String($0) } ?? "") · \(Labels.devices(store.deviceCount))"
+        }
+        if hosting { return "This device only" }
+        if !store.guestSynced { return "Reconnecting…" }
+        if !store.canScore { return "\(store.courtName ?? "Court") · View only" }
+        return "\(store.courtName ?? "Court") · \(Labels.devices(store.deviceCount))"
+    }
+
+    private var statusColor: Color {
+        if store.error != nil { return Palette.danger }
+        if hosting { return store.courtOpen ? Palette.accent : Palette.muted }
+        if !store.guestSynced { return Palette.danger }
+        return store.canScore ? Palette.accent : Palette.gold
+    }
+
+    // MARK: The court
+
+    private var court: some View {
+        // A view-only device keeps its halves tappable: the tap is answered
+        // with a note saying why it did not count, which is kinder than a
+        // dead screen.
+        let canTap = winner == nil
+        let stats = store.stats
+        return ZStack {
+            CourtBackground(
+                sport: store.config?.sport ?? Sport.padel,
+                server: score.server,
+                serveSide: score.serveSide
+            )
+            VStack(spacing: 0) {
+                TeamHalf(
+                    team: Team.a,
+                    atTop: true,
+                    score: score,
+                    pointsWon: Int(stats?.teamA.points ?? 0),
+                    streak: streak(of: Team.a),
+                    enabled: canTap
+                ) { tap(Action.pointA) }
+                NetStrip(score: score) { tap(Action.undo) }
+                TeamHalf(
+                    team: Team.b,
+                    atTop: false,
+                    score: score,
+                    pointsWon: Int(stats?.teamB.points ?? 0),
+                    streak: streak(of: Team.b),
+                    enabled: canTap
+                ) { tap(Action.pointB) }
+            }
+            // A set is worth a little confetti of its own.
+            if let event = event, event.kind != .game {
+                Confetti(pieces: 60, endless: false)
+            }
+            // In the half of whoever won it, clear of the net strip and its Undo button.
+            VStack(spacing: 0) {
+                bannerSlot(Team.a)
+                bannerSlot(Team.b)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .animation(.spring(response: 0.35, dampingFraction: 0.6), value: event?.id)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+    }
+
+    private func streak(of team: Team) -> Int {
+        guard let stats = store.stats, stats.streakTeam == team else { return 0 }
+        return Int(stats.streak)
+    }
+
+    private func bannerSlot(_ team: Team) -> some View {
+        ZStack {
+            if let event = event, event.team == team {
+                Text(event.text)
+                    .font(.system(size: event.kind == .game ? 26 : 30, weight: .black))
+                    .foregroundStyle(event.kind == .game ? Palette.accent : Palette.gold)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 14)
+                    .background(RoundedRectangle(cornerRadius: 22).fill(Color.black.opacity(0.82)))
+                    .padding(.horizontal, 24)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var afterMatchButtons: some View {
+        HStack(spacing: 10) {
+            BigButton(title: "Result", filled: false) { celebrationDismissed = false }
+            if hosting {
+                BigButton(title: "New match", filled: true, action: onNewMatch)
+            }
+        }
         .padding(.horizontal, 12)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            "\(Labels.team(team)). Points \(points). Games \(games). Sets \(sets)." + (serving ? " Serving." : "")
+        .padding(.vertical, 8)
+    }
+
+    // MARK: The result
+
+    private func resultScreen(_ decided: Team) -> some View {
+        // Rematch and undo only make sense once the last point has been played.
+        let over = score.winner != nil
+        var onRematch: (() -> Void)?
+        var onAnotherMatch: (() -> Void)?
+        var onUndo: (() -> Void)?
+        if hosting {
+            onAnotherMatch = onNewMatch
+            if over { onRematch = { store.rematch() } }
+        }
+        if store.canScore && over { onUndo = { tap(Action.undo) } }
+        return CelebrationView(
+            score: score,
+            winner: decided,
+            stats: store.stats,
+            durationMillis: store.durationMillis,
+            shareText: Labels.shareText(score, config: store.config, durationMillis: store.durationMillis),
+            onRematch: onRematch,
+            onNewMatch: onAnotherMatch,
+            onUndo: onUndo,
+            onDismiss: {
+                celebrationDismissed = true
+                resultRequested = false
+            }
         )
-        .accessibilityHint("Adds a point for \(Labels.team(team))")
-        .accessibilityAddTraits(.isButton)
+    }
+
+    // MARK: Taps and events
+
+    private func tap(_ action: Action) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        store.tap(action)
+    }
+
+    /// Reports a game or a set being won, on whichever device it was scored,
+    /// for a couple of seconds.
+    private func announceEvent(before: ScoreView, after: ScoreView) {
+        guard let found = MatchEvent.between(before, after, id: eventCount + 1) else { return }
+        eventCount = found.id
+        event = found
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
+            // A newer event has its own timer.
+            if event?.id == found.id { event = nil }
+        }
     }
 }
 
-private struct Counter: View {
-    let label: String
-    let value: Int
+// MARK: The net
+
+/// The band across the middle: what the next point means, the sets so far,
+/// the clock, and undo.
+private struct NetStrip: View {
+    @EnvironmentObject private var store: CourtStore
+    let score: ScoreView
+    let onUndo: () -> Void
 
     var body: some View {
-        HStack(alignment: .lastTextBaseline, spacing: 8) {
-            Text("\(value)")
-                .font(.system(size: 40, weight: .black, design: .rounded))
-                .foregroundStyle(.white)
-            Text(label)
-                .font(.footnote.weight(.bold))
-                .foregroundStyle(Palette.muted)
+        let headline = self.headline
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(headline.text)
+                    .font(.system(size: 18, weight: .black))
+                    .foregroundStyle(headline.color)
+                    .lineLimit(2)
+                    .animation(.easeInOut(duration: 0.2), value: headline.text)
+                if score.winner == nil, let startedAt = store.startedAtMillis {
+                    // Time since the match started on this device, ticking once a second.
+                    TimelineView(.periodic(from: Date(), by: 1)) { timeline in
+                        let now = Int64(timeline.date.timeIntervalSince1970 * 1000)
+                        detailsText(clock: Labels.clock(now - startedAt))
+                    }
+                } else if !score.setSummary.isEmpty {
+                    detailsText(clock: nil)
+                }
+            }
+            Spacer(minLength: 0)
+            Button("Undo", action: onUndo)
+                .font(.headline)
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(!(score.canUndo && store.canScore))
         }
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
+        .padding(.vertical, 6)
+        // Solid, so the net drawn behind it does not strike through the text.
+        .background(RoundedRectangle(cornerRadius: 18).fill(Palette.netBand))
+        .padding(.horizontal, 10)
+    }
+
+    private var headline: (text: String, color: Color) {
+        if let note = Labels.tapFeedback(store.lastFeedback) {
+            return (note, Palette.danger)
+        }
+        var callouts: [String] = []
+        if score.winner == nil, let highlight = Labels.highlight(score, config: store.config) {
+            callouts.append(highlight)
+        }
+        if score.changeEnds { callouts.append("CHANGE ENDS") }
+        if !callouts.isEmpty {
+            return (callouts.joined(separator: " · "), Palette.accent)
+        }
+        if let winner = score.winner {
+            return ("\(score.nameOf(team: winner).uppercased()) WON", Palette.gold)
+        }
+        if let decided = score.decidedWinner {
+            return ("\(score.nameOf(team: decided).uppercased()) WON · PLAYING SET \(score.setNumber)", Palette.gold)
+        }
+        return ("SET \(score.setNumber)", Palette.muted)
+    }
+
+    private func detailsText(clock: String?) -> some View {
+        var parts: [String] = []
+        if !score.setSummary.isEmpty { parts.append(score.setSummary) }
+        if let clock = clock { parts.append(clock) }
+        return Text(parts.joined(separator: "   "))
+            .font(.system(size: 17, weight: .bold))
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .lineLimit(1)
+    }
+}
+
+// MARK: Games and sets as they are won
+
+/// Something worth a moment's fanfare, and the team that earned it. `id`
+/// makes two identical events in a row distinct.
+private struct MatchEvent {
+    enum Kind { case game, setWon, decided }
+
+    let kind: Kind
+    let team: Team
+    let text: String
+    let id: Int
+
+    /// What was just won between `before` and `after`, if anything. An undo is never an event.
+    static func between(_ before: ScoreView, _ after: ScoreView, id: Int) -> MatchEvent? {
+        // The end of the match has a screen of its own.
+        if after.winner != nil { return nil }
+        if after.completedSets.count == before.completedSets.count + 1 {
+            guard let lastSet = after.completedSets.last else { return nil }
+            if let decided = after.decidedWinner, before.decidedWinner == nil {
+                let text = "🏆 \(after.nameOf(team: decided).uppercased()) WON THE MATCH"
+                return MatchEvent(kind: .decided, team: decided, text: text, id: id)
+            }
+            let text = "SET · \(after.nameOf(team: lastSet.winner).uppercased())"
+            return MatchEvent(kind: .setWon, team: lastSet.winner, text: text, id: id)
+        }
+        if after.completedSets.count != before.completedSets.count { return nil }
+        if after.gamesA == before.gamesA + 1 && after.gamesB == before.gamesB {
+            return MatchEvent(kind: .game, team: Team.a, text: "GAME · \(after.nameA.uppercased())", id: id)
+        }
+        if after.gamesB == before.gamesB + 1 && after.gamesA == before.gamesA {
+            return MatchEvent(kind: .game, team: Team.b, text: "GAME · \(after.nameB.uppercased())", id: id)
+        }
+        return nil
     }
 }

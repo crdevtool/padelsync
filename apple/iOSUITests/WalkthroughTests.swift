@@ -25,38 +25,44 @@ final class WalkthroughTests: XCTestCase {
             }
             return false
         }
+        // Stills the animations that never end (the bouncing ball, the
+        // confetti), which would otherwise keep every tap waiting for the
+        // app to come to rest.
+        app.launchArguments += ["-stillAnimations"]
         app.launch()
     }
 
     func testAFullMatch() {
         // Home
         XCTAssertTrue(app.buttons["New match"].waitForExistence(timeout: 30), "home screen did not appear")
+        XCTAssertTrue(app.buttons["Host a match"].exists, "the Host a match entry is missing")
         shot("home")
 
         // Match setup
         app.buttons["New match"].tap()
         XCTAssertTrue(app.buttons["Start match"].waitForExistence(timeout: 10))
         shot("setup-defaults")
-        app.buttons["Tennis"].tap()
-        app.buttons["Best of 5"].tap()
-        app.buttons["Match tiebreak"].tap()
-        app.buttons["Team B"].tap()
+        choose("Tennis")
+        choose("Best of 5")
+        choose("Match tiebreak")
+        choose("Team B")
         shot("setup-changed")
-        app.buttons["Padel"].tap()
-        app.buttons["1 set"].tap()
-        app.buttons["Team A"].tap()
+        choose("Padel")
+        choose("1 set")
+        choose("Team A")
         shot("setup-one-set-padel")
         app.buttons["Start match"].tap()
 
         // Scoring
         let teamA = panel("Team A")
         let teamB = panel("Team B")
-        XCTAssertTrue(teamA.waitForExistence(timeout: 10), "scoreboard did not appear")
+        // The first announcement loads the voice, which can take a moment.
+        XCTAssertTrue(teamA.waitForExistence(timeout: 30), "scoreboard did not appear")
         shot("score-start")
 
         tap(teamA, times: 3)
         tap(teamB, times: 3)
-        XCTAssertTrue(app.staticTexts["GOLDEN POINT"].waitForExistence(timeout: 5), "golden point was not called out")
+        XCTAssertTrue(app.staticTexts["GOLDEN POINT"].waitForExistence(timeout: 10), "golden point was not called out")
         shot("golden-point")
 
         tap(teamB, times: 1)
@@ -73,13 +79,38 @@ final class WalkthroughTests: XCTestCase {
         XCTAssertTrue(label(of: "Team A").contains("Games 5"), "Team A should lead 5-0")
         shot("match-point")
         tap(teamA, times: 1)
-        XCTAssertTrue(app.staticTexts["TEAM A WINS"].waitForExistence(timeout: 5), "the match should be won")
+
+        // The result screen comes up by itself.
+        XCTAssertTrue(app.staticTexts["Team A win!"].waitForExistence(timeout: 5), "the match should be won")
         shot("match-won")
+        choose("Scoreboard")
+        XCTAssertTrue(app.staticTexts["TEAM A WON"].waitForExistence(timeout: 5), "the final scoreboard is missing")
+        shot("final-scoreboard")
+
+        // The match sheets.
+        openMenu()
+        shot("menu")
+        app.buttons["Voice"].tap()
+        if app.buttons["Done"].waitForExistence(timeout: 5) {
+            shot("voice")
+            app.buttons["Done"].tap()
+        }
+        openMenu()
+        app.buttons["Who can score"].tap()
+        if app.buttons["Done"].waitForExistence(timeout: 5) {
+            shot("who-can-score")
+            app.buttons["Done"].tap()
+        }
+        openMenu()
+        app.buttons["Players"].tap()
+        if app.buttons["Cancel"].waitForExistence(timeout: 5) {
+            shot("players")
+            app.buttons["Cancel"].tap()
+        }
 
         // Sharing needs Bluetooth, which a simulator does not have. The app
         // should say so rather than misbehave.
         openMenu()
-        shot("menu")
         app.buttons["Play with others"].tap()
         sleep(3)
         shot("play-with-others-without-bluetooth")
@@ -92,13 +123,23 @@ final class WalkthroughTests: XCTestCase {
         confirm.element(boundBy: confirm.count - 1).tap()
 
         XCTAssertTrue(app.buttons["Match history"].waitForExistence(timeout: 10), "did not return to the home screen")
-        app.buttons["Match history"].tap()
-        XCTAssertTrue(app.staticTexts["Team A won"].waitForExistence(timeout: 5), "the match is missing from history")
+        shot("home-again")
+        choose("Match history")
+        XCTAssertTrue(
+            app.staticTexts["Team A beat Team B"].waitForExistence(timeout: 5),
+            "the match is missing from history"
+        )
         shot("history")
         app.buttons["Back"].tap()
 
+        // Hosting asks who may score.
+        choose("Host a match")
+        XCTAssertTrue(app.buttons["Start and open the court"].waitForExistence(timeout: 5))
+        shot("host-setup")
+        app.buttons["Back"].tap()
+
         // Joining also needs Bluetooth.
-        app.buttons["Join a court"].tap()
+        choose("Join a court")
         sleep(3)
         shot("join-without-bluetooth")
         app.buttons["Back"].tap()
@@ -123,6 +164,23 @@ final class WalkthroughTests: XCTestCase {
         XCTAssertTrue(menu.waitForExistence(timeout: 5), "the Menu button is missing")
         menu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         _ = app.buttons[app.buttons["End match"].exists ? "End match" : "Leave court"].waitForExistence(timeout: 5)
+    }
+
+    /// Taps a button that may have to be scrolled into view first: the
+    /// setup form and the result screen are taller than a small phone.
+    private func choose(_ title: String) {
+        let button = app.buttons[title]
+        XCTAssertTrue(button.waitForExistence(timeout: 5), "the \(title) button is missing")
+        var swipes = 0
+        while !button.isHittable && swipes < 4 {
+            app.swipeUp()
+            swipes += 1
+        }
+        while !button.isHittable && swipes < 12 {
+            app.swipeDown()
+            swipes += 1
+        }
+        button.tap()
     }
 
     private func tap(_ element: XCUIElement, times: Int) {

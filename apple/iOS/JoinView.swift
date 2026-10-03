@@ -10,12 +10,7 @@ struct JoinView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Button("Back", action: onBack)
-                Text("Join a court")
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(.white)
-            }
+            ScreenHeader(title: "Join a court", onBack: onBack)
 
             if let error = store.error {
                 Text(error).foregroundStyle(Palette.danger)

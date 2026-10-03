@@ -9,52 +9,66 @@ struct WatchMatchView: View {
     let score: ScoreView
 
     @State private var menuOpen = false
+    /// The end of the match gets a screen of its own, which can be put away.
+    /// A new winner (after an undo, or a new match) brings it back.
+    @State private var resultDismissed = false
 
     private var offline: Bool { store.mode == .guest && !store.guestSynced }
 
+    /// A remark about a tap that did not count, short enough for the strip.
+    private var note: String? {
+        if store.lastFeedback == TapFeedback.superseded { return "ALREADY IN" }
+        if store.lastFeedback == TapFeedback.notAllowed { return "VIEW ONLY" }
+        return nil
+    }
+
+    /// The strip holds about nine characters on a small watch.
     private var strip: String {
-        if let note = store.note { return note.uppercased() }
-        if offline { return "RECONNECTING" }
-        return Labels.highlightShort(score, config: store.config) ?? score.setSummary
+        if let note = note { return note }
+        if offline { return "OFFLINE" }
+        if let highlight = Labels.highlightShort(score, config: store.config) { return highlight }
+        if score.changeEnds { return "SWAP ENDS" }
+        if !store.canScore { return "VIEW ONLY" }
+        // Decided, with sets still to play.
+        if let decided = score.decidedWinner { return "\(Labels.shortName(score, decided)) WON" }
+        return serveLine ?? score.setSummary
+    }
+
+    /// Who serves next and from which side: `LEO · R`. Only shown when the
+    /// player's name is known; the dot beside the score already says which
+    /// team serves.
+    private var serveLine: String? {
+        guard let team = score.server, let side = score.serveSide else { return nil }
+        let players = score.playersOf(team: team)
+        let index = Int(score.serverPlayerIndex)
+        if index >= players.count { return nil }
+        let name = String(players[index].prefix(7)).uppercased()
+        let letter = side == ServeSide.right ? "R" : "L"
+        return "\(name) · \(letter)"
     }
 
     var body: some View {
-        let finished = score.winner != nil
-        VStack(spacing: 2) {
-            WatchHalf(
-                team: Team.a,
-                color: Palette.teamA,
-                points: score.pointsA,
-                games: Int(score.gamesA),
-                sets: Int(score.setsA),
-                serving: score.server == Team.a,
-                enabled: !finished
-            ) { tap(Action.pointA) }
-
-            HStack(spacing: 4) {
-                PillButton(title: "UNDO", enabled: score.canUndo) { tap(Action.undo) }
-                Text(strip)
-                    .font(.system(size: 10, weight: .black))
-                    .foregroundStyle(store.note != nil || offline ? Palette.danger : Palette.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .frame(maxWidth: .infinity)
-                PillButton(title: "MENU", enabled: true) { menuOpen = true }
+        Group {
+            if let winner = score.winner, !resultDismissed {
+                WatchWinnerView(
+                    score: score,
+                    winner: winner,
+                    // Only a match on this watch alone can be replayed from it.
+                    canRematch: store.mode == .host,
+                    canUndo: store.canScore,
+                    onDismiss: { resultDismissed = true }
+                )
+            } else {
+                scoreboard
             }
-            .padding(.horizontal, 4)
-
-            WatchHalf(
-                team: Team.b,
-                color: Palette.teamB,
-                points: score.pointsB,
-                games: Int(score.gamesB),
-                sets: Int(score.setsB),
-                serving: score.server == Team.b,
-                enabled: !finished
-            ) { tap(Action.pointB) }
         }
-        .ignoresSafeArea(edges: .bottom)
-        .onChange(of: store.note) { _, note in
+        .onChange(of: score.winner) { _, winner in
+            resultDismissed = false
+            if winner != nil { WKInterfaceDevice.current().play(.success) }
+        }
+        // `onChange` does not run for the value the screen starts with, so
+        // these cannot replay just because the screen was rebuilt.
+        .onChange(of: store.feedbackCount) { _, _ in
             if note != nil { WKInterfaceDevice.current().play(.failure) }
         }
         // A distinct tap when someone else scores, so the wearer knows the
@@ -64,7 +78,30 @@ struct WatchMatchView: View {
         }
         .sheet(isPresented: $menuOpen) {
             WatchMenuView(close: { menuOpen = false })
+                .environmentObject(store)
         }
+    }
+
+    private var scoreboard: some View {
+        let finished = score.winner != nil
+        return VStack(spacing: 2) {
+            WatchHalf(team: Team.a, score: score, enabled: !finished) { tap(Action.pointA) }
+
+            HStack(spacing: 4) {
+                PillButton(title: "UNDO", enabled: score.canUndo && store.canScore) { tap(Action.undo) }
+                Text(strip)
+                    .font(.system(size: 10, weight: .black))
+                    .foregroundStyle(note != nil || offline ? Palette.danger : Palette.accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .frame(maxWidth: .infinity)
+                PillButton(title: "MENU", enabled: true) { menuOpen = true }
+            }
+            .padding(.horizontal, 4)
+
+            WatchHalf(team: Team.b, score: score, enabled: !finished) { tap(Action.pointB) }
+        }
+        .ignoresSafeArea(edges: .bottom)
     }
 
     private func tap(_ action: Action) {
@@ -93,20 +130,27 @@ private struct PillButton: View {
 
 private struct WatchHalf: View {
     let team: Team
-    let color: Color
-    let points: String
-    let games: Int
-    let sets: Int
-    let serving: Bool
+    let score: ScoreView
     let enabled: Bool
     let action: () -> Void
 
     var body: some View {
+        let color = team == Team.a ? Palette.teamA : Palette.teamB
+        let label = Labels.shortName(score, team)
+        let name = score.nameOf(team: team)
+        let points = score.pointsOf(team: team)
+        let games = Int(score.gamesOf(team: team))
+        let sets = Int(score.setsOf(team: team))
+        let serving = score.server == team
+        // A three-letter name needs the room that a single letter leaves spare.
+        let short = label.count <= 1
+
         Button(action: action) {
-            HStack(spacing: 8) {
-                Text(team == Team.a ? "A" : "B")
-                    .font(.system(size: 20, weight: .black, design: .rounded))
+            HStack(spacing: short ? 8 : 5) {
+                Text(label)
+                    .font(.system(size: short ? 20 : 14, weight: .black, design: .rounded))
                     .foregroundStyle(color)
+                    .lineLimit(1)
                 VStack(alignment: .trailing, spacing: 0) {
                     Text("G \(games)")
                         .font(.system(size: 13, weight: .bold))
@@ -133,14 +177,48 @@ private struct WatchHalf: View {
         .allowsHitTesting(enabled)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "\(Labels.team(team)). Points \(points). Games \(games). Sets \(sets)." + (serving ? " Serving." : "")
+            "\(name). Points \(points). Games \(games). Sets \(sets)." + (serving ? " Serving." : "")
         )
-        .accessibilityHint("Adds a point for \(Labels.team(team))")
+        .accessibilityHint("Adds a point for \(name)")
         .accessibilityAddTraits(.isButton)
     }
 }
 
-/// Everything that is not scoring: a new match, leaving.
+/// The end of a match on the watch: who won, the sets, and what to do next.
+private struct WatchWinnerView: View {
+    @EnvironmentObject private var store: CourtStore
+    let score: ScoreView
+    let winner: Team
+    let canRematch: Bool
+    let canUndo: Bool
+    let onDismiss: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 6) {
+                Text("🏆")
+                    .font(.system(size: 34))
+                Text(Labels.winnerHeadline(score, winner))
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(winner == Team.a ? Palette.teamA : Palette.teamB)
+                    .multilineTextAlignment(.center)
+                Text(score.setSummary)
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .multilineTextAlignment(.center)
+                if canRematch {
+                    Button("Rematch") { store.rematch() }
+                        .tint(Palette.accent)
+                }
+                Button("Scoreboard", action: onDismiss)
+                if canUndo {
+                    Button("Undo last point") { store.tap(Action.undo) }
+                }
+            }
+        }
+    }
+}
+
+/// Everything that is not scoring: the serving order, the voice, a new match, leaving.
 private struct WatchMenuView: View {
     @EnvironmentObject private var store: CourtStore
     let close: () -> Void
@@ -149,6 +227,21 @@ private struct WatchMenuView: View {
         let hosting = store.mode == .host
         ScrollView {
             VStack(spacing: 8) {
+                if !hosting {
+                    Text("\(store.courtName ?? "Court") · \(Labels.devices(store.deviceCount))")
+                        .font(.footnote)
+                        .foregroundStyle(Palette.muted)
+                }
+                // Players choose their serving order each set; this corrects the app's guess.
+                if let score = store.score, score.doubles, let server = score.server, store.canScore {
+                    Button("Swap server") {
+                        store.tap(server == Team.a ? Action.swapServerA : Action.swapServerB)
+                        close()
+                    }
+                }
+                Button(store.speech.enabled ? "Voice: on" : "Voice: off") {
+                    store.setSpeech(store.speech.with(enabled: !store.speech.enabled))
+                }
                 if hosting {
                     // An Apple Watch cannot host other devices: watchOS does
                     // not allow the Bluetooth advertising that hosting needs.
@@ -157,17 +250,13 @@ private struct WatchMenuView: View {
                         .foregroundStyle(Palette.muted)
                         .multilineTextAlignment(.center)
                     Button("New padel match") {
-                        store.startNewMatch(MatchConfig.companion.padel())
+                        store.startNewMatch(WatchFormats.padel)
                         close()
                     }
                     Button("New tennis match") {
-                        store.startNewMatch(MatchConfig.companion.tennis())
+                        store.startNewMatch(WatchFormats.tennis)
                         close()
                     }
-                } else {
-                    Text("\(store.courtName ?? "Court") · \(Labels.devices(store.deviceCount))")
-                        .font(.footnote)
-                        .foregroundStyle(Palette.muted)
                 }
                 Button(hosting ? "End match" : "Leave court", role: .destructive) {
                     close()

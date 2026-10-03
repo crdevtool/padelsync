@@ -20,12 +20,17 @@ struct PadelSyncApp: App {
 
 /// Chooses the screen. A live match always wins, so the app reopens on the scoreboard.
 struct RootView: View {
-    private enum Screen { case home, setup, join, history }
+    private enum Screen { case home, setupSolo, setupHost, join, history }
 
     @EnvironmentObject private var store: CourtStore
     @State private var screen: Screen = .home
     /// Set when the host picks "New match" from the scoreboard.
     @State private var replacingMatch = false
+
+    /// Whether the match being set up will be shared with other devices.
+    private var settingUpHosted: Bool {
+        replacingMatch ? store.courtOpen : screen == .setupHost
+    }
 
     var body: some View {
         ZStack {
@@ -33,86 +38,49 @@ struct RootView: View {
 
             if store.mode != .idle && !replacingMatch {
                 MatchView(onNewMatch: { replacingMatch = true })
-            } else if replacingMatch || screen == .setup {
-                SetupView(
-                    onStart: { config in
-                        if replacingMatch { store.startNewMatch(config) } else { store.startMatch(config) }
-                        replacingMatch = false
-                        screen = .home
-                    },
-                    onBack: {
-                        replacingMatch = false
-                        screen = .home
-                    }
-                )
+            } else if replacingMatch || screen == .setupSolo || screen == .setupHost {
+                setup
             } else if screen == .join {
                 JoinView(onBack: { screen = .home })
             } else if screen == .history {
                 HistoryView(onBack: { screen = .home })
             } else {
                 HomeView(
-                    onNewMatch: { screen = .setup },
+                    hasSavedMatch: store.hasSavedMatch,
+                    onNewMatch: { screen = .setupSolo },
+                    onHostMatch: { screen = .setupHost },
                     onJoin: { screen = .join },
+                    onResume: { store.resumeSavedMatch() },
                     onHistory: { screen = .history }
                 )
             }
         }
     }
-}
 
-struct HomeView: View {
-    @EnvironmentObject private var store: CourtStore
-    let onNewMatch: () -> Void
-    let onJoin: () -> Void
-    let onHistory: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Text("PadelSync")
-                .font(.system(size: 46, weight: .black, design: .rounded))
-                .foregroundStyle(Palette.accent)
-            Text("One score on every phone and watch on the court.")
-                .font(.title3)
-                .foregroundStyle(Palette.muted)
-                .multilineTextAlignment(.center)
-            Spacer().frame(height: 32)
-
-            BigButton(title: "New match", filled: true, action: onNewMatch)
-            BigButton(title: "Join a court", filled: false, action: onJoin)
-            if store.hasSavedMatch {
-                BigButton(title: "Resume last match", filled: false) { store.resumeSavedMatch() }
+    private var setup: some View {
+        let hosting = settingUpHosted
+        let opensCourt = hosting && !replacingMatch
+        return SetupView(
+            title: opensCourt ? "Host a match" : "New match",
+            startLabel: opensCourt ? "Start and open the court" : "Start match",
+            hosting: hosting,
+            initial: store.lastSetup,
+            voiceOn: store.speech.enabled,
+            onVoiceChange: { store.setSpeech(store.speech.with(enabled: $0)) },
+            onStart: { chosen in
+                if replacingMatch {
+                    store.startNewMatch(chosen)
+                } else {
+                    store.startMatch(chosen)
+                    if hosting { store.openCourt() }
+                }
+                replacingMatch = false
+                screen = .home
+            },
+            onBack: {
+                replacingMatch = false
+                screen = .home
             }
-            Button("Match history", action: onHistory)
-                .font(.title3)
-                .padding(.top, 8)
-            Spacer()
-        }
-        .padding(24)
-    }
-}
-
-/// A full-width button tall enough to hit without looking.
-struct BigButton: View {
-    let title: String
-    let filled: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.title3.weight(.bold))
-                .frame(maxWidth: .infinity, minHeight: 64)
-                .foregroundStyle(filled ? Palette.onAccent : Palette.accent)
-                .background(
-                    RoundedRectangle(cornerRadius: 32)
-                        .fill(filled ? Palette.accent : Color.clear)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 32)
-                        .stroke(Palette.muted, lineWidth: filled ? 0 : 1)
-                )
-        }
-        .buttonStyle(.plain)
+        )
     }
 }
