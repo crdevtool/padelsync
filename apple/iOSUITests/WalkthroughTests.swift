@@ -28,7 +28,9 @@ final class WalkthroughTests: XCTestCase {
         // Stills the animations that never end (the bouncing ball, the
         // confetti), which would otherwise keep every tap waiting for the
         // app to come to rest.
-        app.launchArguments += ["-stillAnimations"]
+        // A simulator cannot open a court. `-pretendCourtOpen` lets the match
+        // screen be photographed as it looks with one open.
+        app.launchArguments += ["-stillAnimations", "-pretendCourtOpen"]
         app.launch()
     }
 
@@ -114,6 +116,17 @@ final class WalkthroughTests: XCTestCase {
         app.buttons["Play with others"].tap()
         sleep(3)
         shot("play-with-others-without-bluetooth")
+
+        // Once the problem has made way, the status line as it looks with a
+        // court open (see `-pretendCourtOpen`), and under it the reminder to
+        // keep the app on screen.
+        let courtOpen = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Court open")).firstMatch
+        XCTAssertTrue(courtOpen.waitForExistence(timeout: 20), "the court-open status line did not appear")
+        XCTAssertTrue(
+            app.staticTexts["Keep PadelSync on screen so others can join."].exists,
+            "the host is not told to keep the app on screen"
+        )
+        shot("court-open-keep-on-screen")
 
         // End the match and look at the history.
         openMenu()

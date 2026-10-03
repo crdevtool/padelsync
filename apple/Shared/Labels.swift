@@ -179,6 +179,12 @@ enum Labels {
     /// An Apple Watch cannot host a court, so it cannot take one over.
     static let askPhoneToHost = "Ask a player with a phone to host this court from their device."
 
+    // An iPhone only shows its court to Android phones and watches while the
+    // app is on screen. That is an iOS rule; all the app can do is say so.
+    static let keepOnScreen = "Keep PadelSync on screen so others can join."
+    static let wasInBackground =
+        "While PadelSync was in the background, Android phones and watches could not join this court."
+
     static func devices(_ count: Int) -> String {
         count == 1 ? "1 device" : "\(count) devices"
     }

@@ -381,6 +381,14 @@ final class CourtStore: ObservableObject {
         publish()
     }
 
+    /// The app was in the background with the court open and is back on
+    /// screen. Says, for a few seconds, what that cost: iOS hides a court
+    /// from Android devices while the app that hosts it is not on screen.
+    func courtWasInBackground() {
+        guard hostTransport != nil else { return }
+        report(Labels.wasInBackground)
+    }
+
     /// Stops sharing the court and disconnects every guest. The match carries on locally.
     func closeCourt() {
         guard hostTransport != nil else { return }

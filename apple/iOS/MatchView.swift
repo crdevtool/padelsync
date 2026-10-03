@@ -65,9 +65,6 @@ struct MatchView: View {
         } message: {
             Text(Labels.takeOverBody)
         }
-        // A court in the sun is no place for a screen that dims itself.
-        .onAppear { UIApplication.shared.isIdleTimerDisabled = true }
-        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
     }
 
     private var finalSets: String {
@@ -138,8 +135,12 @@ private struct Scoreboard: View {
     @State private var resultRequested = false
     @State private var event: MatchEvent?
     @State private var eventCount = 0
+    /// Walkthrough only; see `Walkthrough.pretendCourtOpen`.
+    @State private var pretendingOpen = false
 
     private var hosting: Bool { store.mode == .host }
+    /// Whether to draw the status line as for an open court.
+    private var courtShownOpen: Bool { hosting && (store.courtOpen || pretendingOpen) }
     private var winner: Team? { score.winner }
     private var decided: Team? { score.winner ?? score.decidedWinner }
 
@@ -151,6 +152,16 @@ private struct Scoreboard: View {
     var body: some View {
         VStack(spacing: 0) {
             statusBar
+            if courtShownOpen {
+                // iOS hides the court from Android devices while the app is
+                // not on screen; the host should know why it matters.
+                Text(Labels.keepOnScreen)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
+            }
             if store.canTakeOver {
                 takeOverOffer
             }
@@ -235,7 +246,10 @@ private struct Scoreboard: View {
             if store.courtOpen {
                 Button("Stop sharing this court") { store.closeCourt() }
             } else {
-                Button("Play with others") { store.openCourt() }
+                Button("Play with others") {
+                    if Walkthrough.pretendCourtOpen { pretendingOpen = true }
+                    store.openCourt()
+                }
             }
             Button("Who can score") { openSheet = .whoCanScore }
             Button("Players") { openSheet = .players }
@@ -267,7 +281,7 @@ private struct Scoreboard: View {
     private var statusText: String {
         // A problem is shown here, where a call-out cannot hide it.
         if let error = store.error { return error }
-        if hosting && store.courtOpen {
+        if courtShownOpen {
             return "Court open · Code \(store.joinCode.map { String($0) } ?? "") · \(Labels.devices(store.deviceCount))"
         }
         if hosting { return "This device only" }
@@ -278,7 +292,7 @@ private struct Scoreboard: View {
 
     private var statusColor: Color {
         if store.error != nil { return Palette.danger }
-        if hosting { return store.courtOpen ? Palette.accent : Palette.muted }
+        if hosting { return courtShownOpen ? Palette.accent : Palette.muted }
         if !store.guestSynced { return Palette.danger }
         return store.canScore ? Palette.accent : Palette.gold
     }

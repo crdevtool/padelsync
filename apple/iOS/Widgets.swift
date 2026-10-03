@@ -10,6 +10,17 @@ enum Motion {
     static let still = ProcessInfo.processInfo.arguments.contains("-stillAnimations")
 }
 
+/// What only the automated walkthrough switches on.
+enum Walkthrough {
+    /// A simulator has no Bluetooth, so a court can never be open in the
+    /// walkthrough's screenshots. With `-pretendCourtOpen`, once the player
+    /// has chosen "Play with others", the match screen draws its status line
+    /// and the keep-on-screen hint as they look with a court open. Nothing
+    /// else changes: the store still says the court is closed, and Bluetooth
+    /// is not involved.
+    static let pretendCourtOpen = ProcessInfo.processInfo.arguments.contains("-pretendCourtOpen")
+}
+
 /// The look of a full-width button tall enough to hit without looking.
 struct BigButtonLabel: View {
     let title: String

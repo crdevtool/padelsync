@@ -1,5 +1,6 @@
 import PadelSyncCore
 import SwiftUI
+import UIKit
 
 @main
 struct PadelSyncApp: App {
@@ -23,9 +24,21 @@ struct RootView: View {
     private enum Screen { case home, setupSolo, setupHost, join, history }
 
     @EnvironmentObject private var store: CourtStore
+    @Environment(\.scenePhase) private var scenePhase
     @State private var screen: Screen = .home
     /// Set when the host picks "New match" from the scoreboard.
     @State private var replacingMatch = false
+    /// The app went to the background, or the phone was locked, with a court open.
+    @State private var hiddenWithCourtOpen = false
+
+    /// A court in the sun is no place for a screen that dims itself, and an
+    /// open court can only be found by Android devices while this app is on
+    /// screen. So the screen stays awake while a match screen is showing or a
+    /// court is open, whichever screen that is: the setup for a new match on
+    /// an open court counts too.
+    private var keepAwake: Bool {
+        (store.mode != .idle && !replacingMatch) || store.courtOpen
+    }
 
     /// Whether the match being set up will be shared with other devices.
     private var settingUpHosted: Bool {
@@ -53,6 +66,20 @@ struct RootView: View {
                     onResume: { store.resumeSavedMatch() },
                     onHistory: { screen = .history }
                 )
+            }
+        }
+        // The one place that decides whether the screen may dim.
+        .onAppear { UIApplication.shared.isIdleTimerDisabled = keepAwake }
+        .onChange(of: keepAwake) { _, awake in
+            UIApplication.shared.isIdleTimerDisabled = awake
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                if store.courtOpen { hiddenWithCourtOpen = true }
+            } else if phase == .active && hiddenWithCourtOpen {
+                // Not on the first activation: only after a spell out of sight.
+                hiddenWithCourtOpen = false
+                store.courtWasInBackground()
             }
         }
     }
