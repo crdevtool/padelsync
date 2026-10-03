@@ -1,7 +1,10 @@
-# Builds the iPhone and Apple Watch apps for real devices (unsigned), to
-# prove that the shared core links for every Apple device architecture.
-# Started by hand: Mac build minutes are expensive.
-name: Apple device build
+# A rehearsal of the App Store build that needs no Apple account: the
+# release build of the shared core for device architectures, and the iPhone
+# app with the watch app inside it as an unsigned archive, checked for what
+# an upload needs. It runs on the same Mac and Xcode as the real release
+# (release-apple.yml), so a release does not fail on something this would
+# have caught. Started by hand: Mac build minutes are expensive.
+name: Apple device build (release rehearsal)
 
 on:
   workflow_dispatch:
@@ -11,9 +14,9 @@ permissions:
 
 jobs:
   devices:
-    name: iPhone and Apple Watch, device architectures
-    runs-on: macos-15
-    timeout-minutes: 60
+    name: iPhone and Apple Watch, release build for devices (unsigned)
+    runs-on: macos-26
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5

@@ -300,4 +300,120 @@ silent: with Location off, such a device relies on the direct reconnect.
 - Choosing which team "you" are, so your own side is always on the same half
   of the screen.
 - Apple Watch workout session (see above).
-- Store releases, which need signing set up for both stores.
+- A first real TestFlight upload. The release workflow is in place (section
+  8) but has never run with signing, because the Apple developer account is
+  not enrolled yet.
+- A Google Play release, which needs a release signing key and a Play
+  account.
+
+## 8. App identifiers and releasing to TestFlight
+
+### Identifiers
+
+| App | ID |
+| --- | --- |
+| iPhone app | `com.crdevtool.padelsync` |
+| Apple Watch app | `com.crdevtool.padelsync.watchkitapp` |
+| iPhone UI test bundle | `com.crdevtool.padelsync.uitests` |
+| Android phone app and Wear OS app (one shared ID) | `com.crdevtool.padelsync` |
+
+These are the IDs the apps are installed and published under. They are not
+the code's package names: the Kotlin code stays in `com.padelsync.app`,
+`com.padelsync.wear` and `com.padelsync.kit`. So on Android the start
+screens are `com.crdevtool.padelsync/com.padelsync.app.MainActivity` (phone)
+and `com.crdevtool.padelsync/com.padelsync.wear.MainActivity` (watch). The
+build server's scripts keep the IDs in one place, at the top of
+`.github/scripts/smoke-lib.sh`.
+
+### The watch app travels inside the iPhone app
+
+Apple delivers a watch app through its iPhone app. The `PadelSync` target
+therefore depends on `PadelSyncWatch` and copies it into
+`PadelSync.app/Watch/`, so building or archiving the iPhone app builds both.
+The watch app still runs on its own (`WKRunsIndependentlyOfCompanionApp`),
+joining a court directly over Bluetooth with no iPhone involved.
+
+Both apps link the shared core from `apple/Frameworks`. `apple/use-core.sh
+debug` or `release` copies the wanted build of the core there, which lets
+one project file serve test builds and App Store builds.
+
+### Once, at Apple, before the first release
+
+1. Enrol in the Apple Developer Program.
+2. Register the two App IDs under Certificates, Identifiers & Profiles >
+   Identifiers: `com.crdevtool.padelsync`, and
+   `com.crdevtool.padelsync.watchkitapp` **with the HealthKit capability
+   switched on**. HealthKit is what the planned workout session needs; the
+   app does not use it yet, and switching it on now saves re-registering
+   later.
+3. Create the app in App Store Connect (Apps > New App) with the bundle ID
+   `com.crdevtool.padelsync`. An upload has nowhere to go without it.
+4. Create an API key in App Store Connect under Users and Access >
+   Integrations > App Store Connect API > **Team Keys**, with the role
+   **Admin**. Download its `.p8` file; Apple offers it once.
+5. Add four repository secrets on GitHub (Settings > Secrets and variables >
+   Actions):
+
+   | Secret | Value |
+   | --- | --- |
+   | `ASC_KEY_ID` | The key's Key ID |
+   | `ASC_ISSUER_ID` | The Issuer ID shown above the list of team keys |
+   | `ASC_KEY_P8` | The whole contents of the `.p8` file, including the BEGIN and END lines |
+   | `APPLE_TEAM_ID` | The team ID, under Membership details in the developer account |
+
+**Why the key must be Admin.** The workflow uses automatic signing. For an
+App Store build that means Apple signs with a distribution certificate it
+keeps on its own servers. Only the Account Holder and Admins may use that
+certificate by default. Other people can be given access with a checkbox in
+App Store Connect, but that checkbox does not exist for API keys, so a key
+with the App Manager or Developer role stops at "Cloud signing permission
+error" during export. It must also be a team key: an individual key has no
+Issuer ID.
+
+### Running a release
+
+On GitHub: Actions > **Apple release (TestFlight)** > Run workflow. It
+
+1. checks that the four secrets are set. If any is missing it says "Secrets
+   not configured", names the missing ones, and ends there without starting
+   a Mac;
+2. builds the release build of the shared core for device architectures;
+3. archives the iPhone app, with the watch app inside, signed automatically;
+4. checks the archive for what an upload needs (IDs, matching version
+   numbers, icons, the encryption answer, the privacy declaration,
+   architectures);
+5. exports it and uploads it to App Store Connect. It shows up in TestFlight
+   when Apple has finished processing it.
+
+The version comes from `MARKETING_VERSION` in `apple/project.yml`; raise it
+there for a new version. The build number is the workflow's run number, so
+each release is higher than the last.
+
+The workflow runs on GitHub's `macos-26` machine, because App Store Connect
+has refused builds made with anything older than Xcode 26 since April 2026.
+The secrets are passed to the build as environment values, written to a
+temporary key file that is deleted at the end, and blanked out of Xcode's
+output.
+
+**Rehearsal without an Apple account.** The workflow "Apple device build
+(release rehearsal)" runs the same script on the same machine without signing
+or uploading (`.github/scripts/release-apple.sh rehearse`). It proves the
+release build compiles for real devices and passes the same checks.
+
+Each signed run on a fresh machine may leave one more "Apple Development"
+certificate, marked as created via the API, in the developer account. They
+are harmless and can be revoked from time to time.
+
+### What an upload needs, and where it is
+
+| Need | Where |
+| --- | --- |
+| 1024-pixel icon, iPhone app | `apple/iOS/Assets.xcassets/AppIcon.appiconset` |
+| Icon, watch app | `apple/watchOS/Assets.xcassets/AppIcon.appiconset` |
+| "No encryption of its own" (`ITSAppUsesNonExemptEncryption` = NO) | Both Info.plists, set in `apple/project.yml` |
+| Privacy declaration | `apple/Shared/PrivacyInfo.xcprivacy`, in both apps |
+| Release configuration that builds | Checked by the rehearsal workflow |
+| No simulator-only settings in device builds | The x86_64 exclusion applies to simulator builds only; the release script fails if a device build leaves any architecture out |
+
+The icon is the Android launcher icon redrawn at 1024 pixels: a placeholder
+until there is real artwork.

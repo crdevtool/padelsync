@@ -1,0 +1,89 @@
+# Builds the iPhone app, with the Apple Watch app inside it, signs it and
+# uploads it to TestFlight. Started by hand only.
+#
+# It needs four repository secrets (Settings, Secrets and variables, Actions):
+#   ASC_KEY_ID      the App Store Connect API key's Key ID
+#   ASC_ISSUER_ID   the Issuer ID shown above the list of keys
+#   ASC_KEY_P8      the contents of the key's .p8 file
+#   APPLE_TEAM_ID   the developer team's ID
+# The key must be a team key with the Admin role; see "Releasing to TestFlight" in docs/architecture.md.
+#
+# Without all four the run stops at its first step, says "secrets not
+# configured", and starts no Mac.
+name: Apple release (TestFlight)
+
+on:
+  workflow_dispatch:
+    inputs:
+      full_log:
+        description: Print all of Xcode's output (it may show the signing certificate's name)
+        type: boolean
+        default: false
+
+# Two releases at once would fight over the same build numbers.
+concurrency:
+  group: apple-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Check signing secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - name: Check that the four secrets are set
+        id: check
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Only whether each secret is set is looked at; no value is printed.
+          missing=""
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 APPLE_TEAM_ID; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            message="Secrets not configured:$missing. Nothing was built or uploaded. Add them under Settings, Secrets and variables, Actions; docs/architecture.md says how to create them."
+            echo "::warning title=Secrets not configured::$message"
+            echo "### Secrets not configured" >> "$GITHUB_STEP_SUMMARY"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "All four secrets are set."
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    name: Build, sign and upload to TestFlight
+    needs: secrets
+    if: needs.secrets.outputs.ready == 'true'
+    # App Store Connect has refused builds made with anything older than
+    # Xcode 26 since April 2026. This image's default Xcode is a 26.x; the
+    # script checks the version before it builds.
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build, sign and upload
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # The run number, so every release has a higher build number than
+          # the last. Running a failed release again gives 12.2, 12.3, ...
+          BUILD_NUMBER: ${{ github.run_attempt == 1 && github.run_number || format('{0}.{1}', github.run_number, github.run_attempt) }}
+          FULL_LOG: ${{ inputs.full_log }}
+        run: bash .github/scripts/release-apple.sh upload

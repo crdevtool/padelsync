@@ -19,6 +19,7 @@ internet and no account.
 | Sync involving Apple devices | **Untested.** Apple simulators have no Bluetooth, so this needs a real iPhone or Apple Watch. |
 | Match history | On the phone apps. Not on the watch apps yet. |
 | Player names, play all sets, serve side and server, who can score, spoken score, result screen | On all four apps. |
+| TestFlight release | Workflow in place and rehearsed unsigned. **Never run with signing:** the Apple developer account is not enrolled yet. |
 
 The emulator sync test hosts a court on one device and joins it from another.
 It checks that a point scored on either device appears on both, that undo
@@ -65,13 +66,49 @@ Apple, on a Mac with Xcode 16+:
 ```
 brew install xcodegen
 ./gradlew :core:assemblePadelSyncCoreDebugXCFramework
+apple/use-core.sh debug
 xcodegen generate --spec apple/project.yml
 open apple/PadelSync.xcodeproj
 ```
 
+The iPhone app contains the Apple Watch app, so building the `PadelSync`
+scheme builds both.
+
 The builds and tests also run on GitHub, started by hand from the **Actions**
 tab ("Run workflow"), where the emulator tests and the Apple build can be
 switched on for a run.
+
+## Releasing to TestFlight
+
+The apps are published as `com.crdevtool.padelsync` (iPhone, and Android
+phone and watch) and `com.crdevtool.padelsync.watchkitapp` (Apple Watch).
+
+Before the first release, at Apple: enrol in the developer program, then
+register both App IDs, **with HealthKit switched on for the watch one**, and
+create the app in App Store Connect.
+
+Then add four repository secrets (Settings > Secrets and variables >
+Actions):
+
+| Secret | Value |
+| --- | --- |
+| `ASC_KEY_ID` | App Store Connect API key: Key ID |
+| `ASC_ISSUER_ID` | App Store Connect API key: Issuer ID |
+| `ASC_KEY_P8` | The contents of the key's `.p8` file |
+| `APPLE_TEAM_ID` | The developer team's ID |
+
+The key must be a **team key with the Admin role**; automatic signing for the
+App Store does not work with a lesser role.
+
+To release: Actions > **Apple release (TestFlight)** > Run workflow. It
+builds on a Mac with Xcode 26, signs, and uploads; the build number is the
+run number and the version is `MARKETING_VERSION` in `apple/project.yml`.
+With a secret missing it stops at the first step with "Secrets not
+configured". "Apple device build (release rehearsal)" runs the same build
+unsigned, with no Apple account.
+
+Details and reasons are in
+[docs/architecture.md](docs/architecture.md), section 8.
 
 ## Documentation
 

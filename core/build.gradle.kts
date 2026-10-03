@@ -15,13 +15,18 @@ kotlin {
     }
 
     // iPhone and Apple Watch. Built on macOS only.
+    //
+    // An App Store build runs on real devices only, so the release workflow
+    // passes -PappleDevicesOnly=true to leave the simulator builds out and
+    // save Mac build time. Everything else builds all five.
+    val devicesOnly = providers.gradleProperty("appleDevicesOnly").orNull == "true"
     val xcframework = XCFramework("PadelSyncCore")
-    listOf(
+    listOfNotNull(
         iosArm64(),
-        iosSimulatorArm64(),
         watchosArm64(),
         watchosDeviceArm64(),
-        watchosSimulatorArm64(),
+        if (devicesOnly) null else iosSimulatorArm64(),
+        if (devicesOnly) null else watchosSimulatorArm64(),
     ).forEach { target ->
         target.binaries.framework {
             baseName = "PadelSyncCore"
