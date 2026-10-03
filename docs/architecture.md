@@ -100,7 +100,8 @@ message. The host also repeats the state every two seconds.
 | A device joins mid-match | It receives the whole match in the first message, players' names included. |
 | The host wants only some people to score | The host makes a device view-only, or lets only chosen devices score. A view-only device shows the score and is told why its tap did not count. The host refuses its commands even if the app on it were modified. |
 | The app shows the wrong player serving | In doubles each team chooses its serving order every set. Anyone allowed to score can swap a team's server; the swap is replicated like a point. |
-| The host's app is closed | The match is saved on the host and can be resumed. Any guest also holds a full copy and can take over hosting (the protocol supports this; the apps do not offer it yet). |
+| The host's app is closed | The match is saved on the host and can be resumed under the same join code, and guests still looking for the court come back by themselves. |
+| The host's device dies or leaves | Any guest that can host holds a full copy of the match and is offered "Host this court from this device" after 20 seconds. The other guests follow without typing anything. See "Taking over as host". |
 
 Every row except the buzz is covered by tests in `core/`, including a randomised test
 that throws 200,000 events at a simulated eight-device court (taps, server
@@ -136,6 +137,55 @@ entered. The court's first answer decides:
 
 A host that is closed and reopened keeps its join code, so guests still
 looking for it are let back in without typing anything.
+
+### Taking over as host
+
+If the host has been out of reach for 20 seconds, or has closed the court, a
+guest that is able to host (Android phone, Wear OS watch, iPhone) offers
+**Host this court from this device**, with a warning that only one player
+should do it. On confirmation the guest:
+
+1. starts hosting from its last confirmed copy of the match, with the
+   hosting epoch raised (by a random 1 to 64, for the reason below);
+2. opens the court under the **same name** and the **same join code** the
+   guests already used.
+
+The other guests are by then looking for that name (see "Finding the host
+again"). They find the new court, send the code they already have, see the
+same match at a later epoch, and accept it. Nobody types anything.
+
+Two things can go wrong, and both end with two hosts for one match:
+
+**Two guests take over at the same moment**, or **a guest takes over while
+the real host is only out of range and still playing.** The guests cannot
+settle this: each is linked to one host and cannot see the other. So every
+host looks for another court under its own name every 30 seconds, joins one
+it finds for a moment with its own join code, as a guest would, and compares
+(`HostSession.judgeRival`):
+
+1. The court with **more devices** keeps the match. Fewer players are
+   disturbed, and a guest who took over by mistake comes back to the real
+   host without anyone losing a point.
+2. With equal numbers, the **later hosting epoch** keeps it. The random
+   step makes two simultaneous takeovers land on different epochs 63 times
+   in 64.
+3. With equal epochs, the court that has **recorded more** keeps it.
+
+The host that gives way stops hosting, without telling its guests the court
+has closed, and joins the other court as an ordinary guest. Its guests lose
+the link, look for the court by name, and find the other host. The host that
+stays raises its epoch above the other's if it was not already higher, so
+that those arriving guests accept it.
+
+**The old host comes back with the old epoch.** It is still advertising the
+same name and the same code, alone. Guests of the new host that come across
+it see the same match at an earlier epoch and refuse it. The old host's own
+lookout finds the new court, sees that it has more devices, gives way and
+joins it as a guest. Points it recorded alone after the takeover are lost;
+points on the court with the players are not.
+
+An Apple Watch cannot host, so it cannot take over; it tells the wearer to
+ask a player with a phone.
 
 ### Joining
 
@@ -187,6 +237,5 @@ advertising with the screen off.
 - Voice in languages other than English.
 - Choosing which team "you" are, so your own side is always on the same half
   of the screen.
-- Taking over as host from the app when the host leaves.
 - Apple Watch workout session (see above).
 - Store releases, which need signing set up for both stores.

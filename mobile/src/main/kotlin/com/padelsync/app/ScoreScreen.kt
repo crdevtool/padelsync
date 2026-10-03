@@ -79,6 +79,7 @@ fun ScoreScreen(
 ) {
     val score = ui.score
     var confirmLeave by remember { mutableStateOf(false) }
+    var confirmTakeOver by remember { mutableStateOf(false) }
     BackHandler { confirmLeave = true }
 
     // A court in the sun is no place for a screen that dims itself.
@@ -104,6 +105,9 @@ fun ScoreScreen(
                     (score?.setSummary?.takeIf { it.isNotEmpty() }?.let { " Final sets: $it." } ?: ""),
                 button = "Back",
                 onClick = leave,
+                // The match need not end with the host: this device holds a full copy.
+                secondButton = Labels.TAKE_OVER_BUTTON.takeIf { ui.canTakeOver },
+                onSecondClick = { confirmTakeOver = true },
             )
 
         score == null ->
@@ -114,7 +118,30 @@ fun ScoreScreen(
                 onClick = leave,
             )
 
-        else -> Scoreboard(ui, score, controller, gate, onNewMatch, onLeave = { confirmLeave = true })
+        else -> Scoreboard(
+            ui = ui,
+            score = score,
+            controller = controller,
+            gate = gate,
+            onNewMatch = onNewMatch,
+            onLeave = { confirmLeave = true },
+            onTakeOver = { confirmTakeOver = true },
+        )
+    }
+
+    if (confirmTakeOver) {
+        AlertDialog(
+            onDismissRequest = { confirmTakeOver = false },
+            title = { Text(Labels.TAKE_OVER_TITLE) },
+            text = { Text(Labels.TAKE_OVER_BODY) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmTakeOver = false
+                    gate { controller.takeOverAsHost() }
+                }) { Text(Labels.TAKE_OVER_CONFIRM) }
+            },
+            dismissButton = { TextButton(onClick = { confirmTakeOver = false }) { Text("Cancel") } },
+        )
     }
 
     if (confirmLeave) {
@@ -143,7 +170,14 @@ fun ScoreScreen(
 }
 
 @Composable
-private fun Notice(title: String, body: String, button: String, onClick: () -> Unit) {
+private fun Notice(
+    title: String,
+    body: String,
+    button: String,
+    onClick: () -> Unit,
+    secondButton: String? = null,
+    onSecondClick: () -> Unit = {},
+) {
     Column(
         Modifier
             .fillMaxSize()
@@ -156,6 +190,10 @@ private fun Notice(title: String, body: String, button: String, onClick: () -> U
         Text(body, fontSize = 17.sp, color = Palette.Muted, textAlign = TextAlign.Center)
         Spacer(Modifier.height(28.dp))
         OutlinedButton(onClick = onClick) { Text(button, fontSize = 17.sp) }
+        if (secondButton != null) {
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = onSecondClick) { Text(secondButton, fontSize = 17.sp) }
+        }
     }
 }
 
@@ -170,6 +208,7 @@ private fun Scoreboard(
     gate: (action: () -> Unit) -> Unit,
     onNewMatch: () -> Unit,
     onLeave: () -> Unit,
+    onTakeOver: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -241,6 +280,27 @@ private fun Scoreboard(
                 onNewMatch = onNewMatch,
                 onLeave = onLeave,
             )
+
+            if (ui.canTakeOver) {
+                // The host has been out of reach for a while. The match need
+                // not wait for it: this device holds a full copy.
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 8.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        Labels.HOST_UNREACHABLE,
+                        color = Palette.Muted,
+                        fontSize = 15.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(onClick = onTakeOver) {
+                        Text(Labels.TAKE_OVER_BUTTON_SHORT, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
 
             Box(
                 Modifier

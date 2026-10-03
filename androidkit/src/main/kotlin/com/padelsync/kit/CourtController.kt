@@ -3,6 +3,7 @@ package com.padelsync.kit
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.Team
 import com.netsports.core.history.MatchHistory
@@ -21,6 +22,8 @@ import com.netsports.core.sync.JoinRejection
 import com.netsports.core.sync.Outgoing
 import com.netsports.core.sync.PeerInfo
 import com.netsports.core.sync.RandomIdSource
+import com.netsports.core.sync.RivalVerdict
+import com.netsports.core.sync.Sessions
 import com.netsports.core.sync.TapFeedback
 import com.netsports.core.ui.MatchStats
 import com.netsports.core.ui.ScoreSpeech
@@ -84,6 +87,11 @@ data class CourtUiState(
     val startedAtMillis: Long? = null,
     /** How long the match took, once it is over. */
     val durationMillis: Long? = null,
+    /**
+     * Guest only: the host has been out of reach long enough, or has closed
+     * the court, and this device could carry the match on as host.
+     */
+    val canTakeOver: Boolean = false,
     /** How this device announces the score. */
     val speech: SpeechSettings = SpeechSettings.OFF,
     /** False once the device turned out to have no text-to-speech voice. */
@@ -139,7 +147,11 @@ class CourtController private constructor(
     // Host side.
     private var host: HostSession? = null
     private var hostTransport: HostTransport? = null
+    private var rivalWatch: RivalWatch? = null
     private var joinCode: Int? = null
+
+    /** The name this court advertises when it was taken over from another host; null for this device's own name. */
+    private var courtLabel: String? = null
     private var savedVersion = -1
     private var savedMatchId = 0L
 
@@ -147,6 +159,13 @@ class CourtController private constructor(
     private var client: ClientSession? = null
     private var link: GuestConnection? = null
     private var courtName: String? = null
+
+    /** The code the player typed to join, reused if this device takes over as host. */
+    private var enteredCode: Int? = null
+
+    /** When the host went out of reach, by the uptime clock; null while in touch. */
+    private var hostLostAt: Long? = null
+    private val offerTakeOver = Runnable { publish() }
 
     /**
      * For the emulator test only: reconnect solely by scanning for the court,
@@ -192,6 +211,8 @@ class CourtController private constructor(
         settings.saveSetup(setup)
         joinCode = Random.nextInt(1000, 10000)
         store.saveCode(joinCode)
+        courtLabel = null
+        store.saveLabel(null)
         host = HostSession(
             log = MatchLog.start(ids.next(), setup.config, now(), setup.roster),
             hostDeviceId = identity.deviceId,
@@ -217,6 +238,7 @@ class CourtController private constructor(
         // looking for this court can come back without typing anything.
         joinCode = store.loadCode() ?: Random.nextInt(1000, 10000)
         store.saveCode(joinCode)
+        courtLabel = store.loadLabel()
         host = HostSession(
             log = log,
             hostDeviceId = identity.deviceId,
@@ -288,8 +310,17 @@ class CourtController private constructor(
         }
         hostTransport = transport
         error = null
-        transport.startAdvertising(identity.deviceName)
+        val label = courtLabel ?: identity.deviceName
+        transport.startAdvertising(label)
         handler.postDelayed(heartbeat, HEARTBEAT_MS)
+        rivalWatch = RivalWatch(
+            context = app,
+            handler = handler,
+            // Guests see the name cut to what an advertisement can carry.
+            courtName = CourtUuids.advertisedLabel(label),
+            newSession = { ClientSession(identity.deviceId, identity.deviceName, kind, joinCode, ids) },
+            onRival = ::onRival,
+        ).also { it.start() }
         CourtService.start(app)
         publish()
     }
@@ -303,18 +334,100 @@ class CourtController private constructor(
     }
 
     /**
-     * Tells the guests the court is closing, then stops the Bluetooth side
-     * once that message has had a moment to go out.
+     * Stops the Bluetooth side of hosting.
+     *
+     * @param farewell tell the guests the court is closing first, so they
+     * stop trying to reconnect, and give that message a moment to go out.
+     * Without it the guests just lose the link and look for the court again
+     * by name, which is what is wanted when another device carries on
+     * hosting the same match.
      */
-    private fun shutDownHostTransport() {
+    private fun shutDownHostTransport(farewell: Boolean = true) {
         val transport = hostTransport ?: return
         hostTransport = null
         handler.removeCallbacks(heartbeat)
-        host?.let { session ->
-            for (item in session.endSession()) transport.send(item.peerId, item.packets)
-        }
+        rivalWatch?.stop()
+        rivalWatch = null
         transport.stopAdvertising()
-        handler.postDelayed({ transport.stop() }, FAREWELL_MS)
+        if (farewell) {
+            host?.let { session ->
+                for (item in session.endSession()) transport.send(item.peerId, item.packets)
+            }
+            handler.postDelayed({ transport.stop() }, FAREWELL_MS)
+        } else {
+            transport.stop()
+        }
+    }
+
+    /**
+     * Another court is hosting this same match. Decides which of the two
+     * carries on; see `HostSession.judgeRival`.
+     *
+     * @return how long to leave that court alone before looking at it again.
+     */
+    private fun onRival(court: NearbyCourt, snapshot: MatchSnapshot, deviceCount: Int): Long {
+        val session = host ?: return RivalWatch.RIVAL_REST_MS
+        return when (session.judgeRival(snapshot, deviceCount)) {
+            RivalVerdict.DIFFERENT_MATCH -> RivalWatch.OTHER_COURT_REST_MS
+            RivalVerdict.HOLD -> {
+                // Make sure devices on the other court prefer this one when they find it.
+                deliver(session.outrank(snapshot.epoch))
+                publish()
+                RivalWatch.RIVAL_REST_MS
+            }
+            RivalVerdict.YIELD -> {
+                // Not from inside the lookout's own callback: it is about to be shut down.
+                handler.post { yieldTo(court) }
+                RivalWatch.RIVAL_REST_MS
+            }
+        }
+    }
+
+    /** Stops hosting in favour of [court], which is hosting the same match, and joins it as a guest. */
+    private fun yieldTo(court: NearbyCourt) {
+        if (host == null) return
+        val code = joinCode
+        // No farewell: this court's guests should look for the match by name
+        // and find the other host, not be told that the court has closed.
+        leaveInternal(farewell = false)
+        store.clear()
+        join(court, code)
+        error = "Another device is hosting this match now. This one has joined it."
+        publish()
+    }
+
+    // --- Taking over as host -----------------------------------------------
+
+    /**
+     * Carries the match on as host from this guest's copy of it, for when the
+     * host's device has died or left. The court reopens under the name and
+     * the join code the guests already know, so they follow by themselves.
+     *
+     * Only one player should do this. If two do, or if the old host is in
+     * fact still playing, the two courts find each other and one of them
+     * gives way (see [onRival]).
+     */
+    fun takeOverAsHost() {
+        val session = client ?: return
+        val snapshot = session.confirmed ?: return
+        val code = enteredCode
+        val label = courtName
+        val taken = Sessions.takeOver(snapshot, identity.deviceId, code ?: Sessions.NO_CODE, true, now())
+        if (taken == null) {
+            error = "This match has changed hands too many times to be taken over again."
+            publish()
+            return
+        }
+        leaveInternal()
+        host = taken
+        joinCode = code
+        courtLabel = label
+        store.saveCode(code)
+        store.saveLabel(label)
+        // Carrying a match on is not news: do not read the score out.
+        announced = taken.snapshot()
+        publish()
+        openCourt()
     }
 
     private val hostListener = object : HostTransport.Listener {
@@ -376,6 +489,7 @@ class CourtController private constructor(
         val session = ClientSession(identity.deviceId, identity.deviceName, kind, code, ids)
         client = session
         courtName = court.name
+        enteredCode = code
         link = GuestConnection(app, handler, court, guestListener, directRetry = !scanReconnectOnly)
             .also { it.connect() }
         CourtService.start(app)
@@ -393,6 +507,11 @@ class CourtController private constructor(
 
         override fun onLinkDown() {
             client?.disconnected()
+            if (hostLostAt == null) {
+                hostLostAt = SystemClock.elapsedRealtime()
+                // Publish again when the host has been gone long enough to offer taking over.
+                handler.postDelayed(offerTakeOver, TAKE_OVER_AFTER_MS)
+            }
             publish()
         }
 
@@ -408,7 +527,11 @@ class CourtController private constructor(
             if (changed && !ownTap) remoteScoreCount++
             // In step with the host again: if this was a court found by
             // scanning, it has proved itself and is the one to stay with.
-            if (session.status == ClientStatus.SYNCED) link?.courtProved()
+            if (session.status == ClientStatus.SYNCED) {
+                link?.courtProved()
+                hostLostAt = null
+                handler.removeCallbacks(offerTakeOver)
+            }
             publish()
         }
     }
@@ -525,10 +648,11 @@ class CourtController private constructor(
 
     // --- Internals ---------------------------------------------------------
 
-    private fun leaveInternal() {
-        shutDownHostTransport()
+    private fun leaveInternal(farewell: Boolean = true) {
+        shutDownHostTransport(farewell)
         host = null
         joinCode = null
+        courtLabel = null
         savedVersion = -1
         savedMatchId = 0L
 
@@ -536,6 +660,9 @@ class CourtController private constructor(
         link = null
         client = null
         courtName = null
+        enteredCode = null
+        hostLostAt = null
+        handler.removeCallbacks(offerTakeOver)
 
         error = null
         lastFeedback = null
@@ -630,6 +757,7 @@ class CourtController private constructor(
                     remoteScoreCount = remoteScoreCount,
                     hasSavedMatch = store.load() != null,
                     canScore = guestSession.canScore,
+                    canTakeOver = canTakeOver(guestSession),
                     stats = confirmed?.let { MatchStats.of(it) },
                     startedAtMillis = confirmed?.let { firstSeen[it.matchId] },
                     durationMillis = confirmed?.let { recordedDuration(it) },
@@ -668,6 +796,23 @@ class CourtController private constructor(
         historyStore.save(updated)
     }
 
+    /**
+     * Whether to offer this guest the host's place: it holds the match, and
+     * the host has either closed the court or been out of reach for
+     * [TAKE_OVER_AFTER_MS].
+     */
+    private fun canTakeOver(session: ClientSession): Boolean {
+        if (session.confirmed == null) return false
+        return when (session.status) {
+            ClientStatus.ENDED -> true
+            ClientStatus.SYNCED, ClientStatus.REJECTED -> false
+            ClientStatus.DISCONNECTED, ClientStatus.JOINING -> {
+                val lostAt = hostLostAt ?: return false
+                SystemClock.elapsedRealtime() - lostAt >= TAKE_OVER_AFTER_MS
+            }
+        }
+    }
+
     /** How long a finished match took, as recorded in the history when it ended. */
     private fun recordedDuration(snapshot: MatchSnapshot): Long? =
         if (snapshot.state.isComplete) {
@@ -696,6 +841,9 @@ class CourtController private constructor(
 
     companion object {
         private const val HEARTBEAT_MS = 2_000L
+
+        /** How long the host must be out of reach before a guest is offered its place. */
+        private const val TAKE_OVER_AFTER_MS = 20_000L
 
         /** How long to let the closing message reach guests before the link goes down. */
         private const val FAREWELL_MS = 400L

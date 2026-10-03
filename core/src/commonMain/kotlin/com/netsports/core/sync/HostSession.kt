@@ -20,6 +20,18 @@ data class PeerInfo(
     val canScore: Boolean = true,
 )
 
+/** What a host should do about another court it has found advertising under its own name. */
+enum class RivalVerdict {
+    /** A different match that happens to share the name. Leave it alone. */
+    DIFFERENT_MATCH,
+
+    /** The rival is the better host for this match: stop hosting and join it. */
+    YIELD,
+
+    /** Keep hosting. Call [HostSession.outrank] so that devices on the rival court prefer this one. */
+    HOLD,
+}
+
 /** Packets the platform Bluetooth layer must deliver to one connected device, in order. */
 class Outgoing(val peerId: String, val packets: List<ByteArray>)
 
@@ -203,6 +215,47 @@ class HostSession(
             .map { (peerId, link) -> Outgoing(peerId, Framing.split(bytes, link.maxPacketSize)) }
         links.clear()
         return farewell
+    }
+
+    /**
+     * Decides between this court and a rival hosting the same match.
+     *
+     * Two hosts for one match come about when a guest takes over while the
+     * host is merely out of range, or when two guests take over at the same
+     * moment. Each host looks for the other and they must reach opposite
+     * conclusions, from what each can see of the other:
+     *
+     *  1. The court with more devices keeps the match: fewer players are
+     *     disturbed, and a guest who took over by mistake while the real
+     *     host played on comes back to it without anyone losing a point.
+     *  2. With equal numbers, the later hosting epoch keeps it; with equal
+     *     epochs, the court that has recorded more.
+     *
+     * @param rival the match as the rival court sent it.
+     * @param rivalDeviceCount devices on the rival court as it reported
+     * them, which includes this device while it is connected to ask.
+     */
+    fun judgeRival(rival: MatchSnapshot, rivalDeviceCount: Int): RivalVerdict {
+        if (rival.matchId != log.matchId) return RivalVerdict.DIFFERENT_MATCH
+        val theirs = rivalDeviceCount - 1
+        val mine = deviceCount
+        val keep = when {
+            mine != theirs -> mine > theirs
+            log.epoch != rival.epoch -> log.epoch > rival.epoch
+            else -> log.version >= rival.version
+        }
+        return if (keep) RivalVerdict.HOLD else RivalVerdict.YIELD
+    }
+
+    /**
+     * Raises this court's hosting epoch above [rivalEpoch], if it is not
+     * already, and tells every guest. Devices that were on the rival court
+     * then accept this one when they find it, and refuse to go back.
+     */
+    fun outrank(rivalEpoch: Int): List<Outgoing> {
+        if (log.epoch > rivalEpoch || rivalEpoch >= MatchSnapshot.MAX_EPOCH) return emptyList()
+        log = log.withEpoch(rivalEpoch + 1)
+        return broadcastState()
     }
 
     /** Replaces the current match with a new one and tells every guest. */

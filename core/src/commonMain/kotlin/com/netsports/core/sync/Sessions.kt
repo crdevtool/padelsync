@@ -6,6 +6,7 @@ import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.Sport
 import com.netsports.core.engine.Team
 import com.netsports.core.match.MatchLog
+import com.netsports.core.match.MatchSnapshot
 import com.netsports.core.match.Roster
 
 /**
@@ -20,6 +21,9 @@ object Sessions {
     const val NO_CODE = -1
 
     private val ids = RandomIdSource()
+
+    /** A takeover raises the epoch by 1 to this many. */
+    private const val TAKEOVER_EPOCH_SPREAD = 64
 
     /** A new random, non-zero id for a device or a match. */
     fun createId(): Long = ids.next()
@@ -106,6 +110,36 @@ object Sessions {
         val snapshot = HostSession.restoreSnapshot(saved) ?: return null
         val log = try {
             MatchLog.takeOver(snapshot, nowMillis)
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        return HostSession(log, hostDeviceId, codeOrNull(joinCode), ids, guestsCanScore = guestsCanScore)
+    }
+
+    /**
+     * Takes over hosting a match from a guest's copy of it, for when the
+     * host's device has died or left.
+     *
+     * The hosting epoch is raised by a random amount rather than by one, so
+     * that two players who take over at the same moment almost never end up
+     * at the same epoch and their two courts can settle which one continues
+     * (see [HostSession.judgeRival]).
+     *
+     * @param snapshot the guest's last confirmed copy of the match.
+     * @param joinCode the code this guest entered to join, reused so that
+     * the other guests can follow without typing anything.
+     * @return `null` if the match has changed hands too many times to do so again.
+     */
+    fun takeOver(
+        snapshot: MatchSnapshot,
+        hostDeviceId: Long,
+        joinCode: Int,
+        guestsCanScore: Boolean,
+        nowMillis: Long,
+    ): HostSession? {
+        val step = 1 + (ids.next() and Long.MAX_VALUE).mod(TAKEOVER_EPOCH_SPREAD)
+        val log = try {
+            MatchLog.takeOver(snapshot, nowMillis, step)
         } catch (_: IllegalArgumentException) {
             return null
         }

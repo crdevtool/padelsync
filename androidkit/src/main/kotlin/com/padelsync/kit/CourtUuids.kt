@@ -23,6 +23,14 @@ object CourtUuids {
     const val MAX_LABEL_BYTES = 12
 
     /**
+     * A host's name as guests see it: cut to what the advertisement can
+     * carry. A host looking for another court under its own name has to look
+     * for this, not for the full name.
+     */
+    fun advertisedLabel(name: String): String =
+        truncateUtf8(name, MAX_LABEL_BYTES).toString(Charsets.UTF_8)
+
+    /**
      * Most payload bytes one packet may carry on a link with the given ATT
      * MTU: the MTU less the 3-byte ATT header, and never more than the 512
      * bytes Bluetooth allows for a single attribute value.

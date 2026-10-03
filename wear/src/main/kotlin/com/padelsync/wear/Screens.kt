@@ -89,10 +89,20 @@ fun HomeScreen(
 }
 
 @Composable
-fun MessageScreen(title: String, body: String, button: String, onClick: () -> Unit) {
+fun MessageScreen(
+    title: String,
+    body: String,
+    button: String,
+    onClick: () -> Unit,
+    primaryButton: String? = null,
+    onPrimaryClick: () -> Unit = {},
+) {
     ScalingLazyColumn(Modifier.fillMaxSize()) {
         item { Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center) }
         item { Text(body, color = WearPalette.Muted, fontSize = 13.sp, textAlign = TextAlign.Center) }
+        if (primaryButton != null) {
+            item { PrimaryChip(primaryButton, onPrimaryClick) }
+        }
         item { SecondaryChip(button, onClick) }
     }
 }
@@ -238,7 +248,7 @@ fun CodeScreen(onBack: () -> Unit, onDone: (Int?) -> Unit) {
 
 /** Everything that is not scoring: sharing the court, a new match, leaving. */
 @Composable
-fun MenuScreen(ui: CourtUiState, controller: CourtController, onClose: () -> Unit) {
+fun MenuScreen(ui: CourtUiState, controller: CourtController, onTakeOver: () -> Unit, onClose: () -> Unit) {
     val gate = rememberBluetoothGate()
     val hosting = ui.mode == CourtMode.HOST
 
@@ -272,6 +282,10 @@ fun MenuScreen(ui: CourtUiState, controller: CourtController, onClose: () -> Uni
             item { Text(ui.error.orEmpty(), color = WearPalette.Danger, fontSize = 13.sp, textAlign = TextAlign.Center) }
         }
         item { PrimaryChip("Back to score", onClose) }
+        if (ui.canTakeOver) {
+            // The host has been out of reach for a while; this watch holds a full copy of the match.
+            item { SecondaryChip(Labels.TAKE_OVER_BUTTON_SHORT, onTakeOver) }
+        }
         val score = ui.score
         val server = score?.server
         if (score != null && score.doubles && server != null && ui.canScore) {

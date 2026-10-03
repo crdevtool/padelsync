@@ -29,13 +29,14 @@ object WearPalette {
     val Key = Color(0xFF232A36)
 }
 
-private enum class WearScreen { HOME, JOIN, CODE, MENU }
+private enum class WearScreen { HOME, JOIN, CODE, MENU, TAKE_OVER }
 
 @Composable
 fun WearRoot(controller: CourtController) {
     val ui by controller.ui.collectAsState()
     var screen by remember { mutableStateOf(WearScreen.HOME) }
     var chosen by remember { mutableStateOf<NearbyCourt?>(null) }
+    val gate = rememberBluetoothGate()
 
     // Kept here rather than on the score screen, which is rebuilt on every
     // return from the menu: a result put away stays put away.
@@ -59,6 +60,19 @@ fun WearRoot(controller: CourtController) {
                 },
             )
 
+            // Asked before taking over as host: only one player should.
+            ui.mode == CourtMode.GUEST && ui.canTakeOver && screen == WearScreen.TAKE_OVER -> MessageScreen(
+                title = Labels.TAKE_OVER_BUTTON_SHORT + "?",
+                body = Labels.TAKE_OVER_BODY,
+                button = "Cancel",
+                onClick = { screen = WearScreen.HOME },
+                primaryButton = Labels.TAKE_OVER_CONFIRM,
+                onPrimaryClick = {
+                    screen = WearScreen.HOME
+                    gate { controller.takeOverAsHost() }
+                },
+            )
+
             ui.mode == CourtMode.GUEST && ui.guestStatus == ClientStatus.ENDED -> MessageScreen(
                 title = "Court closed",
                 body = "The host ended the match or stopped sharing it.",
@@ -67,6 +81,8 @@ fun WearRoot(controller: CourtController) {
                     controller.leave()
                     screen = WearScreen.HOME
                 },
+                primaryButton = Labels.TAKE_OVER_BUTTON_SHORT.takeIf { ui.canTakeOver },
+                onPrimaryClick = { screen = WearScreen.TAKE_OVER },
             )
 
             ui.mode != CourtMode.IDLE && score == null -> MessageScreen(
@@ -82,6 +98,7 @@ fun WearRoot(controller: CourtController) {
             ui.mode != CourtMode.IDLE && screen == WearScreen.MENU -> MenuScreen(
                 ui = ui,
                 controller = controller,
+                onTakeOver = { screen = WearScreen.TAKE_OVER },
                 onClose = { screen = WearScreen.HOME },
             )
 

@@ -38,10 +38,20 @@ internal class MatchStore(context: Context) {
 
     fun loadCode(): Int? = if (prefs.contains(KEY_CODE)) prefs.getInt(KEY_CODE, 0) else null
 
-    fun clear() = prefs.edit().remove(KEY).remove(KEY_CODE).apply()
+    /**
+     * Remembers the name the hosted court advertises when it is not this
+     * device's own: a court taken over from another host keeps that host's
+     * name, which is what the other guests are looking for.
+     */
+    fun saveLabel(label: String?) = prefs.edit().putString(KEY_LABEL, label).apply()
+
+    fun loadLabel(): String? = prefs.getString(KEY_LABEL, null)
+
+    fun clear() = prefs.edit().remove(KEY).remove(KEY_CODE).remove(KEY_LABEL).apply()
 
     private companion object {
         const val KEY = "hosted_match"
         const val KEY_CODE = "hosted_code"
+        const val KEY_LABEL = "hosted_label"
     }
 }

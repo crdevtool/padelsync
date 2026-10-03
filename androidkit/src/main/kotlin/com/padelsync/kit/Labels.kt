@@ -152,6 +152,16 @@ object Labels {
         null -> "The host did not let this device join."
     }
 
+    // Offered to a guest when the host has gone; see CourtController.takeOverAsHost.
+    const val TAKE_OVER_BUTTON = "Host this court from this device"
+    const val TAKE_OVER_BUTTON_SHORT = "Host this court"
+    const val TAKE_OVER_TITLE = "Host this court from this device?"
+    const val TAKE_OVER_BODY =
+        "Do this only if the host's device has left or stopped working, and make sure only one player does it. " +
+            "The match carries on from the score on this screen, and the other players' devices follow by themselves."
+    const val TAKE_OVER_CONFIRM = "Host the court"
+    const val HOST_UNREACHABLE = "The host cannot be reached."
+
     // Shown on "Join a court" on Android 11 and older while the device's
     // Location switch is off; see BlePermissions.needsLocationSwitch.
     const val LOCATION_OFF_TITLE = "Location is switched off"

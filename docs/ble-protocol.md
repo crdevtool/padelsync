@@ -153,6 +153,14 @@ screen, disconnects, and does not try to reconnect.
   so it survives a reconnection.
 - A change of players' names is not a command: the host sends a `STATE` with
   the same version and the new names.
+- A device that takes over as host from a guest's copy of the match raises
+  the epoch by a random 1 to 64 and advertises under the name and join code
+  of the court it replaces.
+- A host looks for other courts under its own name. If one turns out to
+  carry the same match, the court with more devices continues; with equal
+  numbers the later epoch; with equal epochs the higher version. The other
+  host stops hosting without sending `SESSION_ENDED` and joins as a guest.
+  The host that continues raises its epoch above the other's.
 - On acceptance, notify `STATE` to every guest first, then `COMMAND_RESULT`
   to the sender.
 - Ignore commands from a device that has not been admitted.
@@ -169,6 +177,12 @@ screen, disconnects, and does not try to reconnect.
   every waiting tap.
 - After reconnecting, wait for the first `STATE`, then re-send the oldest
   unresolved tap if it still applies.
+- A guest that has lost its host also scans for a court with the same name
+  and tries it with the same join code. It stays only if the first `STATE`
+  carries the match id it already holds, with an epoch that is not lower
+  and, at the same epoch, a version that is not lower. Otherwise it
+  disconnects and keeps looking, and treats a `JOIN_REJECTED` there as "not
+  my court", not as a refusal to show the player.
 
 ## Changing the protocol
 

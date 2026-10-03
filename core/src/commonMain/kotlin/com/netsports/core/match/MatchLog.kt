@@ -85,6 +85,33 @@ class MatchLog private constructor(
     )
 
     /**
+     * The same match at a later hosting epoch. Used by a host that has found
+     * a rival court for the same match and keeps hosting: raising its epoch
+     * above the rival's makes every device prefer it.
+     *
+     * @throws IllegalArgumentException if [newEpoch] is not later than the current one.
+     */
+    fun withEpoch(newEpoch: Int): MatchLog {
+        require(newEpoch in (epoch + 1)..MatchSnapshot.MAX_EPOCH) { "epoch must rise from $epoch, was $newEpoch" }
+        return MatchLog(
+            matchId = matchId,
+            epoch = newEpoch,
+            config = config,
+            roster = roster,
+            startedAtMillis = startedAtMillis,
+            points = points,
+            version = version,
+            // Commands made against the old epoch can no longer arrive as
+            // anything but stale, so their ids need not be remembered.
+            appliedCommandIds = emptySet(),
+            lastCommandId = 0,
+            serveFlipA = serveFlipA,
+            serveFlipB = serveFlipB,
+            state = state,
+        )
+    }
+
+    /**
      * Validates [command] and applies it if acceptable. Never throws: every
      * case is reported through [ApplyResult.outcome].
      *
@@ -213,13 +240,17 @@ class MatchLog private constructor(
          * so inherited points are stamped with [nowMillis] and
          * [UNKNOWN_DEVICE].
          *
-         * @throws IllegalArgumentException if the epoch cannot be raised further.
+         * @param epochStep how far to raise the epoch, at least 1. Two players
+         * who take over at the same moment should use different steps, so
+         * that their courts can be told apart; see `Sessions.takeOver`.
+         * @throws IllegalArgumentException if the epoch cannot be raised that far.
          */
-        fun takeOver(snapshot: MatchSnapshot, nowMillis: Long): MatchLog {
-            require(snapshot.epoch < MatchSnapshot.MAX_EPOCH) { "hosting epoch exhausted" }
+        fun takeOver(snapshot: MatchSnapshot, nowMillis: Long, epochStep: Int = 1): MatchLog {
+            require(epochStep >= 1) { "epochStep must be at least 1, was $epochStep" }
+            require(snapshot.epoch + epochStep <= MatchSnapshot.MAX_EPOCH) { "hosting epoch exhausted" }
             return MatchLog(
                 matchId = snapshot.matchId,
-                epoch = snapshot.epoch + 1,
+                epoch = snapshot.epoch + epochStep,
                 config = snapshot.config,
                 roster = snapshot.roster,
                 startedAtMillis = nowMillis,

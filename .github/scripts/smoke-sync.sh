@@ -250,8 +250,40 @@ expect "This device only" "host carries on alone"
 on "$GUEST"
 expect "Court closed" "guest is told the court closed"
 shot guest-court-closed
-tap "Back"
-expect "Join a court" "guest is back on its home screen"
+
+log "--- the guest takes over as host, and the old host joins it"
+if [ "$GUEST_KIND" = watch ]; then
+  tap "Host this court"
+  shot guest-take-over-question
+  tap "Host the court"
+  wait_for "Team A" 30
+  tap "MENU"
+  expect "Code $CODE" "the watch hosts the court under the join code the guests already know"
+else
+  tap "Host this court from this device"
+  shot guest-take-over-question
+  tap "Host the court"
+  expect "Court open · Code $CODE" "the guest hosts the court under the join code the guests already know"
+fi
+shot guest-now-host
+# The old host gives up its own copy and joins the court it used to host.
+on "$HOST"
+tap "Menu"; tap "End match"; tap "End match"
+wait_for "Join a court" 30
+tap "Join a court"
+sleep 12
+log "old host sees: $(screen_text)"
+tap "Very close"
+tap "Code"
+adb shell input text "$CODE"
+sleep 1
+tap "Join"
+wait_for "Team A" 60
+expect "Team B. Points 15." "the old host shows the match as the new host carried it on"
+shot old-host-as-guest
+on "$GUEST"
+expect "2 devices" "the new host shows the old host as its guest" 15
+shot guest-hosting-two-devices
 
 for device in "$HOST" "$GUEST"; do
   on "$device"
