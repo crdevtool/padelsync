@@ -128,7 +128,7 @@ with **New match** stays on that phone; it can be opened to others later from
 | Player names, singles or doubles | Setup screen. Names are optional and can be corrected mid-match from **Menu > Players**. The last names used are remembered. |
 | Play all sets | Setup screen, **Play all 3 sets**: on by default for padel. At two sets to love the app announces the winners and carries on with the third set. |
 | Court scoreboard | Team A plays the top half, team B the bottom. Tap a half to score for it. |
-| Serve side and server | The ball marker sits on the side the server stands on and names the player; the box the serve must land in is lit. If the app has the wrong player of a pair serving, use **Menu > Swap server**. |
+| Serve side and server | The ball marker sits on the side the server stands on and names the player (`ANA · RIGHT SIDE`); the box the serve must land in is lit. If the app has the wrong player of a pair serving, use **Menu > Swap server**. |
 | Who can score | Hosting only. **Others can score** on the setup screen, then per device in **Menu > Who can score**. A view-only device shows the score but its taps do not count. |
 | Voice | **Call the score out loud** on the setup screen; details in **Menu > Voice**: every point, games and sets, big points, who serves, change ends, and a full-score reminder every 2, 5 or 10 minutes. It uses the media volume. By default only the host's phone speaks. |
 | End of match | Confetti, the winners, set scores, points won, breaks of serve, best run, **Share the result** and **Rematch**. |

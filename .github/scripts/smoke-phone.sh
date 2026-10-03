@@ -56,7 +56,7 @@ shot match-reopened
 texts
 tap_many "Team B" 1
 sleep 2
-tap "Back to the scoreboard"
+tap "Scoreboard"
 shot final-scoreboard
 texts
 

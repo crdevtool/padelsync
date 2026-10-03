@@ -158,7 +158,7 @@ fun Celebration(
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.86f))
+            .background(Color.Black.copy(alpha = 0.94f))
             // Swallow taps so nothing underneath can be scored by accident.
             .pointerInput(Unit) { detectTapGestures { } },
     ) {
@@ -174,7 +174,7 @@ fun Celebration(
         ) {
             Text(
                 "🏆",
-                fontSize = 84.sp,
+                fontSize = 64.sp,
                 modifier = Modifier.graphicsLayer {
                     scaleX = trophy.value
                     scaleY = trophy.value
@@ -207,7 +207,7 @@ fun Celebration(
                 StatsTable(score, stats)
             }
 
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(16.dp))
             Button(onClick = onShare, modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 Text("Share the result", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
@@ -223,10 +223,12 @@ fun Celebration(
                     Text("New match", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            Spacer(Modifier.height(6.dp))
-            TextButton(onClick = onDismiss) { Text("Back to the scoreboard", fontSize = 16.sp) }
-            if (onUndo != null) {
-                TextButton(onClick = onUndo) { Text("Undo last point", fontSize = 16.sp) }
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(onClick = onDismiss) { Text("Scoreboard", fontSize = 16.sp) }
+                if (onUndo != null) {
+                    TextButton(onClick = onUndo) { Text("Undo last point", fontSize = 16.sp) }
+                }
             }
         }
     }

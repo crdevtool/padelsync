@@ -210,7 +210,7 @@ private fun ServeRow(team: Team, score: ScoreView) {
             Row(
                 Modifier
                     // Narrower than the half, so its position still shows the side.
-                    .widthIn(max = 250.dp)
+                    .widthIn(max = 270.dp)
                     .clip(RoundedCornerShape(50))
                     .background(Color.Black.copy(alpha = 0.6f))
                     .padding(start = 8.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
@@ -242,12 +242,15 @@ private fun ServeRow(team: Team, score: ScoreView) {
     }
 }
 
-/** `ANA SERVES`, `PLAYER 2 SERVES` when the name is not known, or just `SERVE` in singles. */
+/**
+ * Who serves: `ANA`, `PLAYER 2` when the name is not known, or just `SERVE`
+ * in singles. The ball beside it says the rest.
+ */
 private fun serverLabel(team: Team, score: ScoreView): String {
     val player = score.playersOf(team).getOrNull(score.serverPlayerIndex)
     return when {
-        player != null -> "${player.uppercase()} SERVES"
-        score.doubles -> "PLAYER ${score.serverPlayerIndex + 1} SERVES"
+        player != null -> player.uppercase()
+        score.doubles -> "PLAYER ${score.serverPlayerIndex + 1}"
         else -> "SERVE"
     }
 }
