@@ -71,11 +71,15 @@ log "guest device: $GUEST_KIND"
 log "starting a second emulator"
 SDKMANAGER=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
 AVDMANAGER=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/avdmanager 2>/dev/null | head -1)
-yes | "$SDKMANAGER" "$GUEST_IMAGE" >/dev/null 2>&1 || true
-echo no | "$AVDMANAGER" create avd --force -n guest -k "$GUEST_IMAGE" -d "$GUEST_PROFILE" >/dev/null
+yes | "$SDKMANAGER" "$GUEST_IMAGE" 2>&1 | tail -2 || true
+echo no | "$AVDMANAGER" create avd --force -n guest -k "$GUEST_IMAGE" -d "$GUEST_PROFILE" 2>&1 | tail -3
 "$ANDROID_HOME/emulator/emulator" -avd guest -port 5556 -no-window -gpu swiftshader_indirect \
   -no-snapshot -noaudio -no-boot-anim -cores 2 -memory 3072 >emulator-guest.log 2>&1 &
-adb -s "$GUEST" wait-for-device
+if ! timeout 300 adb -s "$GUEST" wait-for-device; then
+  log "FAIL: the second emulator never appeared"
+  tail -30 emulator-guest.log
+  exit 1
+fi
 for _ in $(seq 1 120); do
   [ "$(adb -s "$GUEST" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
   sleep 5
