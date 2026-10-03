@@ -1,0 +1,37 @@
+[smoke] starting a second emulator
+[smoke] second emulator booted: 1
+Performing Streamed Install
+Success
+[smoke] emulator-5554 bluetooth: 1
+Performing Streamed Install
+Success
+[smoke] emulator-5556 bluetooth: 1
+[smoke] --- host: start a match and open the court
+Starting: Intent { cmp=com.padelsync.app/.MainActivity }
+[smoke] PASS: host opened the court
+[smoke] join code: 1146
+[smoke] screenshot 1: host-court-open
+[smoke] --- guest: find the court and join
+Starting: Intent { cmp=com.padelsync.app/.MainActivity }
+[smoke] guest sees: Back | Join a court | Android SDK  | Very close
+[smoke] screenshot 2: guest-scanning
+[smoke] screenshot 3: guest-code
+[smoke] screenshot 4: guest-joined
+[smoke] PASS: guest shows two devices in the session
+[smoke] PASS: host shows two devices in the session
+[smoke] --- a point scored on the host reaches the guest
+[smoke] PASS: guest shows 30 after two host taps
+[smoke] --- a point scored on the guest reaches the host
+[smoke] PASS: guest shows its own tap
+[smoke] PASS: host shows the guest's tap
+[smoke] --- undo from the guest
+[smoke] PASS: host shows the guest's undo
+[smoke] --- both tap the same point at the same moment
+[smoke] host after simultaneous taps: Court open · Code 1146 · 2 devices | Menu | Team A. Points 40. Games 0. Sets 0. Serving. | TEAM A | SERVE | 40 | 0 | GAMES | SETS | GAME POINT · TEAM A | Undo | Team B. Points 0. Games 0. Sets 0. | TEAM B
+[smoke] screenshot 5: host-final
+[smoke] guest after simultaneous taps: Android SDK  · 2 devices | Menu | Team A. Points 40. Games 0. Sets 0. Serving. | TEAM A | SERVE | 40 | 0 | GAMES | SETS | GAME POINT · TEAM A | Undo | Team B. Points 0. Games 0. Sets 0. | TEAM B
+[smoke] screenshot 6: guest-final
+[smoke] --- guest leaves
+[smoke] PASS: host notices the guest leaving
+[smoke] no crashes
+[smoke] no crashes
