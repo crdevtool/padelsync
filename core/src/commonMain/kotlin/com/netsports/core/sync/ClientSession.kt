@@ -205,7 +205,7 @@ class ClientSession(
             //    tap was made against a score that no longer exists. Drop
             //    them all, so that for example a queued undo can never remove
             //    another player's point.
-            if (pending.isNotEmpty() && false) {
+            if (pending.isNotEmpty() && pending.first().baseVersion != incoming.version) {
                 effects += dropPending(TapFeedback.SUPERSEDED)
             }
         } else {
