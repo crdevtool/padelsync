@@ -46,16 +46,23 @@ object Labels {
         }
     }
 
-    /** [highlight] shortened to fit a watch: `MATCH POINT A` instead of `MATCH POINT · TEAM A`. */
+    /** [highlight] shortened to fit a watch: `MP A+L` instead of `MATCH POINT · ANA & LEO`. */
     fun highlightShort(score: ScoreView, config: MatchConfig?): String? {
         val who = score.highlightTeam?.let { " ${shortName(score, it)}" }.orEmpty()
+        // About nine characters fit between the two keys on a small round
+        // watch, so the big points use the abbreviations players write on
+        // score sheets.
         return when (score.highlight) {
+            Highlight.NONE -> null
+            Highlight.TIEBREAK -> "TIEBREAK"
+            Highlight.DEUCE -> "DEUCE"
+            Highlight.DECIDING_POINT ->
+                if (config?.deuceRule == DeuceRule.STAR_POINT) "STAR PT" else "GOLDEN PT"
+            Highlight.GAME_POINT -> "GP$who"
+            Highlight.BREAK_POINT -> "BP$who"
+            Highlight.SET_POINT -> "SP$who"
+            Highlight.MATCH_POINT -> "MP$who"
             Highlight.MATCH_WON -> score.winner?.let { "${shortName(score, it)} ${wins(score, it).uppercase()}" }
-            Highlight.GAME_POINT -> "GAME POINT$who"
-            Highlight.BREAK_POINT -> "BREAK POINT$who"
-            Highlight.SET_POINT -> "SET POINT$who"
-            Highlight.MATCH_POINT -> "MATCH POINT$who"
-            else -> highlight(score, config)
         }
     }
 

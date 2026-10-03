@@ -17,6 +17,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,6 +29,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.netsports.core.match.Roster
+import kotlinx.coroutines.CoroutineScope
 
 /** A titled row of mutually exclusive choices. */
 @Composable
@@ -110,7 +114,7 @@ fun NameField(
 ) {
     OutlinedTextField(
         value = value,
-        onValueChange = { onValueChange(it.take(MAX_NAME_CHARS)) },
+        onValueChange = { onValueChange(clip(it)) },
         label = { Text(label) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(
@@ -123,3 +127,37 @@ fun NameField(
 
 /** Names are cut to 20 bytes on the wire; this keeps typing within sight of that. */
 private const val MAX_NAME_CHARS = 20
+
+/** Cuts typed text to [MAX_NAME_CHARS] without leaving half an emoji behind. */
+private fun clip(text: String): String {
+    if (text.length <= MAX_NAME_CHARS) return text
+    val cut = text.take(MAX_NAME_CHARS)
+    return if (cut.last().isHighSurrogate()) cut.dropLast(1) else cut
+}
+
+/**
+ * The roster for the names typed into the form.
+ *
+ * In doubles the order of a team's two players is its serving order, so a
+ * name typed only into the second field must stay second: the empty first
+ * field is filled in rather than dropped.
+ */
+fun rosterOf(doubles: Boolean, a1: String, a2: String, b1: String, b2: String): Roster {
+    if (!doubles) return Roster.of(listOf(a1), listOf(b1))
+    fun team(first: String, second: String): List<String> =
+        if (first.isBlank() && second.isNotBlank()) listOf("Player 1", second) else listOf(first, second)
+    return Roster.of(team(a1, a2), team(b1, b2))
+}
+
+/**
+ * Runs [block] each time [key] changes, but not for the value it has when
+ * this first appears. Use it for one-off reactions (a buzz, a note) that
+ * must not replay just because the screen was rebuilt.
+ */
+@Composable
+fun OnChange(key: Any?, block: suspend CoroutineScope.() -> Unit) {
+    val first = remember { booleanArrayOf(true) }
+    LaunchedEffect(key) {
+        if (first[0]) first[0] = false else block()
+    }
+}

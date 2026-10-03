@@ -33,16 +33,22 @@ tested there, without any device:
 
 - `engine/` The rules of padel and tennis as a pure function:
   `(score, point) -> score`. Covers best of 1, 3 or 5; advantage, golden
-  point and star point; tiebreak and advantage sets; and a full, advantage or
-  match-tiebreak final set.
-- `match/` `MatchLog`, the host's authoritative record, and `MatchSnapshot`,
-  the small value every device holds a copy of.
+  point and star point; tiebreak and advantage sets; a full, advantage or
+  match-tiebreak final set; and playing every set after the match is already
+  decided, as social padel usually is. It also works out who serves next (the
+  team, which of its two players in doubles, and from which side) and when to
+  change ends.
+- `match/` `MatchLog`, the host's authoritative record, `MatchSnapshot`, the
+  small value every device holds a copy of, and `Roster`, the players' names.
 - `sync/` The wire format, packet framing, and the host and guest session
   logic. No Bluetooth code: the sessions are told what happened and answer
   with the packets to send.
 - `ui/` `ScoreView`, the already-formatted scoreboard every app draws, so the
   wording and the call-outs (game point, golden point, ...) cannot differ
-  between devices.
+  between devices; `ScoreSpeech`, the sentences a device says out loud
+  ("30 15", "Game, Ana and Leo", "Change ends"), with per-device settings for
+  what is announced; and `MatchStats`, the numbers on the result screen
+  (points, breaks of serve, best run).
 
 ## 4. How devices stay in sync
 
@@ -91,12 +97,23 @@ message. The host also repeats the state every two seconds.
 | A watch loses the link for a few seconds | Taps made meanwhile are kept. On reconnection they are sent if the score has not moved, and dropped if someone else scored in the meantime. |
 | A tap is sent twice because of a retry | Each tap has an id; the host recognises the repeat and ignores it. |
 | A player mis-taps and immediately undoes | Taps go to the host one at a time, so an undo can only ever remove that player's own point, never somebody else's. |
-| A device joins mid-match | It receives the whole match in the first message. |
+| A device joins mid-match | It receives the whole match in the first message, players' names included. |
+| The host wants only some people to score | The host makes a device view-only, or lets only chosen devices score. A view-only device shows the score and is told why its tap did not count. The host refuses its commands even if the app on it were modified. |
+| The app shows the wrong player serving | In doubles each team chooses its serving order every set. Anyone allowed to score can swap a team's server; the swap is replicated like a point. |
 | The host's app is closed | The match is saved on the host and can be resumed. Any guest also holds a full copy and can take over hosting (the protocol supports this; the apps do not offer it yet). |
 
 Every row except the buzz is covered by tests in `core/`, including a randomised test
-that throws 200,000 events at a simulated eight-device court and checks that
-every device ends up on the host's score.
+that throws 200,000 events at a simulated eight-device court (taps, server
+swaps, permission changes, renames, lost packets, dropped links) and checks
+that every device ends up on the host's score.
+
+### Voice
+
+Each device decides for itself what to say; nothing about speech is sent
+between devices. A device announces only scores the host has confirmed,
+never its own unconfirmed tap, so the voice cannot call a point that is then
+refused. By default the phone hosting the match speaks and guests stay
+quiet, so four phones on one court do not all talk at once.
 
 ### Joining
 
@@ -141,7 +158,10 @@ advertising with the screen off.
 
 ## 7. Not built yet
 
-- Match history and statistics.
+- The iPhone and Apple Watch apps have not yet been brought up to protocol
+  version 2 (names, play all sets, serve side, permissions, voice). Until
+  they are, they cannot join a court hosted by the current Android apps.
+- Voice in languages other than English.
 - Choosing which team "you" are, so your own side is always on the same half
   of the screen.
 - Taking over as host from the app when the host leaves.

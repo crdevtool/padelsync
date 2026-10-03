@@ -68,7 +68,7 @@ fun SetupScreen(
     var b2 by rememberSaveable { mutableStateOf(names.playerName(Team.B, 1).orEmpty()) }
 
     // In singles the second field of each team is hidden, and ignored.
-    val roster = if (doubles) Roster.of(listOf(a1, a2), listOf(b1, b2)) else Roster.of(listOf(a1), listOf(b1))
+    val roster = rosterOf(doubles, a1, a2, b1, b2)
 
     Column(
         Modifier

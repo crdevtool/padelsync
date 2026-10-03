@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.netsports.core.engine.Team
@@ -223,11 +224,9 @@ fun Celebration(
                 }
             }
             Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onDismiss) { Text("Back to the scoreboard", fontSize = 16.sp) }
-                if (onUndo != null) {
-                    TextButton(onClick = onUndo) { Text("Undo last point", fontSize = 16.sp) }
-                }
+            TextButton(onClick = onDismiss) { Text("Back to the scoreboard", fontSize = 16.sp) }
+            if (onUndo != null) {
+                TextButton(onClick = onUndo) { Text("Undo last point", fontSize = 16.sp) }
             }
         }
     }
@@ -272,6 +271,7 @@ private fun StatCell(text: String, color: Color, align: TextAlign, modifier: Mod
         color = color,
         textAlign = align,
         maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier,
     )
 }

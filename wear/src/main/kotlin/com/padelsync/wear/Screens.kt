@@ -42,6 +42,7 @@ import com.padelsync.kit.CourtController
 import com.padelsync.kit.CourtMode
 import com.padelsync.kit.CourtUiState
 import com.padelsync.kit.NearbyCourt
+import kotlinx.coroutines.delay
 
 @Composable
 private fun PrimaryChip(label: String, onClick: () -> Unit) {
@@ -212,6 +213,14 @@ fun CodeScreen(onBack: () -> Unit, onDone: (Int?) -> Unit) {
 fun MenuScreen(ui: CourtUiState, controller: CourtController, onClose: () -> Unit) {
     val gate = rememberBluetoothGate()
     val hosting = ui.mode == CourtMode.HOST
+
+    // A problem is shown for a while, then cleared.
+    LaunchedEffect(ui.error) {
+        if (ui.error != null) {
+            delay(8000)
+            controller.clearError()
+        }
+    }
 
     ScalingLazyColumn(Modifier.fillMaxSize()) {
         if (hosting && ui.courtOpen) {

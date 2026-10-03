@@ -66,6 +66,14 @@ internal class Announcer(
         }
     }
 
+    /**
+     * Forgets an earlier failure to find a voice, so the next [say] looks
+     * again. Call it when the player asks for speech explicitly.
+     */
+    fun retry() {
+        failed = false
+    }
+
     /** Stops talking at once. */
     fun silence() {
         waiting = null

@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -208,6 +209,8 @@ private fun ServeRow(team: Team, score: ScoreView) {
         ) {
             Row(
                 Modifier
+                    // Narrower than the half, so its position still shows the side.
+                    .widthIn(max = 250.dp)
                     .clip(RoundedCornerShape(50))
                     .background(Color.Black.copy(alpha = 0.6f))
                     .padding(start = 8.dp, end = 12.dp, top = 5.dp, bottom = 5.dp),
@@ -215,29 +218,38 @@ private fun ServeRow(team: Team, score: ScoreView) {
             ) {
                 BouncingBall()
                 Spacer(Modifier.width(8.dp))
+                // A long name gives way; the side never does.
                 Text(
-                    serveLabel(team, score),
+                    serverLabel(team, score),
                     color = Palette.Ball,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Black,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                if (side != null) {
+                    Text(
+                        " · ${Labels.serveSide(side).uppercase()}",
+                        color = Palette.OnBackground,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }
 }
 
-/** `ANA SERVES · RIGHT SIDE`, or `SERVE · RIGHT SIDE` when the player's name is not known. */
-private fun serveLabel(team: Team, score: ScoreView): String {
+/** `ANA SERVES`, `PLAYER 2 SERVES` when the name is not known, or just `SERVE` in singles. */
+private fun serverLabel(team: Team, score: ScoreView): String {
     val player = score.playersOf(team).getOrNull(score.serverPlayerIndex)
-    val who = when {
+    return when {
         player != null -> "${player.uppercase()} SERVES"
         score.doubles -> "PLAYER ${score.serverPlayerIndex + 1} SERVES"
         else -> "SERVE"
     }
-    val side = score.serveSide ?: return who
-    return "$who · ${Labels.serveSide(side).uppercase()}"
 }
 
 /** A tennis ball that never quite sits still. */

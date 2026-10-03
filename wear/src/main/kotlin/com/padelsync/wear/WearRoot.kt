@@ -37,6 +37,11 @@ fun WearRoot(controller: CourtController) {
     var screen by remember { mutableStateOf(WearScreen.HOME) }
     var chosen by remember { mutableStateOf<NearbyCourt?>(null) }
 
+    // Kept here rather than on the score screen, which is rebuilt on every
+    // return from the menu: a result put away stays put away.
+    val winner = ui.score?.winner
+    var resultDismissed by remember(winner) { mutableStateOf(false) }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -84,6 +89,8 @@ fun WearRoot(controller: CourtController) {
                 ui = ui,
                 score = score,
                 controller = controller,
+                resultDismissed = resultDismissed,
+                onDismissResult = { resultDismissed = true },
                 onMenu = { screen = WearScreen.MENU },
             )
 

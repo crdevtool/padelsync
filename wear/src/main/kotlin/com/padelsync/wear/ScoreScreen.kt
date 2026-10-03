@@ -46,6 +46,7 @@ import com.padelsync.kit.CourtController
 import com.padelsync.kit.CourtMode
 import com.padelsync.kit.CourtUiState
 import com.padelsync.kit.Labels
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 
 /**
@@ -53,7 +54,14 @@ import kotlinx.coroutines.delay
  * Team B, with undo and the menu on the strip between them.
  */
 @Composable
-fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController, onMenu: () -> Unit) {
+fun ScoreScreen(
+    ui: CourtUiState,
+    score: ScoreView,
+    controller: CourtController,
+    resultDismissed: Boolean,
+    onDismissResult: () -> Unit,
+    onMenu: () -> Unit,
+) {
     val context = LocalContext.current
     val view = LocalView.current
     val finished = score.winner != null
@@ -65,9 +73,9 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
     }
 
     var note by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(ui.feedbackCount) {
+    OnChange(ui.feedbackCount) {
         val text = when (ui.lastFeedback) {
-            TapFeedback.SUPERSEDED -> "ALREADY SCORED"
+            TapFeedback.SUPERSEDED -> "ALREADY IN"
             TapFeedback.NOT_ALLOWED -> "VIEW ONLY"
             else -> null
         }
@@ -79,10 +87,15 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
         }
     }
 
+    // Two quick ticks when someone else scores, so the wearer knows the point
+    // is in without looking, and does not score it again.
+    OnChange(ui.remoteScoreCount) {
+        vibrate(context, longArrayOf(0, 20, 70, 20))
+    }
+
     // The end of the match gets a screen of its own, which can be put away.
     val winner = score.winner
-    var resultDismissed by remember(winner) { mutableStateOf(false) }
-    LaunchedEffect(winner) {
+    OnChange(winner) {
         if (winner != null) vibrate(context, longArrayOf(0, 120, 90, 120, 90, 260))
     }
     if (winner != null && !resultDismissed) {
@@ -91,15 +104,9 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
             winner = winner,
             onRematch = if (ui.mode == CourtMode.HOST) ({ controller.rematch() }) else null,
             onUndo = if (ui.canScore) ({ controller.tap(Action.UNDO) }) else null,
-            onDismiss = { resultDismissed = true },
+            onDismiss = onDismissResult,
         )
         return
-    }
-
-    // Two quick ticks when someone else scores, so the wearer knows the point
-    // is in without looking, and does not score it again.
-    LaunchedEffect(ui.remoteScoreCount) {
-        if (ui.remoteScoreCount > 0) vibrate(context, longArrayOf(0, 20, 70, 20))
     }
 
     val tap = { action: Action ->
@@ -110,9 +117,11 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
     val offline = ui.mode == CourtMode.GUEST && ui.guestStatus != ClientStatus.SYNCED
     val strip = when {
         note != null -> note
-        offline -> "RECONNECTING"
+        // The strip holds about nine characters on a small round watch.
+        offline -> "OFFLINE"
         else -> Labels.highlightShort(score, ui.config)
-            ?: "CHANGE ENDS".takeIf { score.changeEnds }
+            ?: "SWAP ENDS".takeIf { score.changeEnds }
+            ?: "VIEW ONLY".takeIf { !ui.canScore }
             ?: serveLine(score)
             ?: score.setSummary.ifEmpty { null }
     }
@@ -201,6 +210,8 @@ private fun Half(
         // strip, so each half hugs it.
         contentAlignment = if (alignBottom) Alignment.BottomCenter else Alignment.TopCenter,
     ) {
+        // A three-letter name needs the room that a single letter leaves spare.
+        val gap = if (label.length > 1) 6.dp else 10.dp
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
@@ -213,14 +224,14 @@ private fun Half(
                 fontWeight = FontWeight.Black,
                 maxLines = 1,
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(gap))
             Column(horizontalAlignment = Alignment.End) {
                 Text("G $games", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text("S $sets", color = WearPalette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(gap))
             Text(points, color = Color.White, fontSize = 46.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(gap))
             Box(
                 Modifier
                     .size(10.dp)
@@ -241,6 +252,19 @@ private fun serveLine(score: ScoreView): String? {
     val side = score.serveSide ?: return null
     val player = score.playersOf(team).getOrNull(score.serverPlayerIndex) ?: return null
     return "${player.take(7).uppercase()} · ${if (side == ServeSide.RIGHT) "R" else "L"}"
+}
+
+/**
+ * Runs [block] each time [key] changes, but not for the value it has when
+ * this first appears: the score screen is rebuilt on every return from the
+ * menu, and a buzz or a note must not replay because of that.
+ */
+@Composable
+private fun OnChange(key: Any?, block: suspend CoroutineScope.() -> Unit) {
+    val first = remember { booleanArrayOf(true) }
+    LaunchedEffect(key) {
+        if (first[0]) first[0] = false else block()
+    }
 }
 
 private fun vibrate(context: Context, pattern: LongArray) {

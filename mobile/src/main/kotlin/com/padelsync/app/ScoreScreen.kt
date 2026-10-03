@@ -43,6 +43,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -59,6 +60,7 @@ import com.netsports.core.engine.Sport
 import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
 import com.netsports.core.sync.ClientStatus
+import com.netsports.core.ui.MatchStats
 import com.netsports.core.ui.ScoreView
 import com.padelsync.kit.CourtController
 import com.padelsync.kit.CourtMode
@@ -180,7 +182,7 @@ private fun Scoreboard(
 
     // A brief note when a tap did not count.
     var note by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(ui.feedbackCount) {
+    OnChange(ui.feedbackCount) {
         note = Labels.tapFeedback(ui.lastFeedback)
         if (note != null) {
             delay(2500)
@@ -190,8 +192,17 @@ private fun Scoreboard(
 
     // A gentle buzz when someone else scores, so players know the point is in
     // and do not score it again.
-    LaunchedEffect(ui.remoteScoreCount) {
-        if (ui.remoteScoreCount > 0) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    OnChange(ui.remoteScoreCount) {
+        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+
+    // A problem (Bluetooth off, permission refused) is shown for a while,
+    // then makes way for the normal status line again.
+    LaunchedEffect(ui.error) {
+        if (ui.error != null) {
+            delay(8000)
+            controller.clearError()
+        }
     }
 
     val tap = { action: Action ->
@@ -205,6 +216,17 @@ private fun Scoreboard(
     // the scoreboard. A new winner (after an undo, or a new match) brings it back.
     var celebrationDismissed by remember(winner) { mutableStateOf(false) }
 
+    // Once the match is decided the result can be opened from the menu, even
+    // if the remaining sets are never played.
+    val decided = winner ?: score.decidedWinner
+    var resultRequested by remember(decided) { mutableStateOf(false) }
+    val showResult = (winner != null && !celebrationDismissed) || (winner == null && decided != null && resultRequested)
+
+    // What the result screen shows. Held on to while it fades out, so an
+    // undo or a rematch does not rewrite it in mid-air.
+    var result by remember { mutableStateOf<Result?>(null) }
+    if (showResult && decided != null) result = Result(score, decided, ui.stats, ui.durationMillis)
+
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             StatusBar(
@@ -215,6 +237,7 @@ private fun Scoreboard(
                 controller = controller,
                 onOpen = { sheet = it },
                 onSwapServer = { score.server?.let { tap(Action.swapServerFor(it)) } },
+                onShowResult = if (winner == null && decided != null) ({ resultRequested = true }) else null,
                 onNewMatch = onNewMatch,
                 onLeave = onLeave,
             )
@@ -264,7 +287,11 @@ private fun Scoreboard(
                 if (event?.kind == MatchEventKind.SET || event?.kind == MatchEventKind.DECIDED) {
                     Confetti(Modifier.matchParentSize(), pieces = 60, endless = false)
                 }
-                EventBanner(event, Modifier.align(Alignment.Center))
+                // In the half of whoever won it, clear of the net strip and its Undo button.
+                EventBanner(
+                    event,
+                    Modifier.align(BiasAlignment(0f, if (event?.team == Team.B) 0.5f else -0.5f)),
+                )
             }
 
             if (winner != null && celebrationDismissed) {
@@ -286,20 +313,26 @@ private fun Scoreboard(
             }
         }
 
-        AnimatedVisibility(visible = winner != null && !celebrationDismissed, enter = fadeIn(), exit = fadeOut()) {
-            // Keep drawing the last winner while the overlay fades out.
-            val shown = winner ?: score.decidedWinner ?: Team.A
-            Celebration(
-                score = score,
-                winner = shown,
-                stats = ui.stats,
-                durationMillis = ui.durationMillis,
-                onShare = { share(context, Labels.shareText(score, ui.config, ui.durationMillis)) },
-                onRematch = if (hosting) ({ controller.rematch() }) else null,
-                onNewMatch = if (hosting) onNewMatch else null,
-                onUndo = if (ui.canScore) ({ tap(Action.UNDO) }) else null,
-                onDismiss = { celebrationDismissed = true },
-            )
+        AnimatedVisibility(visible = showResult, enter = fadeIn(), exit = fadeOut()) {
+            val shown = result
+            if (shown != null) {
+                // Rematch and undo only make sense once the last point has been played.
+                val over = shown.score.winner != null
+                Celebration(
+                    score = shown.score,
+                    winner = shown.winner,
+                    stats = shown.stats,
+                    durationMillis = shown.durationMillis,
+                    onShare = { share(context, Labels.shareText(shown.score, ui.config, shown.durationMillis)) },
+                    onRematch = if (hosting && over) ({ controller.rematch() }) else null,
+                    onNewMatch = if (hosting) onNewMatch else null,
+                    onUndo = if (ui.canScore && over) ({ tap(Action.UNDO) }) else null,
+                    onDismiss = {
+                        celebrationDismissed = true
+                        resultRequested = false
+                    },
+                )
+            }
         }
     }
 
@@ -327,6 +360,9 @@ private fun Scoreboard(
     }
 }
 
+/** Everything the result screen shows, captured at the moment it opens. */
+private data class Result(val score: ScoreView, val winner: Team, val stats: MatchStats?, val durationMillis: Long?)
+
 private fun share(context: Context, text: String) {
     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
     try {
@@ -347,6 +383,7 @@ private fun StatusBar(
     controller: CourtController,
     onOpen: (Sheet) -> Unit,
     onSwapServer: () -> Unit,
+    onShowResult: (() -> Unit)?,
     onNewMatch: () -> Unit,
     onLeave: () -> Unit,
 ) {
@@ -405,6 +442,7 @@ private fun StatusBar(
                     item(if (other != null) "Swap server to $other" else "Swap server", onSwapServer)
                 }
                 item("Voice") { onOpen(Sheet.VOICE) }
+                if (onShowResult != null) item("Result so far", onShowResult)
                 if (hosting) item("New match", onNewMatch)
                 item(if (hosting) "End match" else "Leave court", onLeave)
             }
@@ -462,7 +500,15 @@ private fun NetStrip(ui: CourtUiState, score: ScoreView, note: String?, onUndo: 
                 if (score.winner == null) ui.startedAtMillis?.let { matchClock(it) } else null,
             ).joinToString("   ")
             if (details.isNotEmpty()) {
-                Text(details, color = Palette.OnBackground, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(
+                    details,
+                    color = Palette.OnBackground,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         Spacer(Modifier.width(8.dp))
@@ -488,8 +534,11 @@ private fun matchClock(startedAtMillis: Long): String {
 
 private enum class MatchEventKind { GAME, SET, DECIDED }
 
-/** Something worth a moment's fanfare. [id] makes two identical events in a row distinct. */
-private class MatchEvent(val kind: MatchEventKind, val text: String, val id: Int)
+/**
+ * Something worth a moment's fanfare, and the team that earned it. [id]
+ * makes two identical events in a row distinct.
+ */
+private class MatchEvent(val kind: MatchEventKind, val team: Team, val text: String, val id: Int)
 
 /**
  * Watches the score and reports a game or a set being won, on whichever
@@ -508,7 +557,7 @@ private fun rememberMatchEvent(score: ScoreView): MatchEvent? {
         val found = before?.let { describeEvent(it, score) }
         if (found != null) {
             counter++
-            event = MatchEvent(found.first, found.second, counter)
+            event = MatchEvent(found.kind, found.team, found.text, counter)
         }
     }
     LaunchedEffect(event?.id) {
@@ -521,25 +570,24 @@ private fun rememberMatchEvent(score: ScoreView): MatchEvent? {
 }
 
 /** What was just won between [before] and [after], if anything. An undo is never an event. */
-private fun describeEvent(before: ScoreView, after: ScoreView): Pair<MatchEventKind, String>? {
+private fun describeEvent(before: ScoreView, after: ScoreView): MatchEvent? {
     // The end of the match has a screen of its own.
     if (after.winner != null) return null
     if (after.completedSets.size == before.completedSets.size + 1) {
         val set = after.completedSets.last()
-        val name = after.nameOf(set.winner).uppercase()
         val decided = after.decidedWinner
         return if (decided != null && before.decidedWinner == null) {
-            MatchEventKind.DECIDED to "🏆 ${after.nameOf(decided).uppercase()} WON THE MATCH"
+            MatchEvent(MatchEventKind.DECIDED, decided, "🏆 ${after.nameOf(decided).uppercase()} WON THE MATCH", 0)
         } else {
-            MatchEventKind.SET to "SET · $name"
+            MatchEvent(MatchEventKind.SET, set.winner, "SET · ${after.nameOf(set.winner).uppercase()}", 0)
         }
     }
     if (after.completedSets.size != before.completedSets.size) return null
     return when {
         after.gamesA == before.gamesA + 1 && after.gamesB == before.gamesB ->
-            MatchEventKind.GAME to "GAME · ${after.nameA.uppercase()}"
+            MatchEvent(MatchEventKind.GAME, Team.A, "GAME · ${after.nameA.uppercase()}", 0)
         after.gamesB == before.gamesB + 1 && after.gamesA == before.gamesA ->
-            MatchEventKind.GAME to "GAME · ${after.nameB.uppercase()}"
+            MatchEvent(MatchEventKind.GAME, Team.B, "GAME · ${after.nameB.uppercase()}", 0)
         else -> null
     }
 }

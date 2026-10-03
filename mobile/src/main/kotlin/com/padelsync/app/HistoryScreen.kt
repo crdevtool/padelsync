@@ -54,7 +54,8 @@ fun HistoryScreen(records: List<MatchRecord>, onBack: () -> Unit) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(records, key = { it.matchId }) { record ->
                     val score = record.score
-                    val winner = score.winner
+                    // A match stopped after it was decided still has a winner.
+                    val winner = score.winner ?: score.decidedWinner
                     Column(
                         Modifier
                             .fillMaxWidth()

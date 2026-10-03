@@ -150,7 +150,7 @@ fun PlayersDialog(score: ScoreView, onSave: (Roster) -> Unit, onDismiss: () -> U
         },
         confirmButton = {
             TextButton(onClick = {
-                onSave(if (doubles) Roster.of(listOf(a1, a2), listOf(b1, b2)) else Roster.of(listOf(a1), listOf(b1)))
+                onSave(rosterOf(doubles, a1, a2, b1, b2))
                 onDismiss()
             }) { Text("Save") }
         },

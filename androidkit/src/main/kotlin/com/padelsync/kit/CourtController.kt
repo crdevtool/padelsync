@@ -117,7 +117,9 @@ class CourtController private constructor(
 
     private val reminder = Runnable { remind() }
 
-    private val _ui = MutableStateFlow(CourtUiState(hasSavedMatch = store.load() != null))
+    private val _ui = MutableStateFlow(
+        CourtUiState(hasSavedMatch = store.load() != null, speech = settings.speech(hosting = true)),
+    )
     val ui: StateFlow<CourtUiState> = _ui.asStateFlow()
 
     private val _nearby = MutableStateFlow<List<NearbyCourt>>(emptyList())
@@ -217,7 +219,8 @@ class CourtController private constructor(
     }
 
     /** Replaces the hosted match with a fresh one with default options, keeping connected devices. */
-    fun startNewMatch(config: MatchConfig) = startNewMatch(MatchSetup(config))
+    fun startNewMatch(config: MatchConfig) =
+        startNewMatch(MatchSetup(config, guestsCanScore = host?.guestsCanScore ?: true))
 
     /** Replaces the hosted match with a fresh one, keeping connected devices. */
     fun startNewMatch(setup: MatchSetup) {
@@ -402,6 +405,8 @@ class CourtController private constructor(
                     feedbackCount++
                 }
                 ClientEffect.Disconnect -> {
+                    // The court closed: keep the result if there was one.
+                    recordIfDecided()
                     // The host refused us. Stop the link so it does not retry;
                     // the session keeps the reason for the UI.
                     link?.close()
@@ -438,13 +443,16 @@ class CourtController private constructor(
     /** Changes how this device announces the score. Remembered between matches. */
     fun setSpeech(value: SpeechSettings) {
         settings.saveSpeech(value, hosting = client == null)
-        if (!value.enabled) announcer.silence()
+        // Switching the voice on is a good moment to look again for one
+        // that was missing before, in case the player has since installed it.
+        if (value.enabled) announcer.retry() else announcer.silence()
         scheduleReminder()
         publish()
     }
 
     /** Reads out the whole score now, whatever the settings say. */
     fun sayScore() {
+        announcer.retry()
         currentSnapshot()?.let { announcer.say(ScoreSpeech.reminder(it)) }
     }
 
@@ -460,11 +468,7 @@ class CourtController private constructor(
         if (snapshot == null || snapshot == announced) return
         val phrases = ScoreSpeech.announce(announced, snapshot, speech)
         announced = snapshot
-        if (phrases.isNotEmpty()) {
-            announcer.say(phrases)
-            // The reminder counts from the last time anything was said.
-            scheduleReminder()
-        }
+        if (phrases.isNotEmpty()) announcer.say(phrases)
     }
 
     private fun scheduleReminder() {
@@ -477,8 +481,10 @@ class CourtController private constructor(
 
     private fun remind() {
         val snapshot = currentSnapshot()
+        // A guest that has lost the host has only an old score to offer.
+        val live = host != null || client?.status == ClientStatus.SYNCED
         // Nothing to remind anyone of before the first point or after the last.
-        if (snapshot != null && snapshot.points.isNotEmpty() && !snapshot.state.isComplete) {
+        if (live && snapshot != null && snapshot.points.isNotEmpty() && !snapshot.state.isComplete) {
             announcer.say(ScoreSpeech.reminder(snapshot))
         }
         scheduleReminder()
@@ -487,6 +493,7 @@ class CourtController private constructor(
     /** Ends the match (host) or leaves the court (guest) and returns to idle. */
     fun leave() {
         val wasHost = host != null
+        recordIfDecided()
         leaveInternal()
         if (wasHost) store.clear()
         publish()
@@ -632,7 +639,10 @@ class CourtController private constructor(
         val updated = when {
             snapshot.state.isComplete && recorded?.snapshot?.version != snapshot.version ->
                 MatchHistory.add(current, MatchRecord(snapshot, startedAtMillis, now()))
-            !snapshot.state.isComplete && recorded != null -> MatchHistory.remove(current, snapshot.matchId)
+            // A finished match reopened with undo is no longer a result. A
+            // match recorded as decided but unfinished stays as it is.
+            !snapshot.state.isComplete && recorded != null && recorded.snapshot.state.isComplete ->
+                MatchHistory.remove(current, snapshot.matchId)
             else -> return
         }
         _history.value = updated
@@ -646,6 +656,22 @@ class CourtController private constructor(
         } else {
             null
         }
+
+    /**
+     * Keeps a match that was stopped after it was decided but before every
+     * set was played, which is how most "play all three sets" matches end
+     * when the court time runs out.
+     */
+    private fun recordIfDecided() {
+        val snapshot = currentSnapshot() ?: return
+        if (snapshot.state.isComplete || snapshot.state.decidedWinner == null) return
+        // Already kept, for example when the court closed and the player then tapped Back.
+        if (_history.value.any { it.matchId == snapshot.matchId && it.snapshot.version == snapshot.version }) return
+        val startedAt = host?.log?.startedAtMillis ?: firstSeen[snapshot.matchId] ?: now()
+        val updated = MatchHistory.add(_history.value, MatchRecord(snapshot, startedAt, now()))
+        _history.value = updated
+        historyStore.save(updated)
+    }
 
     private fun now(): Long = System.currentTimeMillis()
 

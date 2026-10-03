@@ -3,18 +3,23 @@ name: CI
 # Started by hand only. Private repositories get a limited number of free
 # build minutes a month, and running everything on every push uses them up
 # within a day or two. Start a run from the Actions tab ("Run workflow") and
-# tick only what is needed:
-#   - Nothing ticked: shared tests and the Android APKs (about 10 minutes).
-#   - Emulators: also runs the apps on Android emulators (about 80 minutes).
+# choose only what is needed:
+#   - Emulators "none": shared tests and the Android APKs (about 10 minutes).
+#   - Emulators "phone" or "watch": also runs that app through a solo match
+#     on an emulator, with screenshots (about 15 minutes more each).
+#   - Emulators "sync-phone" or "sync-watch": a phone hosts and a second
+#     emulator joins over virtual Bluetooth (about 25 minutes more each).
+#   - Emulators "all": all four of the above.
 #   - Apple: also builds and runs the iPhone and Apple Watch apps (about 15
 #     minutes on a Mac, which GitHub counts ten times over).
 on:
   workflow_dispatch:
     inputs:
       emulators:
-        description: Also run the Android emulator tests (about 80 minutes)
-        type: boolean
-        default: false
+        description: Android emulator tests to run after the build
+        type: choice
+        options: [none, phone, watch, sync-phone, sync-watch, all]
+        default: none
       apple:
         description: Also build the iPhone and Apple Watch apps (about 15 Mac minutes, counted 10x)
         type: boolean
@@ -91,13 +96,14 @@ jobs:
 
   smoke:
     name: Emulator run (${{ matrix.device }})
-    if: inputs.emulators
+    if: contains(fromJSON('["phone", "watch", "all"]'), inputs.emulators)
     needs: android
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
+        device: ${{ fromJSON(inputs.emulators == 'all' && '["phone", "watch"]' || format('["{0}"]', inputs.emulators)) }}
         include:
           - device: phone
             api: 34
@@ -137,14 +143,14 @@ jobs:
 
   sync:
     name: Phone hosts, ${{ matrix.guest }} joins (emulators)
-    if: inputs.emulators
+    if: contains(fromJSON('["sync-phone", "sync-watch", "all"]'), inputs.emulators)
     needs: android
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        guest: [phone, watch]
+        guest: ${{ fromJSON(inputs.emulators == 'all' && '["phone", "watch"]' || inputs.emulators == 'sync-phone' && '["phone"]' || '["watch"]') }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4

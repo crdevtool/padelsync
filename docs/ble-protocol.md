@@ -70,7 +70,7 @@ All integers are big-endian. The first byte is the message type.
 
 | Field | Size | Notes |
 | --- | --- | --- |
-| Protocol version | 1 | Currently 1. These first two bytes never change layout. |
+| Protocol version | 1 | Currently 2. These first two bytes never change layout. |
 | Device id | 8 | Random, created on first launch |
 | Device kind | 1 | 0 phone, 1 watch |
 | Join code | 2 | 0 to 9999, or `0xFFFF` for none |
@@ -84,7 +84,7 @@ All integers are big-endian. The first byte is the message type.
 | Command id | 8 | Random and non-zero; identifies retransmissions |
 | Epoch | 2 | Hosting epoch the guest is synced to |
 | Base version | 4 | Version of the match the guest was looking at |
-| Action | 1 | 0 point for team A, 1 point for team B, 2 undo |
+| Action | 1 | 0 point for team A, 1 point for team B, 2 undo, 3 swap team A's server, 4 swap team B's server |
 
 ### `0x10 STATE` (host to guest)
 
@@ -92,10 +92,12 @@ All integers are big-endian. The first byte is the message type.
 | --- | --- | --- |
 | Match id | 8 | Random |
 | Epoch | 2 | Starts at 1; raised when another device takes over as host |
-| Version | 4 | Commands accepted so far, undos included |
+| Version | 4 | Commands accepted so far: points, undos and server swaps |
 | Last command id | 8 | The command that produced this version, or 0 |
 | Device count | 1 | Devices in the session, host included |
-| Format | 9 | See below |
+| Flags | 1 | Bit 0: the receiving device may change the score. Bit 1: team A's serving order is swapped. Bit 2: team B's is. Other bits must be 0. |
+| Format | 11 | See below |
+| Players | 2 or more | See below |
 | Point count | 2 | At most 4096 |
 | Points | (count + 7) / 8 | One bit per point, least significant bit first; 1 = team B |
 
@@ -103,7 +105,17 @@ Format, one byte each: sport (0 padel, 1 tennis), best of (1, 3, 5), games
 per set, deuce rule (0 advantage, 1 golden point, 2 star point), set tiebreak
 (0 or 1), tiebreak points, final set rule (0 same as other sets, 1 advantage
 set, 2 match tiebreak), match tiebreak points, first server (0 team A,
-1 team B).
+1 team B), play all sets (0 or 1: keep playing after the match is decided),
+doubles (0 or 1).
+
+Players: for team A and then team B, a count (0 to 2) followed by that many
+names, each a length byte (1 to 20) and UTF-8 text. A team's first-listed
+player serves its first service game of a set, unless its flag above says the
+order is swapped. Names are labels only; nothing in the scoring depends on
+them.
+
+The permission flag is the one field that can differ between two guests'
+copies of the same state: the host sets it per device.
 
 A receiver rebuilds the score by replaying the points. A state whose points
 cannot be replayed (for example, points after the match is won) is rejected.
@@ -113,7 +125,7 @@ cannot be replayed (for example, points after the match is won) is rejected.
 | Field | Size | Notes |
 | --- | --- | --- |
 | Command id | 8 | |
-| Outcome | 1 | 0 accepted, 1 duplicate, 2 stale, 3 match complete, 4 nothing to undo, 5 same rally |
+| Outcome | 1 | 0 accepted, 1 duplicate, 2 stale, 3 match complete, 4 nothing to undo, 5 same rally, 6 not allowed |
 | Version | 4 | Host's version after handling the command |
 
 ### `0x12 JOIN_REJECTED` (host to guest)
@@ -136,6 +148,11 @@ screen, disconnects, and does not try to reconnect.
 - A point from one device arriving less than 4 seconds after an accepted
   point from a different device is answered `same rally` and changes
   nothing. Undo is exempt, and so are consecutive points from one device.
+- A command from a device the host has made view-only is answered
+  `not allowed` and changes nothing. The permission belongs to the device id,
+  so it survives a reconnection.
+- A change of players' names is not a command: the host sends a `STATE` with
+  the same version and the new names.
 - On acceptance, notify `STATE` to every guest first, then `COMMAND_RESULT`
   to the sender.
 - Ignore commands from a device that has not been admitted.
@@ -145,6 +162,8 @@ screen, disconnects, and does not try to reconnect.
 - Ignore a `STATE` with a lower epoch than the one held for the same match,
   or a lower version within the same epoch.
 - Show taps immediately, before the host confirms them.
+- When the last `STATE` said this device may not change the score, send
+  nothing and tell the player the device is view-only.
 - Send taps one at a time: the next tap goes out only after the previous one
   appears in a `STATE`. If the match moves on without the pending tap, drop
   every waiting tap.
