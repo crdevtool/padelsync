@@ -30,6 +30,20 @@ enum Labels {
         return nil
     }
 
+    /// `highlight` shortened to fit a watch: "MATCH POINT A" instead of "MATCH POINT · TEAM A".
+    static func highlightShort(_ score: ScoreView, config: MatchConfig?) -> String? {
+        var who = ""
+        if let team = score.highlightTeam {
+            who = team == Team.a ? " A" : " B"
+        }
+        let highlight = score.highlight
+        if highlight == Highlight.gamePoint { return "GAME POINT\(who)" }
+        if highlight == Highlight.breakPoint { return "BREAK POINT\(who)" }
+        if highlight == Highlight.setPoint { return "SET POINT\(who)" }
+        if highlight == Highlight.matchPoint { return "MATCH POINT\(who)" }
+        return Labels.highlight(score, config: config)
+    }
+
     static func sport(_ sport: Sport) -> String {
         sport == Sport.padel ? "Padel" : "Tennis"
     }

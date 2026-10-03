@@ -88,7 +88,7 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
     val strip = when {
         note != null -> note
         offline -> "RECONNECTING"
-        else -> Labels.highlight(score, ui.config) ?: score.setSummary.ifEmpty { null }
+        else -> Labels.highlightShort(score, ui.config) ?: score.setSummary.ifEmpty { null }
     }
 
     Column(Modifier.fillMaxSize()) {

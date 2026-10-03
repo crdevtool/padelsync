@@ -15,7 +15,7 @@ struct WatchMatchView: View {
     private var strip: String {
         if let note = store.note { return note.uppercased() }
         if offline { return "RECONNECTING" }
-        return Labels.highlight(score, config: store.config) ?? score.setSummary
+        return Labels.highlightShort(score, config: store.config) ?? score.setSummary
     }
 
     var body: some View {

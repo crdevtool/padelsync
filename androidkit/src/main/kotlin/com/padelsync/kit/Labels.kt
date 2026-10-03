@@ -31,6 +31,18 @@ object Labels {
         }
     }
 
+    /** [highlight] shortened to fit a watch: `MATCH POINT A` instead of `MATCH POINT · TEAM A`. */
+    fun highlightShort(score: ScoreView, config: MatchConfig?): String? {
+        val who = score.highlightTeam?.let { if (it == Team.A) " A" else " B" }.orEmpty()
+        return when (score.highlight) {
+            Highlight.GAME_POINT -> "GAME POINT$who"
+            Highlight.BREAK_POINT -> "BREAK POINT$who"
+            Highlight.SET_POINT -> "SET POINT$who"
+            Highlight.MATCH_POINT -> "MATCH POINT$who"
+            else -> highlight(score, config)
+        }
+    }
+
     fun sport(sport: Sport): String = if (sport == Sport.PADEL) "Padel" else "Tennis"
 
     fun deuceRule(rule: DeuceRule): String = when (rule) {
