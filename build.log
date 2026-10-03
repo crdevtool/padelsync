@@ -1,0 +1,77 @@
+== Xcode ==
+Xcode 26.6
+Build version 17F113
+== Shared core, release build, device architectures ==
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :core:kmpPartiallyResolvedDependenciesChecker
+> Task :core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+
+> Task :core:compileKotlinIosArm64
+Kotlin/Native bundle directory /Users/runner/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.20 is not empty. Native bundle files will be overwritten.
+Downloading native dependencies (LLVM, sysroot etc). This is a one-time action performed only on the first run of the compiler.
+Downloading dependency https://download.jetbrains.com/kotlin/native/resources/llvm/19-aarch64-macos/llvm-19-aarch64-macos-essentials-79.tar.gz to /Users/runner/.konan/dependencies/cache/llvm-19-aarch64-macos-essentials-79.tar.gz
+Done.
+Extracting dependency: /Users/runner/.konan/dependencies/cache/llvm-19-aarch64-macos-essentials-79.tar.gz into /Users/runner/.konan/dependencies
+Downloading dependency https://download.jetbrains.com/kotlin/native/libffi-3.3-1-macos-arm64.tar.gz to /Users/runner/.konan/dependencies/cache/libffi-3.3-1-macos-arm64.tar.gz
+Done.
+Extracting dependency: /Users/runner/.konan/dependencies/cache/libffi-3.3-1-macos-arm64.tar.gz into /Users/runner/.konan/dependencies
+
+> Task :core:compileKotlinIosArm64 FROM-CACHE
+> Task :core:linkReleaseFrameworkIosArm64
+> Task :core:assembleReleaseIosFatFrameworkForPadelSyncCoreXCFramework SKIPPED
+> Task :core:assembleReleaseIosSimulatorFatFrameworkForPadelSyncCoreXCFramework SKIPPED
+> Task :core:assembleReleaseMacosFatFrameworkForPadelSyncCoreXCFramework SKIPPED
+> Task :core:assembleReleaseTvosFatFrameworkForPadelSyncCoreXCFramework SKIPPED
+> Task :core:assembleReleaseTvosSimulatorFatFrameworkForPadelSyncCoreXCFramework SKIPPED
+> Task :core:compileKotlinWatchosArm64 FROM-CACHE
+> Task :core:linkReleaseFrameworkWatchosArm64
+> Task :core:compileKotlinWatchosDeviceArm64 FROM-CACHE
+> Task :core:linkReleaseFrameworkWatchosDeviceArm64
+> Task :core:assembleReleaseWatchosFatFrameworkForPadelSyncCoreXCFramework
+> Task :core:assembleReleaseWatchosSimulatorFatFrameworkForPadelSyncCoreXCFramework SKIPPED
+
+> Task :core:assemblePadelSyncCoreReleaseXCFramework
+xcframework successfully written out to: /Users/runner/work/padelsync/padelsync/core/build/XCFrameworks/release/PadelSyncCore.xcframework
+gradle/actions: Writing build results to /Users/runner/work/_temp/.gradle-actions/build-results/__run-1791071478708.json
+
+BUILD SUCCESSFUL in 1m 22s
+9 actionable tasks: 6 executed, 3 from cache
+apple/Frameworks now holds the release core: Info.plist ios-arm64 watchos-arm64_arm64_32 
+== Xcode project ==
+[32m==>[0m [1mDownloading bottle manifests[0m
+✔︎ Bottle Manifest xcodegen (2.46.0)
+[34m==>[0m [1mWould install 1 formula:[0m
+xcodegen
+[32m==>[0m [1mFetching downloads for: [32mxcodegen[39m[0m
+✔︎ Bottle xcodegen (2.46.0)
+[34m==>[0m [1mPouring xcodegen--2.46.0.arm64_tahoe.bottle.1.tar.gz[0m
+🍺  /opt/homebrew/Cellar/xcodegen/2.46.0: 38 files, 7.4MB
+⚙️  Generating plists...
+⚙️  Generating project...
+⚙️  Writing project...
+Created project at /Users/runner/work/padelsync/padelsync/apple/PadelSync.xcodeproj
+== Build settings for real devices ==
+ok: PadelSync for iphoneos leaves no architecture out
+ok: PadelSyncWatch for watchos leaves no architecture out
+== Archive (version from the project, build 1) ==
+GatherProvisioningInputs
+** ARCHIVE SUCCEEDED **
+== What is in the archive ==
+ok: the iPhone app's ID is com.crdevtool.padelsync
+ok: the iPhone app's encryption answer is false
+ok: the iPhone app's icon is named in its Info.plist
+ok: the watch app's ID is com.crdevtool.padelsync.watchkitapp
+ok: the iPhone app the watch app belongs to is com.crdevtool.padelsync
+ok: the watch app running on its own is true
+ok: the watch app's encryption answer is false
+ok: the watch app's icon is named in its Info.plist
+ok: CFBundleShortVersionString is 0.1.0 in both apps
+ok: CFBundleVersion is 1 in both apps
+ok: PadelSync.app has its compiled icons
+ok: PadelSync.app has its privacy declaration
+ok: PadelSyncWatch.app has its compiled icons
+ok: PadelSyncWatch.app has its privacy declaration
+iPhone app architectures: arm64
+watch app architectures: arm64_32 arm64
+ok: PadelSync.app 0.1.0 (1) has what an upload needs
+== Done: the release build is ready to be signed and uploaded ==
