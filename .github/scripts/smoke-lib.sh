@@ -66,6 +66,24 @@ quiet_system_dialogs() {
   log "system 'not responding' dialogs switched off on ${ANDROID_SERIAL:-the emulator}"
 }
 
+# Starts activity $1 and waits for $2 to be on screen, for up to $3 seconds
+# (default 180). A watch emulator can take over a minute to bring an app up
+# the first time, and sometimes drops the first request altogether, so the
+# app is started again every 20 seconds until it shows.
+launch_app() {
+  stop_if_failed
+  local deadline=$(( SECONDS + ${3:-180} ))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    adb shell am start -n "$1" >/dev/null 2>&1 || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      if find_center "$2" >/dev/null; then return 0; fi
+      sleep 2
+    done
+    log "'$2' is not on screen yet; starting the app again"
+  done
+  fail "launch-$(slug "$2")" "'$2' never appeared after starting $1"
+}
+
 # Prints "x y" for the centre of the first element whose text equals $1 or
 # whose accessibility description starts with $1.
 find_center() {

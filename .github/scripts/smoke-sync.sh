@@ -141,8 +141,7 @@ shot host-court-open
 
 log "--- guest: find the court and join"
 on "$GUEST"
-adb shell am start -n "$GUEST_ACTIVITY"
-wait_for "Join a court" 90
+launch_app "$GUEST_ACTIVITY" "Join a court"
 guest_join
 shot guest-joined
 on "$HOST"
