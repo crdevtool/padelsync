@@ -1,12 +1,70 @@
 #!/usr/bin/env bash
 # Helpers for driving an app on an emulator by what is on screen, using only
 # adb. Sourced by the smoke-test scripts.
+#
+# The first check that fails stops the run: wait_for, tap, tap_many and expect
+# call fail, which saves a screenshot and the screen's text, looks for a
+# crash, and exits non-zero. Nothing carries on past a missing screen.
 
 mkdir -p shots
 STEP=0
 FAILED=0
 
+# Written by fail. If a failure was ever raised from inside $(...), where
+# "exit" only ends the subshell, the marker still stops the run at the next
+# helper and makes the script's exit status non-zero.
+FAIL_MARKER=shots/FAILED.txt
+rm -f "$FAIL_MARKER"
+trap 'if [ -e "$FAIL_MARKER" ]; then exit 1; fi' EXIT
+
+# One adb call that hangs must not use up the whole job: the short ones are
+# given this many seconds.
+ADB_TIMEOUT=${ADB_TIMEOUT:-20}
+
 log() { echo "[smoke] $*"; }
+
+# Turns a label into something that can go in a file name.
+slug() {
+  printf '%s' "$1" | tr -c 'A-Za-z0-9' '-' | tr -s '-' | sed 's/^-//; s/-$//' | cut -c1-40
+}
+
+# Stops the run. $1 names the failure, for the screenshot; $2 says what went
+# wrong. Call it from the script's own shell only, never inside $(...).
+fail() {
+  log "FAIL: $2"
+  echo "$2" >> "$FAIL_MARKER"
+  if [ -z "${FAILING:-}" ]; then
+    FAILING=1
+    # A script that drives several devices defines on_fail to record them all.
+    if declare -F on_fail >/dev/null; then on_fail "$1"; else fail_snapshot "$1"; fi
+  fi
+  log "RESULT: stopped at the first failed check"
+  exit 1
+}
+
+# What a failure leaves behind for the current device: a screenshot named
+# after the failure, the text on screen, and any crash.
+fail_snapshot() {
+  shot "FAILED-$1"
+  texts
+  check_crashes
+}
+
+stop_if_failed() {
+  if [ -e "$FAIL_MARKER" ]; then exit 1; fi
+}
+
+# Switches off Android's "... isn't responding" and "... keeps stopping"
+# dialogs on the current device. A slow emulator puts them up for system apps
+# such as the launcher, over the app under test, and a run then waits behind
+# a dialog nobody will answer. Call this on every emulator before launching
+# the app. With the dialogs off, an app that really stops responding is closed
+# by the system instead, and the next check for its screen fails.
+quiet_system_dialogs() {
+  adb shell settings put global hide_error_dialogs 1 || true
+  adb shell settings put secure anr_show_background 0 || true
+  log "system 'not responding' dialogs switched off on ${ANDROID_SERIAL:-the emulator}"
+}
 
 # Prints "x y" for the centre of the first element whose text equals $1 or
 # whose accessibility description starts with $1.
@@ -15,17 +73,35 @@ find_center() {
   locate "$1"
 }
 
-# Reads the screen into ui.xml. Slow emulators sometimes show a system
-# "... isn't responding" dialog over the app. That is the emulator's problem,
-# not the app's, so it is dismissed here, for every caller.
+# Reads the screen into ui.xml. If a system "... isn't responding" dialog is
+# up in spite of quiet_system_dialogs, it is dismissed here, for every caller.
+# A read that fails leaves ui.xml empty, never showing an earlier screen.
+#
+# Callers capture this function's output to get coordinates, so anything it
+# says goes to stderr: a message on stdout would end up in the middle of a
+# tap command.
 dump_ui() {
+  local button_xy status
   for _ in 1 2 3 4; do
-    adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
-    adb exec-out cat /sdcard/ui.xml > ui.xml 2>/dev/null || true
-    grep -q "isn't responding" ui.xml 2>/dev/null || return 0
-    log "dismissing an emulator 'not responding' dialog"
-    local wait_xy
-    if wait_xy=$(locate "Wait"); then adb shell input tap $wait_xy; fi
+    : > ui.xml
+    timeout "$ADB_TIMEOUT" adb shell 'rm -f /sdcard/ui.xml; uiautomator dump /sdcard/ui.xml' >/dev/null 2>&1
+    status=$?
+    if [ "$status" = 124 ]; then
+      # adb is stuck, not the screen: retrying here would only add to the wait.
+      log "adb did not answer within $ADB_TIMEOUT seconds" >&2
+      return 1
+    fi
+    timeout "$ADB_TIMEOUT" adb exec-out cat /sdcard/ui.xml > ui.xml 2>/dev/null || true
+    if ! grep -q "<node" ui.xml; then
+      # The screen could not be read just now; try again.
+      sleep 1
+      continue
+    fi
+    grep -qE "isn.{1,6}t responding" ui.xml || return 0
+    log "dismissing an emulator 'not responding' dialog" >&2
+    if button_xy=$(locate "Wait") || button_xy=$(locate "Close app"); then
+      timeout "$ADB_TIMEOUT" adb shell input tap $button_xy
+    fi
     sleep 5
   done
 }
@@ -52,45 +128,50 @@ sys.exit(1)
 PY
 }
 
-# Waits up to $2 seconds (default 30) for $1 to be on screen.
+# Waits for $1 to be on screen, looking every 2 seconds, $2 seconds' worth of
+# times (default 30). Stops the run if it never appears. Reading the screen
+# takes time too, so the real wait is longer; if adb itself is stuck, it gives
+# up after three times $2 seconds.
 wait_for() {
-  local tries=$(( ${2:-30} / 2 ))
+  stop_if_failed
+  local seconds=${2:-30}
+  local tries=$(( seconds / 2 ))
+  local deadline=$(( SECONDS + seconds * 3 ))
   for _ in $(seq 1 "$tries"); do
     if find_center "$1" >/dev/null; then return 0; fi
+    if [ "$SECONDS" -ge "$deadline" ]; then break; fi
     sleep 2
   done
-  log "MISSING: '$1' never appeared"
-  FAILED=1
-  return 1
+  fail "missing-$(slug "$1")" "MISSING: '$1' never appeared"
 }
 
 # Taps the element labelled $1, scrolling a list down a few times to find it.
+# Stops the run if it is not there.
 tap() {
+  stop_if_failed
   local xy
   for attempt in 1 2 3 4; do
     if xy=$(find_center "$1"); then
-      adb shell input tap $xy
+      timeout "$ADB_TIMEOUT" adb shell input tap $xy
       sleep 1
       return 0
     fi
-    adb shell input swipe "$SWIPE_X" "$SWIPE_FROM" "$SWIPE_X" "$SWIPE_TO" 300
+    timeout "$ADB_TIMEOUT" adb shell input swipe "$SWIPE_X" "$SWIPE_FROM" "$SWIPE_X" "$SWIPE_TO" 300
     sleep 1
   done
-  log "MISSING: could not tap '$1'"
-  FAILED=1
-  return 1
+  fail "tap-$(slug "$1")" "MISSING: could not tap '$1'"
 }
 
 # Taps the element labelled $1 a total of $2 times, looking it up once.
+# Stops the run if it is not there.
 tap_many() {
+  stop_if_failed
   local xy
   if ! xy=$(find_center "$1"); then
-    log "MISSING: could not tap '$1'"
-    FAILED=1
-    return 1
+    fail "tap-$(slug "$1")" "MISSING: could not tap '$1'"
   fi
   for _ in $(seq 1 "$2"); do
-    adb shell input tap $xy
+    timeout "$ADB_TIMEOUT" adb shell input tap $xy
     sleep 0.25
   done
   sleep 1
@@ -99,7 +180,7 @@ tap_many() {
 # Saves a screenshot named after the step number and $1.
 shot() {
   STEP=$((STEP + 1))
-  adb exec-out screencap -p > "shots/$(printf '%02d' "$STEP")-$1.png"
+  timeout "$ADB_TIMEOUT" adb exec-out screencap -p > "shots/$(printf '%02d' "$STEP")-$1.png"
   log "screenshot $STEP: $1"
 }
 
@@ -142,24 +223,26 @@ PY
 }
 
 # Waits up to 20 seconds for the screen to contain $1; $2 describes the check.
+# Stops the run if it never does.
 expect() {
+  stop_if_failed
   local seen=""
+  local deadline=$(( SECONDS + 60 ))
   for _ in $(seq 1 10); do
     seen=$(screen_text)
     if echo "$seen" | grep -qF "$1"; then
       log "PASS: $2"
       return 0
     fi
+    if [ "$SECONDS" -ge "$deadline" ]; then break; fi
     sleep 2
   done
-  log "FAIL: $2 (wanted '$1', screen shows: $seen)"
-  FAILED=1
-  return 1
+  fail "expect-$(slug "$2")" "$2 (wanted '$1', screen shows: $seen)"
 }
 
 # Fails the run if the app crashed at any point.
 check_crashes() {
-  adb logcat -d -b crash > "shots/crash-${ANDROID_SERIAL:-device}.txt" 2>/dev/null || true
+  timeout "$ADB_TIMEOUT" adb logcat -d -b crash > "shots/crash-${ANDROID_SERIAL:-device}.txt" 2>/dev/null || true
   if grep -q "com.padelsync" "shots/crash-${ANDROID_SERIAL:-device}.txt"; then
     log "CRASH detected:"
     cat "shots/crash-${ANDROID_SERIAL:-device}.txt"

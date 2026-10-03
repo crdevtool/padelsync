@@ -53,8 +53,9 @@ mkdir -p shots
 echo "== iPhone walkthrough =="
 # Plays a whole match on an iPhone simulator, recording a video and a
 # screenshot of every screen, so the app can be reviewed without a Mac.
+# Returns the test's own status, after the video and screenshots are saved.
 walkthrough() {
-  local udid
+  local udid test_status=0
   udid=$(xcrun simctl list devices available -j | python3 -c "
 import json, sys
 devices = json.load(sys.stdin)['devices']
@@ -66,7 +67,11 @@ for runtime in sorted(devices, reverse=True):
             print(device['udid'])
             raise SystemExit
 raise SystemExit(1)
-")
+") || true
+  if [ -z "$udid" ]; then
+    echo "no iPhone simulator is available for the walkthrough"
+    return 1
+  fi
   echo "walkthrough simulator: $udid"
   xcrun simctl boot "$udid" || true
   xcrun simctl bootstatus "$udid" -b >/dev/null
@@ -75,10 +80,15 @@ raise SystemExit(1)
   xcrun simctl io "$udid" recordVideo --codec h264 --force shots/iphone-walkthrough.mp4 &
   local recorder=$!
   sleep 2
+  # grep only shortens the output. Its status must not stand in for the
+  # test's: with pipefail the pipeline fails if either side does, and
+  # PIPESTATUS[0] is then xcodebuild's own status (0 if only grep found
+  # nothing to print).
   xcodebuild test -project apple/PadelSync.xcodeproj -scheme PadelSync \
     -destination "platform=iOS Simulator,id=$udid" -derivedDataPath build/apple \
     -resultBundlePath build/walkthrough.xcresult 2>&1 \
-    | grep -E "Test Case|Test Suite .* (passed|failed)|error:|XCTAssert|Executed|\*\* TEST" || true
+    | grep -E "Test Case|Test Suite .* (passed|failed)|error:|XCTAssert|Executed|\*\* TEST" \
+    || test_status=${PIPESTATUS[0]}
   kill -INT "$recorder" 2>/dev/null || true
   wait "$recorder" 2>/dev/null || true
 
@@ -92,8 +102,16 @@ raise SystemExit(1)
   echo "walkthrough screenshots: $(ls shots/iphone 2>/dev/null | wc -l | tr -d ' ')"
   ls -la shots/iphone-walkthrough.mp4 2>/dev/null || echo "no video was recorded"
   xcrun simctl shutdown "$udid" || true
+  return "$test_status"
 }
-walkthrough || echo "the iPhone walkthrough did not complete"
+walkthrough_status=0
+walkthrough || walkthrough_status=$?
+if [ "$walkthrough_status" != 0 ]; then
+  # The workflow publishes shots/ whatever happens, so the video and the
+  # screenshots taken up to the failure are still there to look at.
+  echo "FAILED: the iPhone walkthrough test did not pass (status $walkthrough_status)"
+  exit "$walkthrough_status"
+fi
 
 echo "== Run on simulators =="
 

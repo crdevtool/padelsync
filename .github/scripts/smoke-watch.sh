@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Drives the Wear OS app through a solo match on a watch emulator and takes
 # screenshots along the way. Bluetooth is not exercised: emulators have none.
+# The run stops at the first screen or button that is missing; see smoke-lib.sh.
 source .github/scripts/smoke-lib.sh
 SWIPE_X=200; SWIPE_FROM=300; SWIPE_TO=120
 
 # Give the freshly booted system a moment to settle before starting.
 sleep 20
+quiet_system_dialogs
 adb install -r PadelSync-watch.apk
 grant_permissions
 adb logcat -c
@@ -53,4 +55,5 @@ shot join
 texts
 
 check_crashes
+log "RESULT: $([ "$FAILED" = 0 ] && echo all checks passed || echo the app crashed)"
 exit $FAILED

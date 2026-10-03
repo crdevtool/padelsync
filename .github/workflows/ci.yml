@@ -6,12 +6,14 @@ name: CI
 # choose only what is needed:
 #   - Emulators "none": shared tests and the Android APKs (about 10 minutes).
 #   - Emulators "phone" or "watch": also runs that app through a solo match
-#     on an emulator, with screenshots (about 15 minutes more each).
+#     on an emulator, with screenshots (stopped after 15 minutes each).
 #   - Emulators "sync-phone" or "sync-watch": a phone hosts and a second
-#     emulator joins over virtual Bluetooth (about 25 minutes more each).
+#     emulator joins over virtual Bluetooth (stopped after 20 minutes each).
 #   - Emulators "all": all four of the above.
 #   - Apple: also builds and runs the iPhone and Apple Watch apps (about 15
 #     minutes on a Mac, which GitHub counts ten times over).
+# An emulator run stops at the first screen or button it cannot find, and the
+# job fails; the screenshots and log up to that point are still published.
 on:
   workflow_dispatch:
     inputs:
@@ -99,7 +101,7 @@ jobs:
     if: contains(fromJSON('["phone", "watch", "all"]'), inputs.emulators)
     needs: android
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -128,7 +130,9 @@ jobs:
           ram-size: 4096M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: bash .github/scripts/smoke-${{ matrix.device }}.sh 2>&1 | tee smoke.log
+          # One line, run by "sh -c". Without pipefail the step would report
+          # tee's status, and a failed run would pass.
+          script: bash -o pipefail -c 'bash .github/scripts/smoke-${{ matrix.device }}.sh 2>&1 | tee smoke.log'
       - name: Publish screenshots and log
         if: always()
         env:
@@ -140,7 +144,9 @@ jobs:
     if: contains(fromJSON('["sync-phone", "sync-watch", "all"]'), inputs.emulators)
     needs: android
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Five minutes more than the single-emulator runs: this one also
+    # downloads, starts and waits for a second emulator.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -168,7 +174,9 @@ jobs:
           ram-size: 3072M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: bash .github/scripts/smoke-sync.sh ${{ matrix.guest }} 2>&1 | tee smoke.log
+          # One line, run by "sh -c". Without pipefail the step would report
+          # tee's status, and a failed run would pass.
+          script: bash -o pipefail -c 'bash .github/scripts/smoke-sync.sh ${{ matrix.guest }} 2>&1 | tee smoke.log'
       - name: Publish screenshots and log
         if: always()
         env:
