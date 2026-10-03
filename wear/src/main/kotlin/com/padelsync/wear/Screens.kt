@@ -228,21 +228,22 @@ fun MenuScreen(ui: CourtUiState, controller: CourtController, onClose: () -> Uni
     }
 }
 
-/** A small round button used on the score screen. */
+/** A small pill-shaped button used on the score screen. */
 @Composable
-fun RoundKey(label: String, enabled: Boolean = true, onClick: () -> Unit) {
+fun PillKey(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
         Modifier
-            .size(34.dp)
-            .clip(RoundedCornerShape(17.dp))
+            .size(width = 46.dp, height = 30.dp)
+            .clip(RoundedCornerShape(15.dp))
             .background(WearPalette.Key)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             label,
-            fontSize = 12.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
+            maxLines = 1,
             color = if (enabled) androidx.compose.ui.graphics.Color.White else WearPalette.Muted,
         )
     }

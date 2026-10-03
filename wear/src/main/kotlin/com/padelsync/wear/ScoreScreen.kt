@@ -102,10 +102,11 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 2.dp),
+                // Inset so the keys clear the curve of a round screen.
+                .padding(horizontal = 12.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RoundKey("UNDO", enabled = score.canUndo) { tap(Action.UNDO) }
+            PillKey("UNDO", enabled = score.canUndo) { tap(Action.UNDO) }
             Text(
                 strip.orEmpty(),
                 color = if (note != null || offline) WearPalette.Danger else WearPalette.Accent,
@@ -118,7 +119,7 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
                     .weight(1f)
                     .padding(horizontal = 4.dp),
             )
-            RoundKey("MENU", onClick = onMenu)
+            PillKey("MENU", onClick = onMenu)
         }
 
         Half(
@@ -168,6 +169,13 @@ private fun Half(
             horizontalArrangement = Arrangement.Center,
             modifier = Modifier.padding(vertical = 2.dp),
         ) {
+            Text(
+                if (team == Team.A) "A" else "B",
+                color = color,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black,
+            )
+            Spacer(Modifier.width(10.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Text("G $games", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text("S $sets", color = WearPalette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)

@@ -11,8 +11,24 @@ log() { echo "[smoke] $*"; }
 # Prints "x y" for the centre of the first element whose text equals $1 or
 # whose accessibility description starts with $1.
 find_center() {
+  dump_ui
+  # Slow emulators sometimes show a "System UI isn't responding" dialog over
+  # the app. It is the emulator's problem, not the app's: dismiss it.
+  if grep -q "isn't responding" ui.xml 2>/dev/null; then
+    log "dismissing an emulator 'not responding' dialog"
+    local wait_xy
+    if wait_xy=$(locate "Wait"); then adb shell input tap $wait_xy; sleep 3; fi
+    dump_ui
+  fi
+  locate "$1"
+}
+
+dump_ui() {
   adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
   adb exec-out cat /sdcard/ui.xml > ui.xml 2>/dev/null || true
+}
+
+locate() {
   python3 - "$1" <<'PY'
 import re, sys
 import xml.etree.ElementTree as ET

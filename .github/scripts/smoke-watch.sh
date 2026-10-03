@@ -4,6 +4,8 @@
 source .github/scripts/smoke-lib.sh
 SWIPE_X=200; SWIPE_FROM=300; SWIPE_TO=120
 
+# Give the freshly booted system a moment to settle before starting.
+sleep 20
 adb install -r PadelSync-watch.apk
 grant_permissions
 adb logcat -c
