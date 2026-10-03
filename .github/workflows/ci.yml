@@ -81,12 +81,22 @@ jobs:
           cp mobile/build/outputs/apk/debug/mobile-debug.apk PadelSync-phone.apk
           cp wear/build/outputs/apk/debug/wear-debug.apk PadelSync-watch.apk
           notes="Test build from commit ${GITHUB_SHA:0:7}, $(date -u '+%Y-%m-%d %H:%M UTC'). PadelSync-phone.apk is for Android phones, PadelSync-watch.apk is for Wear OS watches."
-          if gh release view test-build >/dev/null 2>&1; then
-            gh release edit test-build --notes "$notes"
-          else
-            gh release create test-build --prerelease --title "Latest test build" --notes "$notes"
-          fi
-          gh release upload test-build PadelSync-phone.apk PadelSync-watch.apk --clobber
+          # GitHub's release API fails now and then, more so when another job
+          # is writing to the same release; a second try has always worked.
+          publish() {
+            if gh release view test-build >/dev/null 2>&1; then
+              gh release edit test-build --notes "$notes"
+            else
+              gh release create test-build --prerelease --title "Latest test build" --notes "$notes"
+            fi
+            gh release upload test-build PadelSync-phone.apk PadelSync-watch.apk --clobber
+          }
+          for attempt in 1 2 3; do
+            if publish; then exit 0; fi
+            echo "publishing the test build failed (attempt $attempt)"
+            sleep 15
+          done
+          exit 1
       - name: Keep APKs for the emulator tests
         uses: actions/upload-artifact@v4
         with:
