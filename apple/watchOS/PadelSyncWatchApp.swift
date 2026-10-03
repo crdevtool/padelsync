@@ -35,8 +35,8 @@ struct WatchRootView: View {
             }
         } else if store.mode == .guest && store.guestEnded {
             WatchMessageView(
-                title: "Court closed",
-                message: "The host ended the match or stopped sharing it.",
+                title: Labels.courtClosedTitle,
+                message: Labels.courtClosedBody,
                 button: "Back",
                 // The match could carry on from another device, but not from a watch.
                 extra: store.canTakeOver ? Labels.askPhoneToHost : nil

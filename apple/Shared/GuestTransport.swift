@@ -28,6 +28,10 @@ struct NearbyCourt: Identifiable {
 /// `courtProved()` or `wrongCourt()`. A wrong court is left alone for a
 /// while and the search goes on.
 ///
+/// A host that closes its court is not chased any more (`courtClosed()`),
+/// but its court is still looked for by name for a few minutes: another
+/// player may carry the match on.
+///
 /// It only moves packets; the shared `ClientSession` decides what they mean.
 /// Works on both iPhone and Apple Watch. Everything runs on the main queue.
 final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
@@ -52,7 +56,16 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     /// A found court that could not be connected to is tried again after this long.
     private static let failedRestSeconds: TimeInterval = 10
     /// How long a found court gets to connect, and then again to prove itself.
-    private static let candidateSeconds: TimeInterval = 10
+    private static let candidateSeconds: TimeInterval = 12
+    /// After Bluetooth comes back, the direct reconnect gets this long before looking.
+    private static let lookAfterBluetoothSeconds: TimeInterval = 5
+    /// How long a court that its host closed is still looked for.
+    private static let closedLookSeconds: TimeInterval = 180
+    /// The pause before asking again for a peripheral that connected and then
+    /// had no court to offer, or dropped the link: doubled each time up to
+    /// the limit, and back to the start once a link is up.
+    private static let firstRetrySeconds: TimeInterval = 0.5
+    private static let maxRetrySeconds: TimeInterval = 4
 
     private var central: CBCentralManager?
     /// The Join screen is listing courts.
@@ -73,6 +86,15 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     /// a peripheral through the manager it came from, so this transport's own
     /// object for it is fetched before the first attempt.
     private var primaryUnresolved = false
+    /// Whether the joined peripheral is retried directly. Off once the host
+    /// has closed the court: a host that said goodbye is not chased, but the
+    /// court is still looked for by name.
+    private var directRetry = true
+    private var retryDelay = GuestTransport.firstRetrySeconds
+    private var retryTimer: Timer?
+    private var closedLookTimer: Timer?
+    /// Bluetooth was switched off, or restarted, since it was last on.
+    private var bluetoothWasOff = false
 
     private var toHost: CBCharacteristic?
     private var outbox: [Data] = []
@@ -129,11 +151,56 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     }
 
     /// The host has stopped answering on a link Bluetooth still calls
-    /// connected. Drops the link; the disconnection that follows is handled
-    /// exactly as if the link had broken: direct retry, then looking.
+    /// connected. Drops the link and goes on as if it had broken, except
+    /// that the court is looked for at once: it has been quiet for a while
+    /// already.
     func hostSilent() {
         guard let silent = active else { return }
+        if silent === candidate {
+            avoidUntil[silent.identifier] = Date().addingTimeInterval(GuestTransport.failedRestSeconds)
+            dropCandidate()
+            return
+        }
+        active = nil
+        resetLink()
         cancel(silent)
+        onLinkDown?()
+        if primary == nil { return }
+        retryPrimary()
+        startLooking()
+    }
+
+    /// The host has closed the court. Stops chasing that peripheral, but
+    /// keeps looking for the court's name for a few minutes: another player
+    /// may take the match over, or the host may have handed it to another
+    /// court.
+    func courtClosed() {
+        guard let closedHost = primary else { return }
+        directRetry = false
+        retryTimer?.invalidate()
+        retryTimer = nil
+        if let unneeded = candidate {
+            candidate = nil
+            candidateTimer?.invalidate()
+            candidateTimer = nil
+            if unneeded !== closedHost { cancel(unneeded) }
+        }
+        let wasUp = active != nil
+        active = nil
+        resetLink()
+        cancel(closedHost)
+        if wasUp { onLinkDown?() }
+        // The caller may have closed the transport on hearing that.
+        if primary == nil { return }
+        startLooking()
+        closedLookTimer?.invalidate()
+        closedLookTimer = Timer.scheduledTimer(
+            withTimeInterval: GuestTransport.closedLookSeconds,
+            repeats: false
+        ) { [weak self] _ in
+            guard let self, self.active == nil, self.candidate == nil else { return }
+            self.stopLooking()
+        }
     }
 
     /// Disconnects and stops reconnecting and looking.
@@ -146,6 +213,12 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         candidate = nil
         active = nil
         courtLabel = nil
+        directRetry = true
+        retryDelay = GuestTransport.firstRetrySeconds
+        retryTimer?.invalidate()
+        retryTimer = nil
+        closedLookTimer?.invalidate()
+        closedLookTimer = nil
         avoidUntil.removeAll()
         candidateTimer?.invalidate()
         candidateTimer = nil
@@ -166,8 +239,13 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         candidateTimer?.invalidate()
         candidateTimer = nil
         primary = proved
-        // The old address leads nowhere now; stop asking for it.
-        if let old { cancel(old) }
+        // A court that has answered is chased like any other from now on.
+        directRetry = true
+        closedLookTimer?.invalidate()
+        closedLookTimer = nil
+        // The old address leads nowhere now; stop asking for it. (A closed
+        // court that its host reopened is found as the same peripheral.)
+        if let old, old !== proved { cancel(old) }
         stopLooking()
     }
 
@@ -200,7 +278,7 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
 
     private func connectPrimaryIfPossible() {
         let central = manager()
-        guard var target = primary, central.state == .poweredOn else { return }
+        guard directRetry, var target = primary, central.state == .poweredOn else { return }
         if primaryUnresolved {
             primaryUnresolved = false
             let known = central.retrievePeripherals(withIdentifiers: [target.identifier])
@@ -246,20 +324,38 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
             }
             // While a found court is proving itself the direct retry waits;
             // it is resumed if that court is dropped.
-            if active == nil { connectPrimaryIfPossible() }
+            if active == nil { retryPrimary() }
         }
     }
 
-    /// Bluetooth went off: every connection is gone, with no word about each.
+    /// Asks for the joined peripheral again after a pause. A phone that has
+    /// stopped hosting still accepts the connection and then has no court to
+    /// offer; asked again at once, it would be asked many times a second.
+    private func retryPrimary() {
+        guard directRetry, primary != nil, retryTimer == nil else { return }
+        let delay = retryDelay
+        retryDelay = min(retryDelay * 2, GuestTransport.maxRetrySeconds)
+        retryTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.retryTimer = nil
+            if self.active == nil { self.connectPrimaryIfPossible() }
+        }
+    }
+
+    /// Bluetooth went off or is restarting: every connection, pending
+    /// request and scan is gone, with no word about each.
     private func allLinksLost() {
+        bluetoothWasOff = true
         candidate = nil
         candidateTimer?.invalidate()
         candidateTimer = nil
+        retryTimer?.invalidate()
+        retryTimer = nil
+        sighted.removeAll()
         if active != nil {
             active = nil
             resetLink()
             onLinkDown?()
-            if primary != nil { scheduleLook() }
         }
     }
 
@@ -278,12 +374,9 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     // MARK: Looking for the court again
 
     /// Starts the search once the link has been down for a while.
-    private func scheduleLook() {
+    private func scheduleLook(after seconds: TimeInterval = GuestTransport.lookAfterSeconds) {
         lookTimer?.invalidate()
-        lookTimer = Timer.scheduledTimer(
-            withTimeInterval: GuestTransport.lookAfterSeconds,
-            repeats: false
-        ) { [weak self] _ in
+        lookTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
             self?.startLooking()
         }
     }
@@ -324,7 +417,8 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
 
     /// Tries the nearest court seen under the joined name, unless a link is
     /// already up or being made. The peripheral that is retried directly is
-    /// never a candidate; `sighted` normally does not hold it at all.
+    /// never a candidate. Once its host has closed the court it is no longer
+    /// retried, and may be found again like any other: the host may reopen.
     private func tryFound() {
         guard looking, active == nil, candidate == nil, let primary, let courtLabel,
               let central, central.state == .poweredOn
@@ -333,7 +427,8 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         let nearestFirst = sighted.values.sorted { $0.rssi > $1.rssi }
         let match = nearestFirst.first { court in
             let rested = (avoidUntil[court.id] ?? Date.distantPast) <= now
-            return rested && CourtName.shared.matches(joined: courtLabel, seen: court.name) && court.id != primary.identifier
+            let retried = directRetry && court.id == primary.identifier
+            return rested && !retried && CourtName.shared.matches(joined: courtLabel, seen: court.name)
         }
         guard let match else { return }
         let peripheral = match.peripheral
@@ -384,13 +479,26 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         switch central.state {
         case .poweredOn:
             onProblem?(nil)
+            // A search that was under way carries on.
             scanIfPossible()
             if active == nil { connectPrimaryIfPossible() }
+            if bluetoothWasOff {
+                bluetoothWasOff = false
+                // Bluetooth is back: besides reconnecting, look for the court
+                // by name as after any loss, a little sooner than usual.
+                if primary != nil && active == nil && !looking {
+                    scheduleLook(after: GuestTransport.lookAfterBluetoothSeconds)
+                }
+            }
         case .unauthorized:
             onProblem?("Allow Bluetooth for PadelSync in Settings to play with others.")
         case .poweredOff:
             allLinksLost()
             onProblem?("Turn on Bluetooth to play with others.")
+        case .resetting:
+            // The system is restarting Bluetooth: as when it is switched off,
+            // everything in progress is gone. It reports powered on again by itself.
+            allLinksLost()
         case .unsupported:
             onProblem?("This device does not support Bluetooth LE.")
         default:
@@ -425,7 +533,7 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
             onCourts?(found.values.sorted { $0.rssi > $1.rssi })
         }
         if looking {
-            if let primary, court.id == primary.identifier {
+            if directRetry, let primary, court.id == primary.identifier {
                 // The court is still where it was joined: no second attempt
                 // is needed, only the direct one, asked for again in case
                 // the system dropped the request (as it does when Bluetooth
@@ -507,7 +615,7 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         let foundByScan = peripheral === candidate
         if foundByScan {
             // Stop retrying the old address while this court proves itself.
-            if let primary { cancel(primary) }
+            if let primary, primary !== peripheral { cancel(primary) }
             startCandidateTimer()
         } else {
             // The peripheral joined in the first place is back: no candidate needed.
@@ -521,6 +629,7 @@ final class GuestTransport: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         }
         active = peripheral
         toHost = write
+        retryDelay = GuestTransport.firstRetrySeconds
         // Each packet must fit a single Bluetooth write. The "without
         // response" limit is that size; the "with response" limit is larger
         // only because it allows multi-part writes, which the protocol does

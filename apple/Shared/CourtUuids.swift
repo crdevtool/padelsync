@@ -12,23 +12,7 @@ enum CourtUuids {
     /// Host to guest: notifications.
     static let fromHost = CBUUID(string: "5AD31002-7C4E-4B6F-9D2A-8E3F1B0C9A71")
 
-    /// Longest host label that is advertised, in UTF-8 bytes. The same limit
-    /// as on Android, where it is all that fits: a court taken over by a
-    /// device of the other kind must be able to carry the same name.
-    static let maxLabelBytes = 12
-
-    /// A host's name as guests see it: cut to what is advertised, without
-    /// splitting a character. A host looking for another court under its own
-    /// name has to look for this, not for the full name.
-    static func advertisedLabel(_ name: String) -> String {
-        var cut = String.UnicodeScalarView()
-        var bytes = 0
-        for scalar in name.unicodeScalars {
-            let size = String(scalar).utf8.count
-            if bytes + size > maxLabelBytes { break }
-            cut.append(scalar)
-            bytes += size
-        }
-        return String(cut)
-    }
+    /// Room for an iPhone's own court label, in UTF-8 bytes. Android has 12;
+    /// iOS leaves less for the local name beside the service UUID.
+    static let ownLabelBytes: Int32 = 10
 }

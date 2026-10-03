@@ -91,14 +91,21 @@ final class CourtStore: ObservableObject {
     #if os(iOS)
     private var hostTransport: HostTransport?
     private var rivalWatch: RivalWatch?
+    /// The name the open court is advertised under.
+    private var advertisedLabel: String?
+    /// Bluetooth going off has closed the open court for now; it reopens by
+    /// itself when Bluetooth is back. A court the player closed stays closed.
+    private var courtSuspended = false
     #endif
+    /// Set when this host gave way to another court; see `yieldTo`.
+    private var clearSavedMatchOnceSynced = false
     /// The name this court advertises when it was taken over from another host; nil for this device's own name.
     private var courtLabel: String?
     /// The code the player typed to join, reused if this device takes over as host.
     private var enteredCode: Int?
     /// When the host went out of reach; nil while in touch.
     private var hostLostAt: Date?
-    private var offerTimer: Timer?
+    private var offerTimers: [Timer] = []
     /// How many checks in a row have found the host silent on a link that is up.
     private var silentChecks = 0
     private var hostPinged = false
@@ -113,6 +120,7 @@ final class CourtStore: ObservableObject {
     private static let savedMatchKey = "hosted_match"
     private static let savedCodeKey = "hosted_code"
     private static let savedLabelKey = "hosted_label"
+    private static let savedOpenKey = "hosted_open"
     private static let historyKey = "match_history"
 
     /// Guest side: when this device first saw each match, for its duration.
@@ -131,6 +139,8 @@ final class CourtStore: ObservableObject {
     private static let silentChecksBeforeDrop = 9
     /// How long the host must be out of reach before a guest is offered its place.
     private static let takeOverAfterSeconds: TimeInterval = 20
+    /// How long after the host closed the court a guest is offered its place.
+    private static let takeOverAfterCloseSeconds: TimeInterval = 10
     /// How long a remark about a tap stays up.
     private static let feedbackSeconds: TimeInterval = 2.5
     /// How long a problem stays on the scoreboard before the status line returns.
@@ -178,15 +188,17 @@ final class CourtStore: ObservableObject {
             self.client?.disconnected()
             if self.client != nil && self.hostLostAt == nil {
                 self.hostLostAt = Date()
-                // Publish again when the host has been gone long enough to offer taking over.
-                self.offerTimer?.invalidate()
-                self.offerTimer = Timer.scheduledTimer(
-                    withTimeInterval: CourtStore.takeOverAfterSeconds + 0.1,
-                    repeats: false
-                ) { [weak self] _ in
-                    self?.publish()
+                // Publish again at the two moments the offer to take over can
+                // begin: sooner for a closed court, later for a lost host.
+                self.cancelOfferTimers()
+                for wait in [CourtStore.takeOverAfterCloseSeconds, CourtStore.takeOverAfterSeconds] {
+                    let timer = Timer.scheduledTimer(withTimeInterval: wait + 0.1, repeats: false) { [weak self] _ in
+                        self?.publish()
+                    }
+                    self.offerTimers.append(timer)
                 }
             }
+            // The session's status is read afresh: a closed court stays closed.
             self.publish()
         }
         guestTransport.onPacket = { [weak self] packet in
@@ -204,8 +216,11 @@ final class CourtStore: ObservableObject {
             if client.status == ClientStatus.synced {
                 self.guestTransport.courtProved()
                 self.hostLostAt = nil
-                self.offerTimer?.invalidate()
-                self.offerTimer = nil
+                self.cancelOfferTimers()
+                if self.clearSavedMatchOnceSynced {
+                    self.clearSavedMatchOnceSynced = false
+                    self.clearSavedMatch()
+                }
             }
             self.publish()
         }
@@ -232,6 +247,7 @@ final class CourtStore: ObservableObject {
         saveCode(code)
         courtLabel = nil
         saveLabel(nil)
+        saveOpen(false)
         host = Sessions.shared.host(
             config: setup.config,
             roster: setup.roster,
@@ -244,8 +260,13 @@ final class CourtStore: ObservableObject {
     }
 
     /// Resumes the match this device was hosting when the app last closed.
+    /// On an iPhone its court opens again if it was open at the time, so that
+    /// guests still looking for it are let back in.
     func resumeSavedMatch() {
         guard let saved = UserDefaults.standard.data(forKey: CourtStore.savedMatchKey) else { return }
+        #if os(iOS)
+        let wasOpen = UserDefaults.standard.bool(forKey: CourtStore.savedOpenKey)
+        #endif
         leaveInternal()
         // The same code as before the app closed, so that guests still
         // looking for this court can come back without typing anything.
@@ -268,6 +289,9 @@ final class CourtStore: ObservableObject {
             clearSavedMatch()
         }
         publish()
+        #if os(iOS)
+        if wasOpen && host != nil { openCourt() }
+        #endif
     }
 
     /// Replaces the hosted match with a fresh one with default options, keeping connected devices.
@@ -352,18 +376,39 @@ final class CourtStore: ObservableObject {
             self.closeCourt()
             self.report(reason)
         }
+        transport.onBluetoothOff = { [weak self] in self?.bluetoothWentOff() }
+        transport.onBluetoothBack = { [weak self] in self?.bluetoothCameBack() }
         hostTransport = transport
+        courtSuspended = false
         report(nil)
-        let label = courtLabel ?? DeviceIdentity.deviceName
+        // This device's own court carries a few characters of its id, because
+        // device names are rarely unique at a club. A court taken over from
+        // another host keeps that host's name.
+        let label = courtLabel ?? CourtName.shared.label(
+            deviceName: DeviceIdentity.deviceName,
+            deviceId: DeviceIdentity.deviceId,
+            maxBytes: CourtUuids.ownLabelBytes
+        )
+        advertisedLabel = label
         transport.start(label: label)
+        saveOpen(true)
+        startCourtDuties()
+        publish()
+    }
+
+    /// What a host does for as long as its court is open: repeats the match
+    /// to its guests, and looks out for another court hosting the same match.
+    private func startCourtDuties() {
+        heartbeat?.invalidate()
         heartbeat = Timer.scheduledTimer(withTimeInterval: CourtStore.heartbeatSeconds, repeats: true) { [weak self] _ in
             guard let self, let host = self.host else { return }
             self.deliver(host.heartbeat())
         }
         let code = joinCode
+        rivalWatch?.stop()
         let watch = RivalWatch(
-            // Guests see the name cut to what an advertisement carries.
-            courtName: CourtUuids.advertisedLabel(label),
+            // The label as it is advertised: what guests, and a rival, go by.
+            courtName: advertisedLabel ?? "",
             newSession: {
                 Sessions.shared.guest(
                     deviceId: DeviceIdentity.deviceId,
@@ -378,6 +423,27 @@ final class CourtStore: ObservableObject {
         )
         rivalWatch = watch
         watch.start()
+    }
+
+    /// Bluetooth was switched off under the open court. No farewell can be
+    /// sent; the guests notice the silence and look for the court, which
+    /// reopens under the same name and code when Bluetooth is back.
+    private func bluetoothWentOff() {
+        guard hostTransport != nil, !courtSuspended else { return }
+        courtSuspended = true
+        heartbeat?.invalidate()
+        heartbeat = nil
+        rivalWatch?.stop()
+        rivalWatch = nil
+        report("Bluetooth is off. The court reopens when it is switched back on.")
+        publish()
+    }
+
+    private func bluetoothCameBack() {
+        guard hostTransport != nil, courtSuspended else { return }
+        courtSuspended = false
+        report(nil)
+        startCourtDuties()
         publish()
     }
 
@@ -385,7 +451,7 @@ final class CourtStore: ObservableObject {
     /// screen. Says, for a few seconds, what that cost: iOS hides a court
     /// from Android devices while the app that hosts it is not on screen.
     func courtWasInBackground() {
-        guard hostTransport != nil else { return }
+        guard hostTransport != nil, !courtSuspended else { return }
         report(Labels.wasInBackground)
     }
 
@@ -393,33 +459,29 @@ final class CourtStore: ObservableObject {
     func closeCourt() {
         guard hostTransport != nil else { return }
         shutDownHostTransport()
+        saveOpen(false)
         publish()
     }
 
-    /// Stops the Bluetooth side of hosting.
-    ///
-    /// With `farewell` the guests are first told the court is closing, so
-    /// they stop trying to reconnect, and that message is given a moment to
-    /// go out. Without it the guests just stop hearing from this host and
-    /// look for the court again by name, which is what is wanted when
-    /// another device carries on hosting the same match.
-    private func shutDownHostTransport(farewell: Bool = true) {
+    /// Tells the guests the court is closing, then stops the Bluetooth side
+    /// once that message has had a moment to go out. The goodbye releases
+    /// the guests: they stop chasing this device and look for the court by
+    /// name instead.
+    private func shutDownHostTransport() {
         guard let transport = hostTransport else { return }
         hostTransport = nil
+        courtSuspended = false
+        advertisedLabel = nil
         heartbeat?.invalidate()
         heartbeat = nil
         rivalWatch?.stop()
         rivalWatch = nil
-        if farewell {
-            if let host {
-                for item in host.endSession() {
-                    transport.send(peerId: item.peerId, packets: item.packets.map { $0.toData() })
-                }
+        if let host {
+            for item in host.endSession() {
+                transport.send(peerId: item.peerId, packets: item.packets.map { $0.toData() })
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { transport.stop() }
-        } else {
-            transport.stop()
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { transport.stop() }
     }
 
     /// Another court is hosting this same match. Decides which of the two
@@ -447,11 +509,13 @@ final class CourtStore: ObservableObject {
     private func yieldTo(_ court: NearbyCourt) {
         guard host != nil else { return }
         let code = joinCode
-        // No farewell: this court's guests should look for the match by name
-        // and find the other host, not be told that the court has closed.
-        leaveInternal(farewell: false)
-        clearSavedMatch()
+        // Joining says goodbye to this court's guests first, which releases
+        // them: they look for the match by name at once and accept the other
+        // host whatever its epoch.
         join(court, code: code)
+        // The saved match is this device's only copy until the other court
+        // has answered; it is dropped once that copy has arrived.
+        clearSavedMatchOnceSynced = true
         report("Another device is hosting this match now. This one has joined it.")
         publish()
     }
@@ -468,13 +532,16 @@ final class CourtStore: ObservableObject {
     /// gives way (see `onRival`).
     func takeOverAsHost() {
         guard let client, let snapshot = client.confirmed else { return }
+        // The offer may have been on screen for a while; the host may be back.
+        guard holdsOffer(client) else { return }
         let code = enteredCode
         let label = courtName
+        // A court where this device could only watch stays view-only for the others.
         let taken = Sessions.shared.takeOver(
             snapshot: snapshot,
             hostDeviceId: DeviceIdentity.deviceId,
             joinCode: Int32(code ?? CourtStore.noCode),
-            guestsCanScore: true,
+            guestsCanScore: client.canScore,
             nowMillis: now()
         )
         guard let taken else {
@@ -574,9 +641,16 @@ final class CourtStore: ObservableObject {
             } else if effect is ClientEffect.Disconnect {
                 // The court closed: keep the result if there was one.
                 recordIfDecided()
-                // The host refused us. Stop the link so it does not retry;
-                // the session keeps the reason for the UI.
-                guestTransport.close()
+                if client?.status == ClientStatus.ended {
+                    // The host closed the court. It is not chased, but the
+                    // match is still looked for by name for a while: another
+                    // player may carry it on, or it may have moved to another court.
+                    guestTransport.courtClosed()
+                } else {
+                    // The host refused us. Stop the link so it does not retry;
+                    // the session keeps the reason for the UI.
+                    guestTransport.close()
+                }
             }
         }
         return ownTapAccepted
@@ -686,10 +760,11 @@ final class CourtStore: ObservableObject {
 
     // MARK: Internals
 
-    private func leaveInternal(farewell: Bool = true) {
+    private func leaveInternal() {
         #if os(iOS)
-        shutDownHostTransport(farewell: farewell)
+        shutDownHostTransport()
         #endif
+        clearSavedMatchOnceSynced = false
         heartbeat?.invalidate()
         heartbeat = nil
         host = nil
@@ -704,8 +779,7 @@ final class CourtStore: ObservableObject {
         enteredCode = nil
         // After closing the link, which reports it down and would start the offer's clock.
         hostLostAt = nil
-        offerTimer?.invalidate()
-        offerTimer = nil
+        cancelOfferTimers()
         livenessTimer?.invalidate()
         livenessTimer = nil
         silentChecks = 0
@@ -775,7 +849,7 @@ final class CourtStore: ObservableObject {
             config = snapshot.config
             deviceCount = Int(host.deviceCount)
             #if os(iOS)
-            courtOpen = hostTransport != nil
+            courtOpen = hostTransport != nil && !courtSuspended
             #else
             courtOpen = false
             #endif
@@ -851,15 +925,22 @@ final class CourtStore: ObservableObject {
     }
 
     /// Whether to offer this guest's player the host's place: the device
-    /// holds the match, and the host has either closed the court or been out
-    /// of reach for a while.
+    /// holds the match, and the host has been out of reach for a while. A
+    /// closed court is first looked for under its name, as another player
+    /// may already be carrying the match on, so that wait is the shorter one.
     private func holdsOffer(_ client: ClientSession) -> Bool {
         if client.confirmed == nil { return false }
         let status = client.status
-        if status == ClientStatus.ended { return true }
         if status == ClientStatus.synced || status == ClientStatus.rejected { return false }
         guard let hostLostAt else { return false }
-        return Date().timeIntervalSince(hostLostAt) >= CourtStore.takeOverAfterSeconds
+        let lostFor = Date().timeIntervalSince(hostLostAt)
+        if status == ClientStatus.ended { return lostFor >= CourtStore.takeOverAfterCloseSeconds }
+        return lostFor >= CourtStore.takeOverAfterSeconds
+    }
+
+    private func cancelOfferTimers() {
+        for timer in offerTimers { timer.invalidate() }
+        offerTimers.removeAll()
     }
 
     // The hosted court's join code and name are kept next to the saved
@@ -892,10 +973,17 @@ final class CourtStore: ObservableObject {
         UserDefaults.standard.string(forKey: CourtStore.savedLabelKey)
     }
 
+    /// Remembers whether the hosted court was open to others, so that a
+    /// resumed match reopens it.
+    private func saveOpen(_ open: Bool) {
+        UserDefaults.standard.set(open, forKey: CourtStore.savedOpenKey)
+    }
+
     private func clearSavedMatch() {
         UserDefaults.standard.removeObject(forKey: CourtStore.savedMatchKey)
         UserDefaults.standard.removeObject(forKey: CourtStore.savedCodeKey)
         UserDefaults.standard.removeObject(forKey: CourtStore.savedLabelKey)
+        UserDefaults.standard.removeObject(forKey: CourtStore.savedOpenKey)
     }
 
     /// Keeps the history in step with a match: adds it when it is won, and

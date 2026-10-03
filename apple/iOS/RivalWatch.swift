@@ -26,6 +26,7 @@ final class RivalWatch {
 
     private static let firstScanSeconds: TimeInterval = 10
     private static let scanEverySeconds: TimeInterval = 30
+    private static let scanJitterSeconds: TimeInterval = 8
     private static let scanForSeconds: TimeInterval = 6
     private static let askTimeoutSeconds: TimeInterval = 12
     private static let failedRestSeconds: TimeInterval = 20
@@ -101,7 +102,11 @@ final class RivalWatch {
     private func rest() {
         transport.stopScan()
         if running {
-            schedule(after: RivalWatch.scanEverySeconds) { [weak self] in self?.scan() }
+            // A little randomness keeps two hosts from asking each other at
+            // the same instant round after round, when each would count the
+            // other among its own guests.
+            let pause = RivalWatch.scanEverySeconds + TimeInterval.random(in: 0...RivalWatch.scanJitterSeconds)
+            schedule(after: pause) { [weak self] in self?.scan() }
         }
     }
 

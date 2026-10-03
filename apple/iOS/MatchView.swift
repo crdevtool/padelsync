@@ -22,8 +22,8 @@ struct MatchView: View {
                 ) { store.leave() }
             } else if store.mode == .guest && store.guestEnded {
                 NoticeView(
-                    title: "Court closed",
-                    message: "The host ended the match or stopped sharing it." + finalSets + problem,
+                    title: Labels.courtClosedTitle,
+                    message: Labels.courtClosedBody + setsSoFar + problem,
                     button: "Back",
                     action: { store.leave() },
                     // The match need not end with the host: this device holds a full copy.
@@ -65,11 +65,15 @@ struct MatchView: View {
         } message: {
             Text(Labels.takeOverBody)
         }
+        // The host came back while the question was open: withdraw it.
+        .onChange(of: store.canTakeOver) { _, offered in
+            if !offered { confirmTakeOver = false }
+        }
     }
 
-    private var finalSets: String {
+    private var setsSoFar: String {
         guard let summary = store.score?.setSummary, !summary.isEmpty else { return "" }
-        return " Final sets: \(summary)."
+        return " Sets so far: \(summary)."
     }
 
     /// A problem to add to a notice, which has no status line to show it on.

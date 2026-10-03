@@ -15,6 +15,11 @@ final class HostTransport: NSObject, CBPeripheralManagerDelegate {
     var onPacket: ((String, Data) -> Void)?
     /// Hosting cannot work; the text is fit to show the user.
     var onFailed: ((String) -> Void)?
+    /// Bluetooth was switched off, or restarted, under an open court. Every
+    /// guest has been reported gone. The court reopens by itself when
+    /// Bluetooth is back, and `onBluetoothBack` says so.
+    var onBluetoothOff: (() -> Void)?
+    var onBluetoothBack: (() -> Void)?
 
     private var manager: CBPeripheralManager?
     private var fromHost: CBMutableCharacteristic?
@@ -22,11 +27,13 @@ final class HostTransport: NSObject, CBPeripheralManagerDelegate {
     private var outbox: [(peerId: String, packet: Data)] = []
     private var label = "PadelSync"
     private var serviceAdded = false
+    /// The court was open when Bluetooth went away, and reopens when it is back.
+    private var suspended = false
 
-    /// Opens the court under `label`, cut to the length that is advertised.
-    /// Safe to call before Bluetooth is ready.
+    /// Opens the court under `label`, which is advertised as it is. Safe to
+    /// call before Bluetooth is ready.
     func start(label: String) {
-        self.label = CourtUuids.advertisedLabel(label)
+        self.label = label
         if manager == nil {
             // Creating the manager triggers the system's Bluetooth permission prompt.
             manager = CBPeripheralManager(delegate: self, queue: .main)
@@ -42,11 +49,26 @@ final class HostTransport: NSObject, CBPeripheralManagerDelegate {
             manager.removeAllServices()
         }
         serviceAdded = false
+        suspended = false
         fromHost = nil
         guests.removeAll()
         outbox.removeAll()
         manager?.delegate = nil
         manager = nil
+    }
+
+    /// Bluetooth went away. The system has dropped the service, the
+    /// advertisement and every guest without a word about any of them.
+    private func bluetoothLost() {
+        guard serviceAdded else { return }
+        serviceAdded = false
+        suspended = true
+        fromHost = nil
+        outbox.removeAll()
+        let gone = Array(guests.keys)
+        guests.removeAll()
+        for peerId in gone { onGuestGone?(peerId) }
+        onBluetoothOff?()
     }
 
     /// Queues packets for one guest. Packets for a guest that has gone are dropped.
@@ -98,11 +120,23 @@ final class HostTransport: NSObject, CBPeripheralManagerDelegate {
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
         case .poweredOn:
+            // Also what reopens a court that Bluetooth going off had closed.
             openIfPossible()
+            if suspended {
+                suspended = false
+                onBluetoothBack?()
+            }
         case .unauthorized:
             onFailed?("Allow Bluetooth for PadelSync in Settings to play with others.")
         case .poweredOff:
-            onFailed?("Turn on Bluetooth to play with others.")
+            if serviceAdded || suspended {
+                bluetoothLost()
+            } else {
+                // The court was never open: nothing to reopen later.
+                onFailed?("Turn on Bluetooth to play with others.")
+            }
+        case .resetting:
+            bluetoothLost()
         case .unsupported:
             onFailed?("This device cannot host over Bluetooth.")
         default:

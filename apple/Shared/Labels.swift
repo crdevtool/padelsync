@@ -176,6 +176,10 @@ enum Labels {
         + "The match carries on from the score on this screen, and the other players' devices follow by themselves."
     static let takeOverConfirm = "Host the court"
     static let hostUnreachable = "The host cannot be reached."
+    static let courtClosedTitle = "Court closed"
+    static let courtClosedBody =
+        "The host ended the match or stopped sharing it. "
+        + "This device keeps looking for the match for a few minutes, in case another player carries it on."
     /// An Apple Watch cannot host a court, so it cannot take one over.
     static let askPhoneToHost = "Ask a player with a phone to host this court from their device."
 
