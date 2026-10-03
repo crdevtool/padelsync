@@ -95,7 +95,11 @@ fun AppRoot(controller: CourtController) {
                 onNewMatch = { screen = Screen.SETUP_SOLO },
                 onHostMatch = { screen = Screen.SETUP_HOST },
                 onJoin = { screen = Screen.JOIN },
-                onResume = { controller.resumeSavedMatch() },
+                onResume = {
+                    // A court that was open when the app closed opens again,
+                    // so the guests still looking for it get back in.
+                    if (controller.resumeSavedMatch()) gate { controller.openCourt() }
+                },
                 onHistory = { screen = Screen.HISTORY },
             )
         }

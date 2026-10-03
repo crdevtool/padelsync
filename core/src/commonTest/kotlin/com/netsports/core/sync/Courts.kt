@@ -87,6 +87,28 @@ class Courts {
 
     fun isLinked(guest: ClientSession): Boolean = guest in hostOf
 
+    /** The host closes its court: every guest is told, then the links go. */
+    fun close(host: HostSession) {
+        val farewell = host.endSession()
+        val guests = links[host].orEmpty().toMap()
+        for (item in farewell) {
+            val guest = guests[item.peerId] ?: continue
+            for (packet in item.packets) handle(guest, guest.packetReceived(packet))
+        }
+        for (guest in guests.values) drop(guest)
+        links.remove(host)
+    }
+
+    /** Hands the host one packet from [guest], as when the test delivers by hand. */
+    fun sendToHost(guest: ClientSession, packet: ByteArray) {
+        val host = hostOf.getValue(guest)
+        clock += 10
+        deliver(host, host.packetReceived(guest.hashCode().toString(), packet, clock))
+    }
+
+    /** Hands [guest] one packet from its host, as when the test delivers by hand. */
+    fun deliverTo(guest: ClientSession, packet: ByteArray) = handle(guest, guest.packetReceived(packet))
+
     /** The guest asks a quiet host to say something. */
     fun ping(guest: ClientSession) {
         heard[guest] = 0

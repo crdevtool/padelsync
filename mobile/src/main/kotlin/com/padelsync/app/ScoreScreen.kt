@@ -100,9 +100,9 @@ fun ScoreScreen(
 
         ui.mode == CourtMode.GUEST && ui.guestStatus == ClientStatus.ENDED ->
             Notice(
-                title = "Court closed",
-                body = "The host ended the match or stopped sharing it." +
-                    (score?.setSummary?.takeIf { it.isNotEmpty() }?.let { " Final sets: $it." } ?: ""),
+                title = Labels.COURT_CLOSED_TITLE,
+                body = Labels.COURT_CLOSED_BODY +
+                    (score?.setSummary?.takeIf { it.isNotEmpty() }?.let { " Sets so far: $it." } ?: ""),
                 button = "Back",
                 onClick = leave,
                 // The match need not end with the host: this device holds a full copy.
@@ -127,6 +127,11 @@ fun ScoreScreen(
             onLeave = { confirmLeave = true },
             onTakeOver = { confirmTakeOver = true },
         )
+    }
+
+    // The host came back while the question was open: withdraw it.
+    LaunchedEffect(ui.canTakeOver) {
+        if (!ui.canTakeOver) confirmTakeOver = false
     }
 
     if (confirmTakeOver) {

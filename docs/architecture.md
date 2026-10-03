@@ -135,8 +135,15 @@ entered. The court's first answer decides:
   alone for two minutes, and keeps looking. The player is not shown a
   "wrong code" message for a code they did not just type.
 
-A host that is closed and reopened keeps its join code, so guests still
-looking for it are let back in without typing anything.
+A host that is closed and reopened keeps its join code, and a match resumed
+after the app was closed reopens its court by itself if the court was open,
+so guests still looking for it are let back in without anyone typing
+anything.
+
+Courts are advertised as the device's name followed by three characters of
+its id (`Pixel 8 A3F`, `iPhone 7C2`). Device names alone are rarely unique:
+iOS no longer gives apps the owner's name for the phone, so every iPhone
+would otherwise host a court called "iPhone".
 
 A host's app can also stop while its Bluetooth link stays up: the app is
 closed or crashes, and the phone's radio keeps the connection. Nothing
@@ -179,11 +186,12 @@ it finds for a moment with its own join code, as a guest would, and compares
    in 64.
 3. With equal epochs, the court that has **recorded more** keeps it.
 
-The host that gives way stops hosting, without telling its guests the court
-has closed, and joins the other court as an ordinary guest. Its guests lose
-the link, look for the court by name, and find the other host. The host that
-stays raises its epoch above the other's if it was not already higher, so
-that those arriving guests accept it.
+The host that gives way closes its court and joins the other one as an
+ordinary guest. Its goodbye releases its guests (see "When the host closes
+the court"): they look for the court by name at once and accept the other
+host whatever its epoch. The host that stays also raises its epoch above the
+other's when it is the one to ask, so that a guest of the other court which
+only lost its link, and never heard the goodbye, accepts it too.
 
 **The old host comes back with the old epoch.** It is still advertising the
 same name and the same code, alone. Guests of the new host that come across
@@ -194,6 +202,32 @@ points on the court with the players are not.
 
 An Apple Watch cannot host, so it cannot take over; it tells the wearer to
 ask a player with a phone.
+
+A tap made while the match was changing hands is not lost. If the new host
+shows the very score the tap was made against (same match, same point, only
+the hosting epoch is later), the guest sends the tap again addressed to the
+new epoch. If the score has moved on, the tap is dropped and the player told.
+
+### When the host closes the court
+
+A host that stops sharing, ends the match, or gives way to another court
+says goodbye to its guests. They show "Court closed" and stop chasing that
+device, but for three minutes they keep looking for the court's name:
+another player may take the match over, the host may reopen the court, or
+the match may have moved to another court. A guest released this way accepts
+the same match from whoever carries it on, at any hosting epoch. After 10
+seconds without finding it, a guest that can host is offered the host's
+place.
+
+### Bluetooth switched off and on
+
+Android tells an app nothing when a scan, an advertisement or a pending
+connection dies with the Bluetooth switch, and restarts none of them when it
+comes back. The app watches the switch itself. When Bluetooth goes off, a
+guest drops what it was doing and a host closes its court without a goodbye
+(none can be sent). When it comes back, the guest reconnects and looks for
+the court again, and the host reopens the court under the same name and
+code.
 
 ### Joining
 

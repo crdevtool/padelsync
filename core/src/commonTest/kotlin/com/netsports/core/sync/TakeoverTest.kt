@@ -57,7 +57,7 @@ class TakeoverTest {
     }
 
     @Test
-    fun aTapMadeForTheOldHostIsNotAppliedByTheNewOne() {
+    fun aTapMadeWhileNobodyWasHostingCountsUnderTheNewHost() {
         val courts = Courts()
         val host = courts.host(points = 2)
         val phone = courts.guest("phone")
@@ -68,13 +68,63 @@ class TakeoverTest {
         // Tapped while nobody was hosting.
         courts.tap(watch, Action.POINT_B)
 
+        // The new host carries on from the very score the watch was looking
+        // at, so the tap means what the player meant, and counts once.
         val newHost = takeOver(courts, phone, deviceId = 200)
         courts.find(watch, newHost)
-        // The watch was looking at the old host's score; under the new host
-        // the tap is dropped and the player told, rather than guessed at.
         assertEquals(0, watch.pendingCount)
-        assertEquals(2, newHost.log.version)
+        assertEquals(3, newHost.log.version)
+        assertEquals(Team.B, newHost.snapshot().points.last())
+        assertEquals(newHost.snapshot(), watch.confirmed)
+        assertTrue(courts.effectsOf(watch).any { it is ClientEffect.Feedback && it.feedback == TapFeedback.ACCEPTED })
+    }
+
+    @Test
+    fun aTapMadeForAScoreTheNewHostHasMovedPastIsDropped() {
+        val courts = Courts()
+        val host = courts.host(points = 2)
+        val phone = courts.guest("phone")
+        val watch = courts.guest("watch")
+        courts.join(phone, host)
+        courts.join(watch, host)
+        courts.kill(host)
+        courts.tap(watch, Action.POINT_B)
+
+        // The new host scored before the watch found it: the watch's tap was
+        // made against a score that no longer exists.
+        val newHost = takeOver(courts, phone, deviceId = 200)
+        courts.tap(newHost, Action.POINT_A)
+        courts.find(watch, newHost)
+        assertEquals(0, watch.pendingCount)
+        assertEquals(3, newHost.log.version)
+        assertEquals(Team.A, newHost.snapshot().points.last())
         assertTrue(courts.effectsOf(watch).any { it is ClientEffect.Feedback && it.feedback == TapFeedback.SUPERSEDED })
+    }
+
+    @Test
+    fun aTapInFlightWhenTheHostOutranksARivalStillCounts() {
+        val courts = Courts()
+        val host = courts.host(points = 2)
+        val watch = courts.guest("watch")
+        courts.join(watch, host)
+        val before = host.log.version
+
+        // A new rally, well after the host's last point.
+        courts.clock += 10_000
+        // The host raises its epoch while the watch's tap is on its way.
+        val told = host.outrank(host.log.epoch + 5)
+        val inFlight = watch.submit(Action.POINT_A).filterIsInstance<ClientEffect.Send>().flatMap { it.packets }
+        // The news of the new epoch reaches the watch first: the tap goes out again, re-addressed.
+        told.forEach { item -> item.packets.forEach { courts.deliverTo(watch, it) } }
+        assertEquals(before + 1, host.log.version)
+        assertEquals(0, watch.pendingCount)
+        // Then the original arrives at the host, which calls it stale. That
+        // answer must not undo anything or be reported to the player.
+        inFlight.forEach { courts.sendToHost(watch, it) }
+        assertEquals(before + 1, host.log.version)
+        assertEquals(host.snapshot(), watch.confirmed)
+        val feedback = courts.effectsOf(watch).filterIsInstance<ClientEffect.Feedback>().map { it.feedback }
+        assertEquals(listOf(TapFeedback.ACCEPTED), feedback)
     }
 
     @Test
@@ -166,6 +216,44 @@ class TakeoverTest {
         // Scoring carries on at the new epoch.
         courts.tap(watch, Action.POINT_A)
         assertEquals(before.version + 1, host.log.version)
+    }
+
+    @Test
+    fun theFollowerOfAHostThatGivesWayIsTakenInByTheCourtThatStays() {
+        val courts = Courts()
+        val host = courts.host(points = 4)
+        val phone = courts.guest("phone")
+        val watch = courts.guest("watch")
+        val wanderer = courts.guest("wanderer")
+        val follower = courts.guest("follower")
+        courts.join(phone, host)
+        courts.join(watch, host)
+        courts.join(wanderer, host)
+        courts.join(follower, host)
+        // Two players walk off together; one takes over and the other follows.
+        courts.drop(wanderer)
+        courts.drop(follower)
+        val usurper = takeOver(courts, wanderer, deviceId = 300, epochStep = 9)
+        courts.find(follower, usurper)
+        assertEquals(usurper.log.epoch, follower.confirmed?.epoch)
+        courts.tap(host, Action.POINT_A)
+
+        // Back in range, the usurper's court is the smaller one and gives
+        // way. It says goodbye, which releases its follower.
+        assertEquals(RivalVerdict.YIELD, usurper.judgeRival(host.snapshot(), host.deviceCount + 1))
+        courts.close(usurper)
+        assertEquals(ClientStatus.ENDED, follower.status)
+
+        // The real host never raised its epoch, and a guest that had only
+        // lost its link would refuse it. A released guest takes the match
+        // from whoever carries it on.
+        assertTrue(host.log.epoch < usurper.log.epoch)
+        courts.find(follower, host)
+        assertEquals(ClientStatus.SYNCED, follower.status)
+        assertEquals(host.snapshot(), follower.confirmed)
+        courts.tap(follower, Action.POINT_B)
+        assertEquals(host.snapshot(), follower.confirmed)
+        assertEquals(Team.B, host.snapshot().points.last())
     }
 
     @Test

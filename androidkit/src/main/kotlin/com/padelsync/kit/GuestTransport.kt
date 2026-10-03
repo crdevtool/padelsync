@@ -133,9 +133,13 @@ internal class GuestLink(
 
     private val reconnect = Runnable { open() }
 
+    /** Ends a one-attempt link that has not come up in time; the system's own limit is half a minute. */
+    private val tooSlow = Runnable { if (!up && !keepTrying) linkLost() }
+
     fun connect() {
         closed = false
         open()
+        if (!keepTrying) handler.postDelayed(tooSlow, ONE_ATTEMPT_LIMIT_MS)
     }
 
     /** Queues [packets] for the host. Dropped if the link is down. */
@@ -149,6 +153,7 @@ internal class GuestLink(
     fun close() {
         closed = true
         handler.removeCallbacks(reconnect)
+        handler.removeCallbacks(tooSlow)
         teardown()
     }
 
@@ -356,6 +361,7 @@ internal class GuestLink(
     private companion object {
         const val DEFAULT_MTU = 23
         const val REQUESTED_MTU = 517
+        const val ONE_ATTEMPT_LIMIT_MS = 12_000L
         const val FIRST_RETRY_MS = 500L
         const val MAX_RETRY_MS = 4_000L
     }

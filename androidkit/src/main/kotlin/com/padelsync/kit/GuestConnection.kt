@@ -23,16 +23,16 @@ import com.netsports.core.sync.CourtName
  *
  * All [Listener] calls arrive on [handler]'s thread.
  *
- * @param directRetry false only in the emulator test of the scanning path,
+ * @param scanOnly true only in the emulator test of the scanning path,
  * where the host's address never changes and the direct retry would always
- * win.
+ * win: it switches the direct retry off.
  */
 internal class GuestConnection(
     private val context: Context,
     private val handler: Handler,
     court: NearbyCourt,
     private val listener: Listener,
-    private val directRetry: Boolean = true,
+    private val scanOnly: Boolean = false,
 ) {
     interface Listener {
         /**
@@ -50,6 +50,14 @@ internal class GuestConnection(
 
     /** The name the court advertised when it was joined: what to look for again. */
     val courtName: String = court.name
+
+    /**
+     * Whether the device joined is retried directly. Off in the test mode,
+     * and once the host has closed the court: a host that said goodbye is
+     * not chased, but the court is still looked for by name, because another
+     * player may carry the match on.
+     */
+    private var directRetry = !scanOnly
 
     private var primary = newLink(court.device, keepTrying = directRetry)
     private var candidate: GuestLink? = null
@@ -91,12 +99,59 @@ internal class GuestConnection(
      */
     fun hostSilent() {
         active?.reset()
+        // It has already been quiet for a while: look for the court at once.
+        handler.removeCallbacks(look)
+        startLooking()
+    }
+
+    /**
+     * The host has closed the court. Stops chasing that device, but keeps
+     * looking for the court's name for [CLOSED_LOOK_MS]: another player may
+     * take the match over, or the host may have handed it to another court.
+     */
+    fun courtClosed() {
+        if (closed) return
+        directRetry = false
+        primary.keepTrying = false
+        candidate?.close()
+        candidate = null
+        primary.close()
+        active = null
+        handler.removeCallbacks(look)
+        startLooking()
+        handler.postDelayed(stopLookingForClosedCourt, CLOSED_LOOK_MS)
+    }
+
+    private val stopLookingForClosedCourt = Runnable { if (active == null && candidate == null) stopLooking() }
+
+    /**
+     * Bluetooth was switched off. Everything in progress is dead without
+     * saying so; forget it, so that [bluetoothOn] starts from a clean slate.
+     */
+    fun bluetoothOff() {
+        if (closed) return
+        handler.removeCallbacks(look)
+        scanner.stop()
+        lastSeen = emptyList()
+        candidate?.close()
+        candidate = null
+        // Reported as a lost link if it was up; retries fail quietly until Bluetooth is back.
+        primary.reset()
+    }
+
+    /** Bluetooth is back: reconnect, and look for the court by name as after any loss. */
+    fun bluetoothOn() {
+        if (closed || active != null) return
+        if (directRetry) primary.connect()
+        handler.removeCallbacks(look)
+        handler.postDelayed(look, LOOK_AFTER_BLUETOOTH_MS)
     }
 
     /** Disconnects and stops reconnecting and looking. */
     fun close() {
         closed = true
         handler.removeCallbacks(look)
+        handler.removeCallbacks(stopLookingForClosedCourt)
         scanner.stop()
         candidate?.close()
         candidate = null
@@ -110,8 +165,11 @@ internal class GuestConnection(
         if (active !== proved) return
         candidate = null
         primary.close()
+        // A court that has answered is chased like any other from now on.
+        directRetry = !scanOnly
         proved.keepTrying = directRetry
         primary = proved
+        handler.removeCallbacks(stopLookingForClosedCourt)
         stopLooking()
     }
 
@@ -160,6 +218,10 @@ internal class GuestConnection(
                 // The device already being retried directly needs no second attempt.
                 !(directRetry && court.device.address == primary.device.address)
         } ?: return
+        // Some phones queue a second connection attempt behind one that is
+        // still waiting, so the retry of the old address is put aside while
+        // this court is tried; dropping the candidate restarts it.
+        primary.close()
         candidate = newLink(found.device, keepTrying = false).also { it.connect() }
     }
 
@@ -174,8 +236,6 @@ internal class GuestConnection(
         override fun onLinkUp(maxPacketSize: Int) {
             when {
                 link === candidate -> {
-                    // Stop retrying the old address while this court proves itself.
-                    primary.close()
                     active = link
                     listener.onLinkUp(maxPacketSize, foundByScan = true)
                 }
@@ -216,6 +276,12 @@ internal class GuestConnection(
         /** How long the link is down before looking for the court by name. */
         const val LOOK_AFTER_MS = 15_000L
         const val LOOK_RETRY_MS = 5_000L
+
+        /** After Bluetooth comes back, give the direct reconnect this long before looking. */
+        const val LOOK_AFTER_BLUETOOTH_MS = 5_000L
+
+        /** How long a court that its host closed is still looked for. */
+        const val CLOSED_LOOK_MS = 180_000L
 
         /** A court that turned out to be somebody else's is not tried again for this long. */
         const val WRONG_COURT_REST_MS = 120_000L

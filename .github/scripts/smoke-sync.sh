@@ -61,7 +61,7 @@ guest_join() {
   sleep 12
   log "guest sees: $(screen_text)"
   if [ "$GUEST_KIND" = watch ]; then
-    tap "Android SDK*"
+    tap "Android*"
     for digit in $(echo "$CODE" | grep -o .); do tap "$digit"; done
     tap "OK"
   else
@@ -229,8 +229,8 @@ on "$HOST"
 launch_app com.padelsync.app/.MainActivity "Resume last match"
 tap "Resume last match"
 wait_for "Team A" 60
-tap "Menu"; tap "Play with others"
-expect "Court open" "host reopened the court"
+# The court was open when the app was closed, so it opens again by itself.
+expect "Court open" "the resumed match reopened its court by itself"
 expect "Code $CODE" "the court reopened under the same join code"
 # The guest starts scanning 15 seconds after losing the host, then has to
 # find the court, connect and be checked: allow a couple of minutes.
@@ -254,7 +254,10 @@ expect "Court closed" "guest is told the court closed"
 shot guest-court-closed
 
 log "--- the guest takes over as host, and the old host joins it"
+# The offer comes 10 seconds after the court closed: first the guest looks
+# for the match under the court's name, in case someone already carries it on.
 if [ "$GUEST_KIND" = watch ]; then
+  wait_for "Host this court" 40
   tap "Host this court"
   shot guest-take-over-question
   tap "Host the court"
@@ -262,6 +265,7 @@ if [ "$GUEST_KIND" = watch ]; then
   tap "MENU"
   expect "Code $CODE" "the watch hosts the court under the join code the guests already know"
 else
+  wait_for "Host this court from this device" 40
   tap "Host this court from this device"
   shot guest-take-over-question
   tap "Host the court"

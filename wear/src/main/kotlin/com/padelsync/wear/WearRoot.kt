@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +38,12 @@ fun WearRoot(controller: CourtController) {
     var screen by remember { mutableStateOf(WearScreen.HOME) }
     var chosen by remember { mutableStateOf<NearbyCourt?>(null) }
     val gate = rememberBluetoothGate()
+
+    // The host came back while the take-over question was open: withdraw it,
+    // or it would pop up by itself the next time the host is lost.
+    LaunchedEffect(ui.canTakeOver) {
+        if (!ui.canTakeOver && screen == WearScreen.TAKE_OVER) screen = WearScreen.HOME
+    }
 
     // Kept here rather than on the score screen, which is rebuilt on every
     // return from the menu: a result put away stays put away.
@@ -74,8 +81,8 @@ fun WearRoot(controller: CourtController) {
             )
 
             ui.mode == CourtMode.GUEST && ui.guestStatus == ClientStatus.ENDED -> MessageScreen(
-                title = "Court closed",
-                body = "The host ended the match or stopped sharing it.",
+                title = Labels.COURT_CLOSED_TITLE,
+                body = Labels.COURT_CLOSED_BODY,
                 button = "Back",
                 onClick = {
                     controller.leave()
@@ -136,7 +143,10 @@ fun WearRoot(controller: CourtController) {
                 onPadel = { controller.startMatch(MatchConfig.padel().copy(playAllSets = true)) },
                 onTennis = { controller.startMatch(MatchConfig.tennis()) },
                 onJoin = { screen = WearScreen.JOIN },
-                onResume = { controller.resumeSavedMatch() },
+                onResume = {
+                    // A court that was open when the app closed opens again.
+                    if (controller.resumeSavedMatch()) gate { controller.openCourt() }
+                },
             )
         }
     }

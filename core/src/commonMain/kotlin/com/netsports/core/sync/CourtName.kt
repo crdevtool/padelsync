@@ -19,6 +19,26 @@ object CourtName {
     const val MIN_SHARED_LENGTH = 6
 
     /**
+     * The name a device advertises its court under: its own name with three
+     * characters taken from its device id, cut to fit [maxBytes] of UTF-8.
+     *
+     * Device names are rarely unique. Half the phones at a club are called
+     * "iPhone" (iOS no longer gives apps the owner's name for the device) or
+     * by a model name. The suffix tells their courts apart in the join list,
+     * and keeps a device looking for its court from trying every neighbour.
+     *
+     * @param maxBytes room in the advertisement, at least 4.
+     */
+    fun label(deviceName: String, deviceId: Long, maxBytes: Int): String {
+        require(maxBytes >= SUFFIX_LENGTH + 1) { "maxBytes must be at least ${SUFFIX_LENGTH + 1}, was $maxBytes" }
+        val suffix = (deviceId and 0xFFF).toString(16).uppercase().padStart(SUFFIX_LENGTH, '0')
+        val base = truncateUtf8(deviceName.trim(), maxBytes - SUFFIX_LENGTH - 1).decodeToString().trim()
+        return if (base.isEmpty()) suffix else "$base $suffix"
+    }
+
+    private const val SUFFIX_LENGTH = 3
+
+    /**
      * Whether [seen] could be the court joined as [joined]: the names are
      * equal, or one is the beginning of the other and at least
      * [MIN_SHARED_LENGTH] characters long.

@@ -161,6 +161,10 @@ object Labels {
             "The match carries on from the score on this screen, and the other players' devices follow by themselves."
     const val TAKE_OVER_CONFIRM = "Host the court"
     const val HOST_UNREACHABLE = "The host cannot be reached."
+    const val COURT_CLOSED_TITLE = "Court closed"
+    const val COURT_CLOSED_BODY =
+        "The host ended the match or stopped sharing it. " +
+            "This device keeps looking for the match for a few minutes, in case another player carries it on."
 
     // Shown on "Join a court" on Android 11 and older while the device's
     // Location switch is off; see BlePermissions.needsLocationSwitch.

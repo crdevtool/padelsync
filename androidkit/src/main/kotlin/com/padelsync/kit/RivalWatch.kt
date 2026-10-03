@@ -9,6 +9,7 @@ import com.netsports.core.sync.ClientEffect
 import com.netsports.core.sync.ClientSession
 import com.netsports.core.sync.ClientStatus
 import com.netsports.core.sync.CourtName
+import kotlin.random.Random
 
 /**
  * A host's lookout for another court hosting the same match.
@@ -72,7 +73,10 @@ internal class RivalWatch(
 
     private fun rest() {
         scanner.stop()
-        if (running) handler.postDelayed(beginScan, SCAN_EVERY_MS)
+        // A little randomness keeps two hosts from asking each other at the
+        // same instant round after round, when each would count the other
+        // among its own guests.
+        if (running) handler.postDelayed(beginScan, SCAN_EVERY_MS + Random.nextLong(SCAN_JITTER_MS))
     }
 
     private fun consider(courts: List<NearbyCourt>) {
@@ -135,6 +139,7 @@ internal class RivalWatch(
 
         private const val FIRST_SCAN_MS = 10_000L
         private const val SCAN_EVERY_MS = 30_000L
+        private const val SCAN_JITTER_MS = 8_000L
         private const val SCAN_FOR_MS = 6_000L
         private const val ASK_TIMEOUT_MS = 12_000L
         private const val FAILED_REST_MS = 20_000L

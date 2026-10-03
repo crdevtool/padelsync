@@ -109,6 +109,13 @@ class ClientSession(
      */
     private var provingCourt = false
 
+    /**
+     * True while proving a court found after the host closed its own. The
+     * host that said goodbye has released this device, so the match is
+     * accepted from whoever carries it on, at any hosting epoch.
+     */
+    private var releasedByHost = false
+
     var status: ClientStatus = ClientStatus.DISCONNECTED
         private set
 
@@ -164,6 +171,7 @@ class ClientSession(
      */
     fun connected(maxPacketSize: Int): List<ClientEffect> {
         provingCourt = false
+        releasedByHost = false
         return greet(maxPacketSize)
     }
 
@@ -182,9 +190,16 @@ class ClientSession(
      *
      * A device that has not received a match yet has nothing to compare
      * with, and accepts the court as [connected] would.
+     *
+     * A device whose host closed the court ([ClientStatus.ENDED]) may look
+     * for the match too: another player may have taken it over, or the host
+     * may have handed it to another court. Having been released by its host,
+     * it accepts the same match at any epoch, and goes back to
+     * [ClientStatus.ENDED] if the court turns out to be the wrong one.
      */
     fun connectedToFoundCourt(maxPacketSize: Int): List<ClientEffect> {
         provingCourt = confirmed != null
+        releasedByHost = status == ClientStatus.ENDED
         return greet(maxPacketSize)
     }
 
@@ -221,9 +236,15 @@ class ClientSession(
     fun disconnected() {
         reassembler.reset()
         headSent = false
+        if (provingCourt && releasedByHost) {
+            // The court being tried went away before answering: still "court closed".
+            status = ClientStatus.ENDED
+        } else if (status != ClientStatus.REJECTED && status != ClientStatus.ENDED) {
+            // A refusal or a closed court is final for this link; keep showing it.
+            status = ClientStatus.DISCONNECTED
+        }
         provingCourt = false
-        // A refusal or a closed court is final for this link; keep showing it.
-        if (status != ClientStatus.REJECTED && status != ClientStatus.ENDED) status = ClientStatus.DISCONNECTED
+        releasedByHost = false
     }
 
     /** A packet arrived from the host. */
@@ -295,8 +316,9 @@ class ClientSession(
 
     /** Turns down a court found by scanning, leaving the session as it was before the link came up. */
     private fun wrongCourt(): List<ClientEffect> {
+        status = if (releasedByHost) ClientStatus.ENDED else ClientStatus.DISCONNECTED
         provingCourt = false
-        status = ClientStatus.DISCONNECTED
+        releasedByHost = false
         return listOf(ClientEffect.WrongCourt)
     }
 
@@ -305,21 +327,46 @@ class ClientSession(
         val current = confirmed
         val effects = ArrayList<ClientEffect>()
 
+        // A device released by its host takes the match as the new court has
+        // it, even from an earlier epoch: there is no host left to prefer.
+        var startAfresh = false
         if (provingCourt && current != null) {
             val behind = incoming.epoch < current.epoch ||
                 (incoming.epoch == current.epoch && incoming.version < current.version)
-            if (incoming.matchId != current.matchId || behind) return wrongCourt()
+            if (incoming.matchId != current.matchId) return wrongCourt()
+            if (behind && !releasedByHost) return wrongCourt()
+            startAfresh = releasedByHost
             provingCourt = false
+            releasedByHost = false
         }
 
-        val sameLineage = current != null && current.matchId == incoming.matchId && current.epoch == incoming.epoch
-        if (current != null && current.matchId == incoming.matchId) {
+        val sameLineage = !startAfresh &&
+            current != null && current.matchId == incoming.matchId && current.epoch == incoming.epoch
+        if (!startAfresh && current != null && current.matchId == incoming.matchId) {
             // Never go backwards: ignore a former host and out-of-date repeats.
             if (incoming.epoch < current.epoch) return emptyList()
             if (sameLineage && incoming.version < current.version) return emptyList()
         }
 
-        if (sameLineage) {
+        // The same match at the same point under a later epoch: the host
+        // changed (a takeover, a resumed match, a host outranking a rival)
+        // but the score this device was looking at did not. Its waiting taps
+        // still mean what the player meant, so they are re-addressed to the
+        // new epoch instead of being thrown away.
+        val onlyTheEpochMoved = !startAfresh && current != null &&
+            current.matchId == incoming.matchId && incoming.epoch > current.epoch &&
+            incoming.version == current.version && incoming.points == current.points &&
+            incoming.serveFlipA == current.serveFlipA && incoming.serveFlipB == current.serveFlipB
+
+        if (onlyTheEpochMoved) {
+            // Each goes out as a new command: an answer still on its way to
+            // the old one (the host calling it stale) must not be mistaken
+            // for an answer to this one.
+            for (index in pending.indices) {
+                pending[index] = pending[index].copy(commandId = ids.next(), epoch = incoming.epoch)
+            }
+            headSent = false
+        } else if (sameLineage) {
             // 1. Our oldest unresolved tap is the one that produced this state.
             if (pending.isNotEmpty() && pending.first().commandId == incoming.lastCommandId) {
                 effects += ClientEffect.Feedback(pending.removeAt(0).commandId, TapFeedback.ACCEPTED)

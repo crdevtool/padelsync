@@ -1,6 +1,10 @@
 package com.padelsync.kit
 
+import android.bluetooth.BluetoothAdapter
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -16,6 +20,7 @@ import com.netsports.core.match.Roster
 import com.netsports.core.sync.ClientEffect
 import com.netsports.core.sync.ClientSession
 import com.netsports.core.sync.ClientStatus
+import com.netsports.core.sync.CourtName
 import com.netsports.core.sync.DeviceKind
 import com.netsports.core.sync.HostSession
 import com.netsports.core.sync.JoinRejection
@@ -29,6 +34,7 @@ import com.netsports.core.ui.MatchStats
 import com.netsports.core.ui.ScoreSpeech
 import com.netsports.core.ui.ScoreView
 import com.netsports.core.ui.SpeechSettings
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -167,7 +173,12 @@ class CourtController private constructor(
     private var hostLostAt: Long? = null
     private val offerTakeOver = Runnable { publish() }
 
-    /** When the host was last heard from, by the uptime clock. */
+    /**
+     * When the host was last heard from, on the clock that stops while this
+     * device sleeps. The check below runs on the same clock, so a device
+     * waking from a long sleep does not mistake its own absence for the
+     * host's silence.
+     */
     private var hostHeardAt = 0L
     private var hostPinged = false
 
@@ -185,10 +196,10 @@ class CourtController private constructor(
             val session = client ?: return
             val connection = link
             if (connection != null && connection.isUp) {
-                val quiet = SystemClock.elapsedRealtime() - hostHeardAt
+                val quiet = SystemClock.uptimeMillis() - hostHeardAt
                 if (quiet >= SILENT_DROP_MS) {
                     hostPinged = false
-                    hostHeardAt = SystemClock.elapsedRealtime()
+                    hostHeardAt = SystemClock.uptimeMillis()
                     connection.hostSilent()
                 } else if (quiet >= SILENT_PING_MS && !hostPinged) {
                     hostPinged = true
@@ -245,6 +256,7 @@ class CourtController private constructor(
         store.saveCode(joinCode)
         courtLabel = null
         store.saveLabel(null)
+        store.saveOpen(false)
         host = HostSession(
             log = MatchLog.start(ids.next(), setup.config, now(), setup.roster),
             hostDeviceId = identity.deviceId,
@@ -255,16 +267,23 @@ class CourtController private constructor(
         publish()
     }
 
-    /** Resumes the match this device was hosting when the app last closed. */
-    fun resumeSavedMatch() {
-        val snapshot = store.load() ?: return
+    /**
+     * Resumes the match this device was hosting when the app last closed.
+     *
+     * @return true if its court was open to others at the time. The caller
+     * should then call [openCourt] (after any Bluetooth permission prompt),
+     * so that guests still looking for the court are let back in.
+     */
+    fun resumeSavedMatch(): Boolean {
+        val snapshot = store.load() ?: return false
+        val wasOpen = store.loadOpen()
         leaveInternal()
         val log = try {
             MatchLog.takeOver(snapshot, now())
         } catch (e: IllegalArgumentException) {
             store.clear()
             publish()
-            return
+            return false
         }
         // The same code as before the app closed, so that guests still
         // looking for this court can come back without typing anything.
@@ -281,6 +300,7 @@ class CourtController private constructor(
         // Picking a match back up is not news: do not read the score out.
         announced = host?.snapshot()
         publish()
+        return wasOpen
     }
 
     /** Replaces the hosted match with a fresh one with default options, keeping connected devices. */
@@ -342,8 +362,15 @@ class CourtController private constructor(
         }
         hostTransport = transport
         error = null
-        val label = courtLabel ?: identity.deviceName
+        // This device's own court carries a few characters of its id, because
+        // device names are rarely unique at a club. A court taken over from
+        // another host keeps that host's name.
+        val label = courtLabel
+            ?: CourtName.label(identity.deviceName, identity.deviceId, CourtUuids.MAX_LABEL_BYTES)
         transport.startAdvertising(label)
+        // Advertising can fail on the spot, which closes the court again.
+        if (hostTransport !== transport) return
+        store.saveOpen(true)
         handler.postDelayed(heartbeat, HEARTBEAT_MS)
         rivalWatch = RivalWatch(
             context = app,
@@ -359,8 +386,10 @@ class CourtController private constructor(
 
     /** Stops sharing the court and disconnects every guest. The match carries on locally. */
     fun closeCourt() {
+        reopenWhenBluetoothReturns = false
         if (hostTransport == null) return
         shutDownHostTransport()
+        store.saveOpen(false)
         CourtService.stop(app)
         publish()
     }
@@ -419,11 +448,13 @@ class CourtController private constructor(
     private fun yieldTo(court: NearbyCourt) {
         if (host == null) return
         val code = joinCode
-        // No farewell: this court's guests should look for the match by name
-        // and find the other host, not be told that the court has closed.
-        leaveInternal(farewell = false)
-        store.clear()
-        join(court, code)
+        // The farewell releases this court's guests: they look for the match
+        // by name at once and accept the other host whatever its epoch.
+        leaveInternal(keepService = true)
+        joinInternal(court, code, keepService = true)
+        // The saved match is this device's only copy until the other court
+        // has answered; it is dropped once that copy has arrived.
+        clearSavedMatchOnceSynced = true
         error = "Another device is hosting this match now. This one has joined it."
         publish()
     }
@@ -442,15 +473,18 @@ class CourtController private constructor(
     fun takeOverAsHost() {
         val session = client ?: return
         val snapshot = session.confirmed ?: return
+        // The offer may have been on screen for a while; the host may be back.
+        if (!canTakeOver(session)) return
         val code = enteredCode
         val label = courtName
-        val taken = Sessions.takeOver(snapshot, identity.deviceId, code ?: Sessions.NO_CODE, true, now())
+        // A court where this device could only watch stays view-only for the others.
+        val taken = Sessions.takeOver(snapshot, identity.deviceId, code ?: Sessions.NO_CODE, session.canScore, now())
         if (taken == null) {
             error = "This match has changed hands too many times to be taken over again."
             publish()
             return
         }
-        leaveInternal()
+        leaveInternal(keepService = true)
         host = taken
         joinCode = code
         courtLabel = label
@@ -515,14 +549,21 @@ class CourtController private constructor(
     }
 
     /** Joins [court] as a guest. [code] is the join code shown on the host's screen. */
-    fun join(court: NearbyCourt, code: Int?) {
-        leaveInternal()
+    fun join(court: NearbyCourt, code: Int?) = joinInternal(court, code, keepService = false)
+
+    /**
+     * @param keepService leave the foreground service running across a
+     * change of role. Android may refuse to start it again when the app is
+     * not on screen, which is exactly when a host gives way.
+     */
+    private fun joinInternal(court: NearbyCourt, code: Int?, keepService: Boolean) {
+        leaveInternal(keepService = keepService)
         stopScan()
         val session = ClientSession(identity.deviceId, identity.deviceName, kind, code, ids)
         client = session
         courtName = court.name
         enteredCode = code
-        link = GuestConnection(app, handler, court, guestListener, directRetry = !scanReconnectOnly)
+        link = GuestConnection(app, handler, court, guestListener, scanOnly = scanReconnectOnly)
             .also { it.connect() }
         handler.postDelayed(liveness, LIVENESS_CHECK_MS)
         CourtService.start(app)
@@ -534,7 +575,7 @@ class CourtController private constructor(
             val session = client ?: return
             // A court found by scanning has to show it carries this match
             // before it is believed; the session checks its first answer.
-            hostHeardAt = SystemClock.elapsedRealtime()
+            hostHeardAt = SystemClock.uptimeMillis()
             hostPinged = false
             handle(if (foundByScan) session.connectedToFoundCourt(maxPacketSize) else session.connected(maxPacketSize))
             publish()
@@ -545,6 +586,7 @@ class CourtController private constructor(
             if (hostLostAt == null) {
                 hostLostAt = SystemClock.elapsedRealtime()
                 // Publish again when the host has been gone long enough to offer taking over.
+                handler.postDelayed(offerTakeOver, TAKE_OVER_AFTER_CLOSE_MS)
                 handler.postDelayed(offerTakeOver, TAKE_OVER_AFTER_MS)
             }
             publish()
@@ -552,7 +594,7 @@ class CourtController private constructor(
 
         override fun onPacket(packet: ByteArray) {
             val session = client ?: return
-            hostHeardAt = SystemClock.elapsedRealtime()
+            hostHeardAt = SystemClock.uptimeMillis()
             hostPinged = false
             val before = session.confirmed
             val effects = session.packetReceived(packet)
@@ -566,8 +608,14 @@ class CourtController private constructor(
             // scanning, it has proved itself and is the one to stay with.
             if (session.status == ClientStatus.SYNCED) {
                 link?.courtProved()
+                // Back on a court after it was lost or closed.
+                if (hostLostAt != null) CourtService.start(app)
                 hostLostAt = null
                 handler.removeCallbacks(offerTakeOver)
+                if (clearSavedMatchOnceSynced) {
+                    clearSavedMatchOnceSynced = false
+                    store.clear()
+                }
             }
             publish()
         }
@@ -586,10 +634,17 @@ class CourtController private constructor(
                 ClientEffect.Disconnect -> {
                     // The court closed: keep the result if there was one.
                     recordIfDecided()
-                    // The host refused us. Stop the link so it does not retry;
-                    // the session keeps the reason for the UI.
-                    link?.close()
-                    link = null
+                    if (client?.status == ClientStatus.ENDED) {
+                        // The host closed the court. It is not chased, but the
+                        // match is still looked for by name for a while: another
+                        // player may carry it on, or it may have moved to another court.
+                        link?.courtClosed()
+                    } else {
+                        // The host refused us. Stop the link so it does not retry;
+                        // the session keeps the reason for the UI.
+                        link?.close()
+                        link = null
+                    }
                     CourtService.stop(app)
                 }
             }
@@ -685,8 +740,10 @@ class CourtController private constructor(
 
     // --- Internals ---------------------------------------------------------
 
-    private fun leaveInternal(farewell: Boolean = true) {
+    private fun leaveInternal(farewell: Boolean = true, keepService: Boolean = false) {
         shutDownHostTransport(farewell)
+        reopenWhenBluetoothReturns = false
+        clearSavedMatchOnceSynced = false
         host = null
         joinCode = null
         courtLabel = null
@@ -707,7 +764,60 @@ class CourtController private constructor(
         announced = null
         handler.removeCallbacks(reminder)
         announcer.silence()
-        CourtService.stop(app)
+        if (!keepService) CourtService.stop(app)
+    }
+
+    // --- Bluetooth switched off and on ----------------------------------------
+
+    /** Set when Bluetooth going off closed an open court, which then reopens by itself. */
+    private var reopenWhenBluetoothReturns = false
+
+    /** Set when a host gave way to another court; see [yieldTo]. */
+    private var clearSavedMatchOnceSynced = false
+
+    /**
+     * Android tells nobody that a scan, an advertisement or a pending
+     * connection died with the Bluetooth switch, and restarts none of them
+     * when it comes back. So both moments are handled here.
+     */
+    private val bluetoothSwitch = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)) {
+                BluetoothAdapter.STATE_OFF -> onBluetoothOff()
+                BluetoothAdapter.STATE_ON -> onBluetoothOn()
+            }
+        }
+    }
+
+    init {
+        ContextCompat.registerReceiver(
+            app,
+            bluetoothSwitch,
+            IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+    }
+
+    private fun onBluetoothOff() {
+        scanner?.stop()
+        link?.bluetoothOff()
+        if (hostTransport != null) {
+            // No farewell can be sent; the guests notice the silence and look for the court.
+            shutDownHostTransport(farewell = false)
+            reopenWhenBluetoothReturns = true
+            error = "Bluetooth is off. The court reopens when it is switched back on."
+        }
+        publish()
+    }
+
+    private fun onBluetoothOn() {
+        link?.bluetoothOn()
+        if (reopenWhenBluetoothReturns && host != null) {
+            reopenWhenBluetoothReturns = false
+            error = null
+            openCourt()
+        }
+        publish()
     }
 
     private fun checkBluetooth(): Boolean {
@@ -842,14 +952,16 @@ class CourtController private constructor(
     private fun canTakeOver(session: ClientSession): Boolean {
         if (session.confirmed == null) return false
         return when (session.status) {
-            ClientStatus.ENDED -> true
             ClientStatus.SYNCED, ClientStatus.REJECTED -> false
-            ClientStatus.DISCONNECTED, ClientStatus.JOINING -> {
-                val lostAt = hostLostAt ?: return false
-                SystemClock.elapsedRealtime() - lostAt >= TAKE_OVER_AFTER_MS
-            }
+            // A closed court is first looked for under its name: another
+            // player may already be carrying the match on.
+            ClientStatus.ENDED -> lostFor() >= TAKE_OVER_AFTER_CLOSE_MS
+            ClientStatus.DISCONNECTED, ClientStatus.JOINING -> lostFor() >= TAKE_OVER_AFTER_MS
         }
     }
+
+    /** How long the host has been out of reach, in milliseconds; 0 while in touch. */
+    private fun lostFor(): Long = hostLostAt?.let { SystemClock.elapsedRealtime() - it } ?: 0L
 
     /** How long a finished match took, as recorded in the history when it ended. */
     private fun recordedDuration(snapshot: MatchSnapshot): Long? =
@@ -890,6 +1002,9 @@ class CourtController private constructor(
 
         /** How long the host must be out of reach before a guest is offered its place. */
         private const val TAKE_OVER_AFTER_MS = 20_000L
+
+        /** How long after the host closed the court a guest is offered its place. */
+        private const val TAKE_OVER_AFTER_CLOSE_MS = 10_000L
 
         /** How long to let the closing message reach guests before the link goes down. */
         private const val FAREWELL_MS = 400L

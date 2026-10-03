@@ -150,6 +150,80 @@ class RefindTest {
         assertEquals(listOf(Team.B), host.snapshot().points)
     }
 
+    // --- After the host closed the court --------------------------------------
+
+    @Test
+    fun afterTheCourtClosesAGuestRejoinsTheSameMatchWhenItFindsIt() {
+        val courts = Courts()
+        val host = courts.host(points = 3)
+        val watch = courts.guest("watch")
+        courts.join(watch, host)
+        courts.close(host)
+        assertEquals(ClientStatus.ENDED, watch.status)
+
+        // The host opens the court again; the watch, still looking, comes back.
+        courts.tap(host, Action.POINT_B)
+        courts.find(watch, host)
+        assertEquals(ClientStatus.SYNCED, watch.status)
+        assertEquals(host.snapshot(), watch.confirmed)
+        courts.tap(watch, Action.POINT_A)
+        assertEquals(5, host.log.version)
+    }
+
+    @Test
+    fun afterTheCourtClosesAWrongCourtLeavesItClosed() {
+        val courts = Courts()
+        val host = courts.host(matchId = 1, points = 3)
+        val otherMatch = courts.host(matchId = 2)
+        val otherCode = courts.host(matchId = 1, code = 9999)
+        val watch = courts.guest("watch")
+        courts.join(watch, host)
+        val held = watch.confirmed
+        courts.close(host)
+
+        for (wrong in listOf(otherMatch, otherCode)) {
+            courts.find(watch, wrong)
+            assertEquals(ClientEffect.WrongCourt, courts.effectsOf(watch).last())
+            // Still "court closed", not "reconnecting" and not "refused".
+            assertEquals(ClientStatus.ENDED, watch.status)
+            assertNull(watch.rejection)
+            assertEquals(held, watch.confirmed)
+        }
+    }
+
+    @Test
+    fun afterTheCourtClosesAFoundCourtThatDropsLeavesItClosed() {
+        val courts = Courts()
+        val host = courts.host(points = 1)
+        val watch = courts.guest("watch")
+        courts.join(watch, host)
+        courts.close(host)
+
+        // A link comes up to a found court and breaks before it answers.
+        watch.connectedToFoundCourt(182)
+        assertEquals(ClientStatus.JOINING, watch.status)
+        watch.disconnected()
+        assertEquals(ClientStatus.ENDED, watch.status)
+    }
+
+    @Test
+    fun aGuestThatOnlyLostItsLinkStillRefusesAnEarlierEpochAfterwards() {
+        val courts = Courts()
+        val stale = courts.host(points = 3)
+        val current = HostSession(MatchLog.takeOver(stale.snapshot(), courts.clock), 200, 1234, SequentialIds(200_000_000))
+        val watch = courts.guest("watch")
+        courts.join(watch, current)
+        // Released once, and back on a court...
+        courts.close(current)
+        courts.find(watch, current)
+        assertEquals(ClientStatus.SYNCED, watch.status)
+        // ...the release is used up: a plain link loss does not accept the stale host.
+        courts.drop(watch)
+        courts.find(watch, stale)
+        assertEquals(ClientEffect.WrongCourt, courts.effectsOf(watch).last())
+        assertEquals(ClientStatus.DISCONNECTED, watch.status)
+    }
+
     @Test
     fun aQuietHostAnswersAPingWithTheMatch() {
         val courts = Courts()

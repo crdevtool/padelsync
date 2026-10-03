@@ -47,11 +47,20 @@ internal class MatchStore(context: Context) {
 
     fun loadLabel(): String? = prefs.getString(KEY_LABEL, null)
 
-    fun clear() = prefs.edit().remove(KEY).remove(KEY_CODE).remove(KEY_LABEL).apply()
+    /**
+     * Remembers whether the hosted court was open to others, so that a
+     * resumed match reopens it and the guests still looking for it get back in.
+     */
+    fun saveOpen(open: Boolean) = prefs.edit().putBoolean(KEY_OPEN, open).apply()
+
+    fun loadOpen(): Boolean = prefs.getBoolean(KEY_OPEN, false)
+
+    fun clear() = prefs.edit().remove(KEY).remove(KEY_CODE).remove(KEY_LABEL).remove(KEY_OPEN).apply()
 
     private companion object {
         const val KEY = "hosted_match"
         const val KEY_CODE = "hosted_code"
         const val KEY_LABEL = "hosted_label"
+        const val KEY_OPEN = "hosted_open"
     }
 }
