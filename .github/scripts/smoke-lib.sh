@@ -12,20 +12,22 @@ log() { echo "[smoke] $*"; }
 # whose accessibility description starts with $1.
 find_center() {
   dump_ui
-  # Slow emulators sometimes show a "System UI isn't responding" dialog over
-  # the app. It is the emulator's problem, not the app's: dismiss it.
-  if grep -q "isn't responding" ui.xml 2>/dev/null; then
-    log "dismissing an emulator 'not responding' dialog"
-    local wait_xy
-    if wait_xy=$(locate "Wait"); then adb shell input tap $wait_xy; sleep 3; fi
-    dump_ui
-  fi
   locate "$1"
 }
 
+# Reads the screen into ui.xml. Slow emulators sometimes show a system
+# "... isn't responding" dialog over the app. That is the emulator's problem,
+# not the app's, so it is dismissed here, for every caller.
 dump_ui() {
-  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
-  adb exec-out cat /sdcard/ui.xml > ui.xml 2>/dev/null || true
+  for _ in 1 2 3 4; do
+    adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
+    adb exec-out cat /sdcard/ui.xml > ui.xml 2>/dev/null || true
+    grep -q "isn't responding" ui.xml 2>/dev/null || return 0
+    log "dismissing an emulator 'not responding' dialog"
+    local wait_xy
+    if wait_xy=$(locate "Wait"); then adb shell input tap $wait_xy; fi
+    sleep 5
+  done
 }
 
 locate() {
@@ -103,8 +105,7 @@ shot() {
 
 # Records the screen's text, for checking results without reading pixels.
 texts() {
-  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
-  adb exec-out cat /sdcard/ui.xml > ui.xml 2>/dev/null || true
+  dump_ui
   python3 - <<'PY'
 import xml.etree.ElementTree as ET
 try:

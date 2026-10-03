@@ -27,7 +27,8 @@ log "second emulator booted: $(adb -s "$GUEST" shell getprop sys.boot_completed 
 adb -s "$GUEST" shell settings put global window_animation_scale 0 || true
 adb -s "$GUEST" shell settings put global transition_animation_scale 0 || true
 adb -s "$GUEST" shell settings put global animator_duration_scale 0 || true
-sleep 20
+# Two emulators share one small build machine; let both finish starting up.
+sleep 60
 
 for device in "$HOST" "$GUEST"; do
   on "$device"
@@ -41,8 +42,8 @@ log "--- host: start a match and open the court"
 on "$HOST"
 adb shell am start -n com.padelsync.app/.MainActivity
 wait_for "New match" 90
-tap "New match" && wait_for "Start match"
-tap "Start match" && wait_for "Team A"
+tap "New match" && wait_for "Start match" 60
+tap "Start match" && wait_for "Team A" 60
 tap "Menu"; tap "Play with others"
 expect "Court open" "host opened the court"
 CODE=$(screen_text | grep -oE "Code [0-9]{4}" | grep -oE "[0-9]{4}" | head -1)
