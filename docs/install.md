@@ -134,6 +134,14 @@ with **New match** stays on that phone; it can be opened to others later from
 | End of match | Confetti, the winners, set scores, points won, breaks of serve, best run, **Share the result** and **Rematch**. |
 | During play | A banner for each game and set, a flash on the half that won the point, a "3 in a row" badge, a change-ends call, and a match clock. |
 
+Also new:
+
+| Feature | Where |
+| --- | --- |
+| Finding the host again | Nothing to do. A device that loses its host retries it, and after 15 seconds also looks for the court by name; it comes back by itself even if the host's phone was restarted. |
+| Taking over as host | If the host's device dies or leaves, after 20 seconds the other devices offer **Host this court**. One player confirms; the rest follow by themselves under the same code. An Apple Watch cannot host and says to ask a player with a phone. |
+| Location notice | Android 11 and older, and Wear OS 3: "Join a court" explains that Location must be switched on, and that the app does not use it. |
+
 On the watch: short names (`A+L`), the server and side on the middle strip
 (`LEO · R`), a winner screen, and **Voice** and **Others can score** switches
 in the menu.
@@ -144,9 +152,7 @@ then stays silent.
 
 ## 7. iPhone app, from a Windows computer
 
-The iPhone build here is the earlier version: it does not have the features
-in section 6 yet and cannot join a court hosted by the current Android apps.
-It will be brought up to date once the Android version is final.
+The iPhone build has the same features as the Android one.
 
 Apple's iOS Simulator only runs on a Mac, so there are two ways to see the
 iPhone app from Windows.

@@ -203,12 +203,12 @@ broadcast, so someone on the next court cannot join by accident.
 
 ## 5. What each device can do
 
-| Device | Score alone | Join a court | Host a court |
-| --- | --- | --- | --- |
-| Android phone | Yes | Yes | Yes |
-| Wear OS watch | Yes | Yes | Yes |
-| iPhone | Yes | Yes | Yes, while the app is on screen (see below) |
-| Apple Watch | Yes | Yes | **No** |
+| Device | Score alone | Join a court | Host a court | Take over as host |
+| --- | --- | --- | --- | --- |
+| Android phone | Yes | Yes | Yes | Yes |
+| Wear OS watch | Yes | Yes | Yes | Yes |
+| iPhone | Yes | Yes | Yes, while the app is on screen (see below) | Yes |
+| Apple Watch | Yes | Yes | **No** | **No**: it asks for a phone |
 
 **Apple Watch cannot host.** watchOS lets an app connect to Bluetooth devices
 but not advertise as one, and a host has to advertise. This is an Apple
@@ -222,7 +222,20 @@ the background, iOS keeps existing Bluetooth connections alive but hides the
 advertisement from non-Apple devices. An Android phone or Wear OS watch can
 therefore join an iPhone-hosted court only while the host app is on screen.
 Where there is a choice, an Android phone makes the better host: it keeps
-advertising with the screen off.
+advertising with the screen off. The iPhone app says so where it matters:
+while a court is open it shows "Keep PadelSync on screen so others can
+join" under the join code, keeps the screen awake on every screen, and after
+a spell in the background tells the host that Android devices could not join
+meanwhile. For the same reason an iPhone host in the background cannot be
+found again by a guest that has lost it, nor by another host looking for a
+rival court.
+
+**Android 11 and older need Location switched on to find courts.** On those
+versions (which include Wear OS 3 watches) Android returns no Bluetooth scan
+results while the device's Location switch is off. The app does not use the
+player's location; the join screen explains this and offers a button to the
+setting. It also affects finding a lost host again by scanning, which is
+silent: with Location off, such a device relies on the direct reconnect.
 
 ## 6. Limits to know about
 
@@ -232,6 +245,16 @@ advertising with the screen off.
   shortly after the wrist is lowered, which drops the link; it reconnects and
   catches up when the wrist is raised. Running as a workout session would
   keep it connected throughout and is the planned fix.
+- **Court names are matched as advertised.** A guest looking for its court
+  again, and a host looking for a rival, go by the advertised name, which
+  Android cuts to 12 bytes and an iPhone may cut shorter. Names are compared
+  leniently (one may be the beginning of the other), and the match id
+  settles it, but how iPhones shorten names in practice has not been checked
+  on real hardware.
+- **Anything involving Bluetooth on Apple devices is untested.** Apple's
+  simulators have no Bluetooth. The iPhone and Apple Watch apps build, and
+  the iPhone app plays a whole match on a simulator, but joining, hosting,
+  finding a host again and taking over have never run on Apple hardware.
 - **A guest away from a host that then starts a new match** has to join
   again by hand. A guest that finds its court again by name accepts it only
   if it still carries the same match (see "Finding the host again" above),
@@ -239,9 +262,6 @@ advertising with the screen off.
 
 ## 7. Not built yet
 
-- The iPhone and Apple Watch apps have not yet been brought up to protocol
-  version 2 (names, play all sets, serve side, permissions, voice). Until
-  they are, they cannot join a court hosted by the current Android apps.
 - Voice in languages other than English.
 - Choosing which team "you" are, so your own side is always on the same half
   of the screen.
