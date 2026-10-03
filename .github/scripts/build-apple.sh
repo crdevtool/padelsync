@@ -36,6 +36,15 @@ build() {
 echo "== iPhone app =="
 build PadelSync iphonesimulator "generic/platform=iOS Simulator" iphonesimulator PadelSync
 
+echo "== Package the iPhone simulator build =="
+# A zipped simulator build can be uploaded to a browser-based simulator
+# service, which is the only way to try the iPhone app without a Mac.
+(cd build/apple/Build/Products/Debug-iphonesimulator && zip -qr "$OLDPWD/PadelSync-iOS-simulator.zip" PadelSync.app)
+ls -la PadelSync-iOS-simulator.zip
+if [ -n "${GH_TOKEN:-}" ]; then
+  gh release upload test-build PadelSync-iOS-simulator.zip --clobber || echo "could not publish the simulator build"
+fi
+
 echo "== Apple Watch app =="
 build PadelSyncWatch watchsimulator "generic/platform=watchOS Simulator" watchsimulator PadelSyncWatch
 
