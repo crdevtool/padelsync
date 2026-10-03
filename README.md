@@ -9,7 +9,7 @@ internet and no account.
 
 | Part | State |
 | --- | --- |
-| Shared rules and sync core | Built and tested (233 automated tests) |
+| Shared rules and sync core | Built and tested (243 automated tests) |
 | Android phone app | Builds and runs on an emulator. Not yet tried on a real phone. |
 | Wear OS watch app | Builds and runs on an emulator. Not yet tried on a real watch. |
 | iPhone app | Builds for simulator and device, and runs on a simulator. Not yet tried on a real iPhone. |
