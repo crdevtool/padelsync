@@ -66,8 +66,9 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         WKApplication: true
+        WKCompanionAppBundleIdentifier: com.padelsync.app
         # The watch app works on its own: it joins a court directly over
-        # Bluetooth and does not need the iPhone app.
+        # Bluetooth and does not need the iPhone app to be installed.
         WKRunsIndependentlyOfCompanionApp: true
         NSBluetoothAlwaysUsageDescription: PadelSync uses Bluetooth to share the score with the other players' phones and watches on your court.
     settings:

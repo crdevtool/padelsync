@@ -10,6 +10,7 @@ struct PadelSyncApp: App {
             RootView()
                 .environmentObject(store)
                 .preferredColorScheme(.dark)
+                .tint(Palette.accent)
                 .onAppear {
                     if ProcessInfo.processInfo.arguments.contains("-demoMatch") { store.runDemo() }
                 }
