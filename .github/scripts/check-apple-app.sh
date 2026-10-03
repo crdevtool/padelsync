@@ -24,7 +24,11 @@ problem() {
 
 # Prints one value from a bundle's Info.plist, or nothing if it is missing.
 plist() {
-  plutil -extract "$2" raw -o - "$1/Info.plist" 2>/dev/null || true
+  local value
+  # Older versions of plutil print their error message as if it were the value.
+  if value=$(plutil -extract "$2" raw -o - "$1/Info.plist" 2>/dev/null); then
+    printf '%s' "$value"
+  fi
 }
 
 # expect_plist bundle key wanted what-it-is
