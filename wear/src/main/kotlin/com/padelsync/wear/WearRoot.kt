@@ -108,7 +108,8 @@ fun WearRoot(controller: CourtController) {
 
             else -> HomeScreen(
                 hasSavedMatch = ui.hasSavedMatch,
-                onPadel = { controller.startMatch(MatchConfig.padel()) },
+                // Social padel is usually played to the last set whatever the score.
+                onPadel = { controller.startMatch(MatchConfig.padel().copy(playAllSets = true)) },
                 onTennis = { controller.startMatch(MatchConfig.tennis()) },
                 onJoin = { screen = WearScreen.JOIN },
                 onResume = { controller.resumeSavedMatch() },

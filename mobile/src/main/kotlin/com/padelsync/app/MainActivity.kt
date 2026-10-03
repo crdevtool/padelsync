@@ -1,6 +1,7 @@
 package com.padelsync.app
 
 import android.graphics.Color
+import android.media.AudioManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -18,6 +19,8 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        // The score is called on the media volume, so the volume keys should move that.
+        volumeControlStream = AudioManager.STREAM_MUSIC
         val controller = CourtController.get(this, DeviceKind.PHONE)
         setContent {
             PadelSyncTheme {

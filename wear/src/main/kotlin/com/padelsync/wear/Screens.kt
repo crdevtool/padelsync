@@ -34,6 +34,10 @@ import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.Text
 import com.netsports.core.engine.MatchConfig
+import com.netsports.core.engine.Team
+import com.netsports.core.match.Action
+import com.netsports.core.ui.ScoreView
+import com.padelsync.kit.Labels
 import com.padelsync.kit.CourtController
 import com.padelsync.kit.CourtMode
 import com.padelsync.kit.CourtUiState
@@ -87,6 +91,37 @@ fun MessageScreen(title: String, body: String, button: String, onClick: () -> Un
         item { Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center) }
         item { Text(body, color = WearPalette.Muted, fontSize = 13.sp, textAlign = TextAlign.Center) }
         item { SecondaryChip(button, onClick) }
+    }
+}
+
+/** The end of a match on the watch: who won, the sets, and what to do next. */
+@Composable
+fun WinnerScreen(
+    score: ScoreView,
+    winner: Team,
+    onRematch: (() -> Unit)?,
+    onUndo: (() -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    ScalingLazyColumn(Modifier.fillMaxSize()) {
+        item { Text("🏆", fontSize = 34.sp) }
+        item {
+            Text(
+                Labels.winnerHeadline(score, winner),
+                color = if (winner == Team.A) WearPalette.TeamA else WearPalette.TeamB,
+                fontWeight = FontWeight.Black,
+                fontSize = 18.sp,
+                textAlign = TextAlign.Center,
+            )
+        }
+        item { Text(score.setSummary, fontWeight = FontWeight.Black, fontSize = 20.sp, textAlign = TextAlign.Center) }
+        if (onRematch != null) {
+            item { PrimaryChip("Rematch", onRematch) }
+        }
+        item { SecondaryChip("Scoreboard", onDismiss) }
+        if (onUndo != null) {
+            item { SecondaryChip("Undo last point", onUndo) }
+        }
     }
 }
 
@@ -200,7 +235,28 @@ fun MenuScreen(ui: CourtUiState, controller: CourtController, onClose: () -> Uni
             item { Text(ui.error.orEmpty(), color = WearPalette.Danger, fontSize = 13.sp, textAlign = TextAlign.Center) }
         }
         item { PrimaryChip("Back to score", onClose) }
+        val score = ui.score
+        val server = score?.server
+        if (score != null && score.doubles && server != null && ui.canScore) {
+            // Players choose their serving order each set; this corrects the app's guess.
+            item {
+                SecondaryChip("Swap server") {
+                    controller.tap(Action.swapServerFor(server))
+                    onClose()
+                }
+            }
+        }
+        item {
+            SecondaryChip(if (ui.speech.enabled) "Voice: on" else "Voice: off") {
+                controller.setSpeech(ui.speech.copy(enabled = !ui.speech.enabled))
+            }
+        }
         if (hosting) {
+            item {
+                SecondaryChip(if (ui.guestsCanScore) "Others can score: yes" else "Others can score: no") {
+                    controller.setGuestsCanScore(!ui.guestsCanScore)
+                }
+            }
             if (ui.courtOpen) {
                 item { SecondaryChip("Stop sharing") { controller.closeCourt() } }
             } else {
@@ -208,7 +264,7 @@ fun MenuScreen(ui: CourtUiState, controller: CourtController, onClose: () -> Uni
             }
             item {
                 SecondaryChip("New padel match") {
-                    controller.startNewMatch(MatchConfig.padel())
+                    controller.startNewMatch(MatchConfig.padel().copy(playAllSets = true))
                     onClose()
                 }
             }

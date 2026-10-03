@@ -27,9 +27,16 @@ shot after-undo
 tap_many "Team A" 21
 shot set-in-progress
 texts
+# Two sets to love decides the match, but all three sets are played.
 tap_many "Team A" 24
+shot match-decided
+texts
+tap_many "Team B" 24
+sleep 2
 shot match-won
 texts
+tap "Scoreboard"
+shot final-scoreboard
 
 tap "MENU" && shot menu
 texts

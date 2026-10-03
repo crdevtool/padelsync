@@ -33,10 +33,24 @@ object Labels {
         }
     }
 
+    /**
+     * A team in at most three characters, for a watch: `A+L` for Ana and
+     * Leo, `ANA` for Ana alone, `A` or `B` when no names were given.
+     */
+    fun shortName(score: ScoreView, team: Team): String {
+        val players = score.playersOf(team)
+        return when (players.size) {
+            0 -> if (team == Team.A) "A" else "B"
+            1 -> players[0].take(3).uppercase()
+            else -> players.joinToString("+") { it.take(1).uppercase() }
+        }
+    }
+
     /** [highlight] shortened to fit a watch: `MATCH POINT A` instead of `MATCH POINT · TEAM A`. */
     fun highlightShort(score: ScoreView, config: MatchConfig?): String? {
-        val who = score.highlightTeam?.let { if (it == Team.A) " A" else " B" }.orEmpty()
+        val who = score.highlightTeam?.let { " ${shortName(score, it)}" }.orEmpty()
         return when (score.highlight) {
+            Highlight.MATCH_WON -> score.winner?.let { "${shortName(score, it)} ${wins(score, it).uppercase()}" }
             Highlight.GAME_POINT -> "GAME POINT$who"
             Highlight.BREAK_POINT -> "BREAK POINT$who"
             Highlight.SET_POINT -> "SET POINT$who"

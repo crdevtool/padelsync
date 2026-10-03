@@ -21,6 +21,19 @@ object Palette {
     val Accent = Color(0xFFD7F23C)
     val OnAccent = Color(0xFF0B1E3A)
     val Danger = Color(0xFFFF6B6B)
+
+    /** A padel court's blue turf, lit at the net and darker towards the back walls. */
+    val PadelTurf = Color(0xFF1257C2)
+    val PadelTurfDeep = Color(0xFF082E73)
+
+    /** A hard tennis court: green surround, blue playing area. */
+    val TennisSurround = Color(0xFF1F6B45)
+    val TennisSurroundDeep = Color(0xFF0F3D27)
+    val TennisCourt = Color(0xFF1F5FA8)
+
+    val CourtLine = Color(0xFFF4F7FB)
+    val Ball = Color(0xFFD7F23C)
+    val Gold = Color(0xFFFFD24A)
 }
 
 @Composable

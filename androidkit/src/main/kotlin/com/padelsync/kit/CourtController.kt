@@ -82,6 +82,8 @@ data class CourtUiState(
     val stats: MatchStats? = null,
     /** When this device first had the match, for the running clock. */
     val startedAtMillis: Long? = null,
+    /** How long the match took, once it is over. */
+    val durationMillis: Long? = null,
     /** How this device announces the score. */
     val speech: SpeechSettings = SpeechSettings.OFF,
     /** False once the device turned out to have no text-to-speech voice. */
@@ -107,10 +109,8 @@ class CourtController private constructor(
     private val settings = SettingsStore(app, voiceOnWhenHosting = kind == DeviceKind.PHONE)
     private val ids = RandomIdSource()
 
-    private val announcer = Announcer(app, handler) {
-        error = "This device has no voice installed, so it cannot call the score."
-        publish()
-    }
+    // A device without a voice simply stays quiet; the voice settings say why.
+    private val announcer = Announcer(app, handler) { publish() }
 
     /** The match as last put through the announcer, so each change is spoken once. */
     private var announced: MatchSnapshot? = null
@@ -572,6 +572,7 @@ class CourtController private constructor(
                     guestsCanScore = hostSession.guestsCanScore,
                     stats = MatchStats.of(snapshot),
                     startedAtMillis = hostSession.log.startedAtMillis,
+                    durationMillis = recordedDuration(snapshot),
                     speech = voice,
                     voiceAvailable = voiceAvailable,
                 )
@@ -605,6 +606,7 @@ class CourtController private constructor(
                     canScore = guestSession.canScore,
                     stats = confirmed?.let { MatchStats.of(it) },
                     startedAtMillis = confirmed?.let { firstSeen[it.matchId] },
+                    durationMillis = confirmed?.let { recordedDuration(it) },
                     speech = voice,
                     voiceAvailable = voiceAvailable,
                 )
@@ -636,6 +638,14 @@ class CourtController private constructor(
         _history.value = updated
         historyStore.save(updated)
     }
+
+    /** How long a finished match took, as recorded in the history when it ended. */
+    private fun recordedDuration(snapshot: MatchSnapshot): Long? =
+        if (snapshot.state.isComplete) {
+            _history.value.firstOrNull { it.matchId == snapshot.matchId }?.durationMillis
+        } else {
+            null
+        }
 
     private fun now(): Long = System.currentTimeMillis()
 

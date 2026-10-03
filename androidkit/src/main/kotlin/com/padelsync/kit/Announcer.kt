@@ -102,7 +102,8 @@ internal class Announcer(
 
                 override fun onDone(utteranceId: String?) = release(utteranceId)
 
-                @Deprecated("Deprecated in the platform, but still the callback older engines use.")
+                // Deprecated in the platform, but still the callback older engines use.
+                @Suppress("OVERRIDE_DEPRECATION")
                 override fun onError(utteranceId: String?) = release(utteranceId)
 
                 override fun onError(utteranceId: String?, errorCode: Int) = release(utteranceId)

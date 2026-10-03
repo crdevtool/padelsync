@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Text
+import com.netsports.core.engine.ServeSide
 import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
 import com.netsports.core.sync.ClientStatus
@@ -65,12 +66,34 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
 
     var note by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(ui.feedbackCount) {
-        if (ui.lastFeedback == TapFeedback.SUPERSEDED) {
+        val text = when (ui.lastFeedback) {
+            TapFeedback.SUPERSEDED -> "ALREADY SCORED"
+            TapFeedback.NOT_ALLOWED -> "VIEW ONLY"
+            else -> null
+        }
+        if (text != null) {
             vibrate(context, longArrayOf(0, 70, 90, 70))
-            note = "ALREADY SCORED"
+            note = text
             delay(2500)
             note = null
         }
+    }
+
+    // The end of the match gets a screen of its own, which can be put away.
+    val winner = score.winner
+    var resultDismissed by remember(winner) { mutableStateOf(false) }
+    LaunchedEffect(winner) {
+        if (winner != null) vibrate(context, longArrayOf(0, 120, 90, 120, 90, 260))
+    }
+    if (winner != null && !resultDismissed) {
+        WinnerScreen(
+            score = score,
+            winner = winner,
+            onRematch = if (ui.mode == CourtMode.HOST) ({ controller.rematch() }) else null,
+            onUndo = if (ui.canScore) ({ controller.tap(Action.UNDO) }) else null,
+            onDismiss = { resultDismissed = true },
+        )
+        return
     }
 
     // Two quick ticks when someone else scores, so the wearer knows the point
@@ -88,12 +111,17 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
     val strip = when {
         note != null -> note
         offline -> "RECONNECTING"
-        else -> Labels.highlightShort(score, ui.config) ?: score.setSummary.ifEmpty { null }
+        else -> Labels.highlightShort(score, ui.config)
+            ?: "CHANGE ENDS".takeIf { score.changeEnds }
+            ?: serveLine(score)
+            ?: score.setSummary.ifEmpty { null }
     }
 
     Column(Modifier.fillMaxSize()) {
         Half(
             team = Team.A,
+            label = Labels.shortName(score, Team.A),
+            name = score.nameA,
             color = WearPalette.TeamA,
             points = score.pointsA,
             games = score.gamesA,
@@ -112,7 +140,7 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
                 .padding(horizontal = 12.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PillKey("UNDO", enabled = score.canUndo) { tap(Action.UNDO) }
+            PillKey("UNDO", enabled = score.canUndo && ui.canScore) { tap(Action.UNDO) }
             Text(
                 strip.orEmpty(),
                 color = if (note != null || offline) WearPalette.Danger else WearPalette.Accent,
@@ -130,6 +158,8 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
 
         Half(
             team = Team.B,
+            label = Labels.shortName(score, Team.B),
+            name = score.nameB,
             color = WearPalette.TeamB,
             points = score.pointsB,
             games = score.gamesB,
@@ -146,6 +176,8 @@ fun ScoreScreen(ui: CourtUiState, score: ScoreView, controller: CourtController,
 @Composable
 private fun Half(
     team: Team,
+    label: String,
+    name: String,
     color: Color,
     points: String,
     games: Int,
@@ -156,7 +188,6 @@ private fun Half(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val name = Labels.team(team)
     Box(
         modifier
             .fillMaxWidth()
@@ -176,10 +207,11 @@ private fun Half(
             modifier = Modifier.padding(vertical = 2.dp),
         ) {
             Text(
-                if (team == Team.A) "A" else "B",
+                label,
                 color = color,
-                fontSize = 22.sp,
+                fontSize = if (label.length > 1) 16.sp else 22.sp,
                 fontWeight = FontWeight.Black,
+                maxLines = 1,
             )
             Spacer(Modifier.width(10.dp))
             Column(horizontalAlignment = Alignment.End) {
@@ -197,6 +229,18 @@ private fun Half(
             )
         }
     }
+}
+
+/**
+ * Who serves next and from which side, short enough for the strip:
+ * `LEO · R`. Only shown when the player's name is known; the dot beside the
+ * score already says which team serves.
+ */
+private fun serveLine(score: ScoreView): String? {
+    val team = score.server ?: return null
+    val side = score.serveSide ?: return null
+    val player = score.playersOf(team).getOrNull(score.serverPlayerIndex) ?: return null
+    return "${player.take(7).uppercase()} · ${if (side == ServeSide.RIGHT) "R" else "L"}"
 }
 
 private fun vibrate(context: Context, pattern: LongArray) {

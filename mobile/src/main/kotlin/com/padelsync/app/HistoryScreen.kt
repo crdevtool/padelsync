@@ -44,10 +44,8 @@ fun HistoryScreen(records: List<MatchRecord>, onBack: () -> Unit) {
         if (records.isEmpty()) {
             Text("No finished matches yet.", color = Palette.Muted, fontSize = 18.sp)
         } else {
-            val winsA = records.count { it.score.winner == Team.A }
             Text(
-                "${records.size} played · Team A won $winsA · Team B won ${records.size - winsA} · " +
-                    "${duration(records.sumOf { it.durationMillis })} on court",
+                "${records.size} played · ${Labels.duration(records.sumOf { it.durationMillis })} on court",
                 color = Palette.Muted,
                 fontSize = 15.sp,
             )
@@ -65,7 +63,11 @@ fun HistoryScreen(records: List<MatchRecord>, onBack: () -> Unit) {
                             .padding(16.dp),
                     ) {
                         Text(
-                            if (winner != null) "${Labels.team(winner)} won" else "Unfinished",
+                            if (winner != null) {
+                                "${score.nameOf(winner)} beat ${score.nameOf(winner.opponent)}"
+                            } else {
+                                "${score.nameA} vs ${score.nameB}"
+                            },
                             color = if (winner == Team.B) Palette.TeamB else Palette.TeamA,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Black,
@@ -78,7 +80,7 @@ fun HistoryScreen(records: List<MatchRecord>, onBack: () -> Unit) {
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "${Labels.format(record.snapshot.config)} · ${duration(record.durationMillis)}",
+                            "${Labels.format(record.snapshot.config)} · ${Labels.duration(record.durationMillis)}",
                             color = Palette.Muted,
                             fontSize = 14.sp,
                         )
@@ -93,10 +95,4 @@ fun HistoryScreen(records: List<MatchRecord>, onBack: () -> Unit) {
             }
         }
     }
-}
-
-/** A duration as `48 min` or `1 h 12 min`. */
-private fun duration(millis: Long): String {
-    val minutes = (millis / 60_000).toInt()
-    return if (minutes < 60) "$minutes min" else "${minutes / 60} h ${minutes % 60} min"
 }
