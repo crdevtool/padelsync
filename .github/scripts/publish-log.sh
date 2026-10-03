@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Publishes the tail of a build log to the branch ci-logs/<name>, replacing
-# whatever was there. Build logs are otherwise only readable in the GitHub
-# web UI; this makes the latest one for each job fetchable with plain git.
+# Publishes the tail of a build log, and optionally a directory of extra
+# files such as screenshots, to the branch ci-logs/<name>, replacing whatever
+# was there. Build logs are otherwise only readable in the GitHub web UI;
+# this makes the latest result of each job fetchable with plain git.
 #
-# Usage: publish-log.sh <name> <log-file> <job-status>
+# Usage: publish-log.sh <name> <log-file> <job-status> [extra-dir]
 set -euo pipefail
 
 name="$1"
 log="$2"
 status="${3:-unknown}"
+extra="${4:-}"
 
 work="$(mktemp -d)"
 git init --quiet "$work"
@@ -20,6 +22,9 @@ if [ -f "$GITHUB_WORKSPACE/$log" ]; then
 else
   echo "(no log file was produced)" > build.log
 fi
+if [ -n "$extra" ] && [ -d "$GITHUB_WORKSPACE/$extra" ]; then
+  cp -r "$GITHUB_WORKSPACE/$extra/." .
+fi
 {
   echo "status: $status"
   echo "commit: $GITHUB_SHA"
@@ -27,7 +32,7 @@ fi
   echo "time: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 } > status.txt
 
-git add build.log status.txt
+git add -A
 git -c user.name="padelsync-ci" -c user.email="ci@users.noreply.github.com" \
   commit --quiet -m "$name: $status at ${GITHUB_SHA:0:7}"
 git push --quiet --force \

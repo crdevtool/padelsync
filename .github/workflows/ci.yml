@@ -62,8 +62,57 @@ jobs:
             gh release create test-build --prerelease --title "Latest test build" --notes "$notes"
           fi
           gh release upload test-build PadelSync-phone.apk PadelSync-watch.apk --clobber
+      - name: Keep APKs for the emulator tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: PadelSync-*.apk
+          retention-days: 7
       - name: Publish log
         if: always()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: .github/scripts/publish-log.sh android build.log "${{ job.status }}"
+
+  smoke:
+    name: Emulator run (${{ matrix.device }})
+    needs: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device: phone
+            api: 34
+            target: google_apis
+            profile: pixel_6
+          - device: watch
+            api: 33
+            target: android-wear
+            profile: wearos_large_round
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: apks
+      - name: Enable hardware acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run the app on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          target: ${{ matrix.target }}
+          arch: x86_64
+          profile: ${{ matrix.profile }}
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash .github/scripts/smoke-${{ matrix.device }}.sh 2>&1 | tee smoke.log
+      - name: Publish screenshots and log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/publish-log.sh smoke-${{ matrix.device }} smoke.log "${{ job.status }}" shots
