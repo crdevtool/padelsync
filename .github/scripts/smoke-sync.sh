@@ -73,8 +73,12 @@ SDKMANAGER=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | hea
 AVDMANAGER=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/avdmanager 2>/dev/null | head -1)
 yes | "$SDKMANAGER" "$GUEST_IMAGE" 2>&1 | tail -2 || true
 echo no | "$AVDMANAGER" create avd --force -n guest -k "$GUEST_IMAGE" -d "$GUEST_PROFILE" 2>&1 | tail -3
+# The default data partition is larger than the build machine has room for.
+config="$HOME/.android/avd/guest.avd/config.ini"
+sed -i '/^disk.dataPartition.size/d' "$config"
+echo "disk.dataPartition.size=2G" >> "$config"
 "$ANDROID_HOME/emulator/emulator" -avd guest -port 5556 -no-window -gpu swiftshader_indirect \
-  -no-snapshot -noaudio -no-boot-anim -cores 2 -memory 3072 >emulator-guest.log 2>&1 &
+  -no-snapshot -noaudio -no-boot-anim -cores 2 -memory 3072 -partition-size 2048 >emulator-guest.log 2>&1 &
 if ! timeout 300 adb -s "$GUEST" wait-for-device; then
   log "FAIL: the second emulator never appeared"
   tail -30 emulator-guest.log
