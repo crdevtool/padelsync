@@ -129,7 +129,8 @@ private struct WatchHalf: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(!enabled)
+        // Not `.disabled`: that would grey out the final score.
+        .allowsHitTesting(enabled)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "\(Labels.team(team)). Points \(points). Games \(games). Sets \(sets)." + (serving ? " Serving." : "")

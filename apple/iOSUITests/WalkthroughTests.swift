@@ -78,14 +78,14 @@ final class WalkthroughTests: XCTestCase {
 
         // Sharing needs Bluetooth, which a simulator does not have. The app
         // should say so rather than misbehave.
-        app.buttons["Menu"].tap()
+        openMenu()
         shot("menu")
         app.buttons["Play with others"].tap()
         sleep(3)
         shot("play-with-others-without-bluetooth")
 
         // End the match and look at the history.
-        app.buttons["Menu"].tap()
+        openMenu()
         app.buttons["End match"].firstMatch.tap()
         shot("end-match-confirmation")
         let confirm = app.buttons.matching(NSPredicate(format: "label == %@", "End match"))
@@ -114,6 +114,15 @@ final class WalkthroughTests: XCTestCase {
 
     private func label(of team: String) -> String {
         panel(team).label
+    }
+
+    /// Opens the scoreboard menu. Tapped by position: the test framework
+    /// cannot "scroll to" a SwiftUI menu button, though a finger taps it fine.
+    private func openMenu() {
+        let menu = app.buttons["Menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5), "the Menu button is missing")
+        menu.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        _ = app.buttons[app.buttons["End match"].exists ? "End match" : "Leave court"].waitForExistence(timeout: 5)
     }
 
     private func tap(_ element: XCUIElement, times: Int) {

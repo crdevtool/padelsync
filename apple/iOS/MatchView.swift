@@ -121,7 +121,7 @@ struct MatchView: View {
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(statusColor)
             Spacer()
-            Menu("Menu") {
+            Menu {
                 if hosting {
                     if store.courtOpen {
                         Button("Stop sharing this court") { store.closeCourt() }
@@ -131,8 +131,13 @@ struct MatchView: View {
                     Button("New match", action: onNewMatch)
                 }
                 Button(hosting ? "End match" : "Leave court", role: .destructive) { confirmLeave = true }
+            } label: {
+                // A touch target of at least 44 points, as Apple recommends.
+                Text("Menu")
+                    .font(.subheadline.weight(.bold))
+                    .frame(minWidth: 64, minHeight: 44, alignment: .trailing)
+                    .contentShape(Rectangle())
             }
-            .font(.subheadline.weight(.bold))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
@@ -228,7 +233,9 @@ private struct TeamPanel: View {
             .contentShape(RoundedRectangle(cornerRadius: 24))
         }
         .buttonStyle(.plain)
-        .disabled(!enabled)
+        // Not `.disabled`: that would grey out the final score when the
+        // match is over. The panel just stops responding to taps.
+        .allowsHitTesting(enabled)
         .padding(.horizontal, 12)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(

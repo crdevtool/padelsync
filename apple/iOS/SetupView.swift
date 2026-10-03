@@ -113,6 +113,9 @@ private struct OptionGroup<Option: Equatable>: View {
                     } label: {
                         Text(label(option))
                             .font(.subheadline.weight(.bold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .padding(.horizontal, 6)
                             .frame(maxWidth: .infinity, minHeight: 56)
                             .foregroundStyle(isSelected ? Palette.onAccent : Color.white)
                             .background(
