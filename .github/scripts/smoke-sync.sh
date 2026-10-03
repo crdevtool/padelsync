@@ -57,7 +57,7 @@ tap "Join a court"
 sleep 15
 log "guest sees: $(screen_text)"
 shot guest-scanning
-if tap "sdk*"; then
+if tap "Very close"; then
   tap "Code"
   adb shell input text "$CODE"
   sleep 1
