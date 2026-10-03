@@ -101,8 +101,9 @@ The key must be a **team key with the Admin role**; automatic signing for the
 App Store does not work with a lesser role.
 
 To release: Actions > **Apple release (TestFlight)** > Run workflow. It
-builds on a Mac with Xcode 26, signs, and uploads; the build number is the
-run number and the version is `MARKETING_VERSION` in `apple/project.yml`.
+builds on a Mac with Xcode 26, signs at export, and uploads; the build number
+is the run number and the version is `MARKETING_VERSION` in
+`apple/project.yml`.
 With a secret missing it stops at the first step with "Secrets not
 configured". "Apple device build (release rehearsal)" runs the same build
 unsigned, with no Apple account.

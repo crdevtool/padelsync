@@ -11,13 +11,23 @@
 #
 # Both modes run the same steps; "upload" only adds signing and the upload.
 #
+# Where the signing happens. The archive is built unsigned, exactly as in the
+# rehearsal, and Apple signs it for the App Store when it is exported. Signing
+# the archive itself would need a development profile, which Apple only
+# issues to a team that has a device registered, and would leave a new
+# development certificate in the account on every run until the account's
+# limit stops the build. ARCHIVE_SIGNING=automatic switches to that way; it
+# becomes necessary once the app has entitlements (HealthKit), because an
+# unsigned archive carries none.
+#
 # For "upload", in the environment (never printed):
 #   ASC_KEY_ID, ASC_ISSUER_ID   the App Store Connect API key's two IDs
 #   ASC_KEY_P8                  the contents of the key's .p8 file
 #   APPLE_TEAM_ID               the developer team
 #
-# BUILD_NUMBER   the build number for both apps (default 1)
-# FULL_LOG=true  print all of Xcode's output and not only the lines that matter
+# BUILD_NUMBER                the build number for both apps (default 1)
+# ARCHIVE_SIGNING=automatic   sign the archive too; see above (default none)
+# FULL_LOG=true               print all of Xcode's output, not only the lines that matter
 set -euo pipefail
 
 mode="${1:-rehearse}"
@@ -62,7 +72,9 @@ if [ "$mode" = upload ] && [ "${xcode_major:-0}" -lt 26 ]; then
   exit 1
 fi
 
-signing=()
+# How the key is handed to Apple, for the archive (if it is signed) and the export.
+key_flags=()
+signing=(CODE_SIGNING_ALLOWED=NO)
 if [ "$mode" = upload ]; then
   echo "== Signing key =="
   for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 APPLE_TEAM_ID; do
@@ -71,6 +83,12 @@ if [ "$mode" = upload ]; then
       exit 1
     fi
   done
+  # A space or line break pasted along with an ID would make Apple refuse it
+  # with a message that says nothing useful.
+  ASC_KEY_ID=$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')
+  ASC_ISSUER_ID=$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')
+  APPLE_TEAM_ID=$(printf '%s' "$APPLE_TEAM_ID" | tr -d '[:space:]')
+  export ASC_KEY_ID ASC_ISSUER_ID APPLE_TEAM_ID
   # The key is written to a private file for Xcode and deleted when the script ends.
   key_dir=$(mktemp -d "${RUNNER_TEMP:-/tmp}/asc.XXXXXX")
   key_file="$key_dir/AuthKey.p8"
@@ -86,17 +104,23 @@ if [ "$mode" = upload ]; then
       exit 1
     fi
   fi
+  if ! openssl pkey -in "$key_file" -noout 2>/dev/null; then
+    echo "FAILED: ASC_KEY_P8 holds a key that cannot be read. It must be the .p8 file exactly as downloaded, line breaks included."
+    exit 1
+  fi
+  # From here on the key is only in its file; the tools started below do not get it.
+  unset ASC_KEY_P8
   echo "key file ready"
-  signing=(
+  key_flags=(
     -allowProvisioningUpdates
     -authenticationKeyPath "$key_file"
     -authenticationKeyID "$ASC_KEY_ID"
     -authenticationKeyIssuerID "$ASC_ISSUER_ID"
-    "DEVELOPMENT_TEAM=$APPLE_TEAM_ID"
-    CODE_SIGN_STYLE=Automatic
   )
-else
-  signing=(CODE_SIGNING_ALLOWED=NO)
+  if [ "${ARCHIVE_SIGNING:-none}" = automatic ]; then
+    echo "the archive will be signed as well (needs a registered device at Apple)"
+    signing=("${key_flags[@]}" "DEVELOPMENT_TEAM=$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic)
+  fi
 fi
 
 echo "== Shared core, release build, device architectures =="
@@ -112,8 +136,13 @@ echo "== Build settings for real devices =="
 # device build, where it would be at best noise and at worst an empty app.
 for pair in "PadelSync iphoneos" "PadelSyncWatch watchos"; do
   read -r target sdk <<< "$pair"
-  excluded=$(xcodebuild -project apple/PadelSync.xcodeproj -target "$target" -configuration Release -sdk "$sdk" \
-    -showBuildSettings 2>/dev/null | awk -F' = ' '/^ *EXCLUDED_ARCHS = / { print $2 }')
+  if ! settings=$(xcodebuild -project apple/PadelSync.xcodeproj -target "$target" -configuration Release \
+      -sdk "$sdk" -showBuildSettings 2>&1); then
+    echo "FAILED: could not read the build settings of $target for $sdk:"
+    printf '%s\n' "$settings" | tail -20
+    exit 1
+  fi
+  excluded=$(printf '%s\n' "$settings" | awk -F' = ' '/^ *EXCLUDED_ARCHS = / { print $2 }')
   if [ -n "$excluded" ]; then
     echo "FAILED: $target leaves out '$excluded' when built for $sdk; only simulator builds may leave an architecture out."
     exit 1
@@ -133,6 +162,14 @@ run_xcodebuild archive \
   "${signing[@]}" || archive_status=$?
 if [ "$archive_status" != 0 ] || [ ! -d "$archive/Products/Applications/PadelSync.app" ]; then
   echo "FAILED: the archive was not built (xcodebuild status $archive_status)."
+  exit 1
+fi
+# The watch app belongs inside the iPhone app. If it were also archived as an
+# app of its own, the archive could not be exported for the App Store.
+app_count=$(find "$archive/Products/Applications" -maxdepth 1 -name "*.app" | wc -l | tr -d ' ')
+if [ "$app_count" != 1 ]; then
+  echo "FAILED: the archive holds $app_count apps at its top level, expected the iPhone app alone:"
+  ls "$archive/Products/Applications"
   exit 1
 fi
 
@@ -169,10 +206,7 @@ PLIST
 upload_status=0
 run_xcodebuild -exportArchive \
   -archivePath "$archive" -exportOptionsPlist "$options" -exportPath "$out/export" \
-  -allowProvisioningUpdates \
-  -authenticationKeyPath "$key_file" \
-  -authenticationKeyID "$ASC_KEY_ID" \
-  -authenticationKeyIssuerID "$ASC_ISSUER_ID" || upload_status=$?
+  "${key_flags[@]}" || upload_status=$?
 if [ "$upload_status" != 0 ]; then
   echo "FAILED: the build was not uploaded (xcodebuild status $upload_status). Run again with the full log switched on to see why."
   exit 1

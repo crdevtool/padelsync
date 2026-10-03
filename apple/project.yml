@@ -105,6 +105,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.crdevtool.padelsync.watchkitapp
+        # The watch app is delivered inside the iPhone app, never as an app
+        # of its own in an archive.
+        SKIP_INSTALL: "YES"
         TARGETED_DEVICE_FAMILY: "4"
 
 schemes:

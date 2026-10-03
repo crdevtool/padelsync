@@ -19,6 +19,13 @@ on:
         description: Print all of Xcode's output (it may show the signing certificate's name)
         type: boolean
         default: false
+      archive_signing:
+        description: Where signing happens. "none" signs at export only (works on a new account). "automatic" signs the archive too (needs a device registered at Apple; required once the app has entitlements)
+        type: choice
+        options:
+          - none
+          - automatic
+        default: none
 
 # Two releases at once would fight over the same build numbers.
 concurrency:
@@ -86,4 +93,5 @@ jobs:
           # the last. Running a failed release again gives 12.2, 12.3, ...
           BUILD_NUMBER: ${{ github.run_attempt == 1 && github.run_number || format('{0}.{1}', github.run_number, github.run_attempt) }}
           FULL_LOG: ${{ inputs.full_log }}
+          ARCHIVE_SIGNING: ${{ inputs.archive_signing }}
         run: bash .github/scripts/release-apple.sh upload

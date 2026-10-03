@@ -344,13 +344,14 @@ one project file serve test builds and App Store builds.
    Identifiers: `com.crdevtool.padelsync`, and
    `com.crdevtool.padelsync.watchkitapp` **with the HealthKit capability
    switched on**. HealthKit is what the planned workout session needs; the
-   app does not use it yet, and switching it on now saves re-registering
-   later.
+   app does not use it yet.
 3. Create the app in App Store Connect (Apps > New App) with the bundle ID
    `com.crdevtool.padelsync`. An upload has nowhere to go without it.
 4. Create an API key in App Store Connect under Users and Access >
    Integrations > App Store Connect API > **Team Keys**, with the role
-   **Admin**. Download its `.p8` file; Apple offers it once.
+   **Admin**. The first time, the Account Holder has to request access to
+   the API on that page before a key can be created. Download the key's
+   `.p8` file; Apple offers it once.
 5. Add four repository secrets on GitHub (Settings > Secrets and variables >
    Actions):
 
@@ -378,11 +379,12 @@ On GitHub: Actions > **Apple release (TestFlight)** > Run workflow. It
    not configured", names the missing ones, and ends there without starting
    a Mac;
 2. builds the release build of the shared core for device architectures;
-3. archives the iPhone app, with the watch app inside, signed automatically;
+3. archives the iPhone app, with the watch app inside;
 4. checks the archive for what an upload needs (IDs, matching version
    numbers, icons, the encryption answer, the privacy declaration,
    architectures);
-5. exports it and uploads it to App Store Connect. It shows up in TestFlight
+5. exports it with automatic signing, which is where Apple signs it for the
+   App Store, and uploads it to App Store Connect. It shows up in TestFlight
    when Apple has finished processing it.
 
 The version comes from `MARKETING_VERSION` in `apple/project.yml`; raise it
@@ -400,9 +402,25 @@ output.
 or uploading (`.github/scripts/release-apple.sh rehearse`). It proves the
 release build compiles for real devices and passes the same checks.
 
-Each signed run on a fresh machine may leave one more "Apple Development"
-certificate, marked as created via the API, in the developer account. They
-are harmless and can be revoked from time to time.
+**Where the signing happens, and the choice that will come up later.** By
+default the archive is built unsigned, exactly as in the rehearsal, and
+signed once, at export. That works on a new developer account with nothing
+registered. The workflow's "archive signing" option set to "automatic" signs
+the archive as well, which has two costs:
+
+- Apple only issues the development profile it needs to a team with at least
+  one device registered. With none, the build stops at "Your team has no
+  devices from which to generate a provisioning profile".
+- Every run on a fresh build machine creates one more "Apple Development"
+  certificate, marked as created via the API. An account holds only a limited
+  number; when it is full the build fails until old ones are revoked.
+
+It becomes necessary all the same once the app has entitlements, which the
+HealthKit workout session will bring: an unsigned archive carries no
+entitlements. At that point register a device, switch the option to
+"automatic", and revoke the piled-up certificates from time to time.
+
+Neither way has run yet, because the developer account is not enrolled.
 
 ### What an upload needs, and where it is
 

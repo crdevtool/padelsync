@@ -94,8 +94,10 @@ for bundle in "$app" "$watch"; do
   else
     problem "$name has no Assets.car, so no icon"
   fi
-  if [ -f "$bundle/PrivacyInfo.xcprivacy" ]; then
+  if [ -f "$bundle/PrivacyInfo.xcprivacy" ] && plutil -lint "$bundle/PrivacyInfo.xcprivacy" >/dev/null; then
     echo "ok: $name has its privacy declaration"
+  elif [ -f "$bundle/PrivacyInfo.xcprivacy" ]; then
+    problem "$name has a PrivacyInfo.xcprivacy that is not a valid property list"
   else
     problem "$name has no PrivacyInfo.xcprivacy"
   fi
