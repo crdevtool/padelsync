@@ -59,7 +59,10 @@ object Labels {
 
     /** One line describing a format, for example `Padel · Best of 3 · Golden point`. */
     fun format(config: MatchConfig): String =
-        "${sport(config.sport)} · Best of ${config.bestOf} · ${deuceRule(config.deuceRule)}"
+        "${sport(config.sport)} · ${sets(config.bestOf)} · ${deuceRule(config.deuceRule)}"
+
+    /** `1 set`, `Best of 3`, `Best of 5`. */
+    fun sets(bestOf: Int): String = if (bestOf == 1) "1 set" else "Best of $bestOf"
 
     fun rejection(reason: JoinRejection?): String = when (reason) {
         JoinRejection.BAD_CODE -> "That code is not right. Check the host's screen and try again."

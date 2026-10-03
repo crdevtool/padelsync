@@ -58,7 +58,8 @@ struct HistoryView: View {
                 .font(.system(size: 26, weight: .black, design: .rounded))
                 .foregroundStyle(.white)
             Text(
-                "\(Labels.sport(config.sport)) · Best of \(config.bestOf) · \(Labels.deuceRule(config.deuceRule))"
+                "\(Labels.sport(config.sport)) · \(config.bestOf == 1 ? "1 set" : "Best of \(config.bestOf)")"
+                    + " · \(Labels.deuceRule(config.deuceRule))"
                     + " · \(duration(record.durationMillis))"
             )
             .font(.footnote)

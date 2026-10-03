@@ -77,10 +77,10 @@ struct MatchView: View {
 
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    if let text = store.note ?? callout ?? store.error {
+                    if let text = store.note ?? callout {
                         Text(text)
                             .font(.title3.weight(.black))
-                            .foregroundStyle(store.note != nil || callout == nil ? Palette.danger : Palette.accent)
+                            .foregroundStyle(store.note != nil ? Palette.danger : Palette.accent)
                     }
                     if !score.setSummary.isEmpty {
                         Text(score.setSummary)
@@ -144,6 +144,8 @@ struct MatchView: View {
     }
 
     private var statusText: String {
+        // A problem is shown here, where a call-out cannot hide it.
+        if let error = store.error { return error }
         if hosting && store.courtOpen {
             return "Court open · Code \(store.joinCode.map { String($0) } ?? "") · \(Labels.devices(store.deviceCount))"
         }
@@ -153,6 +155,7 @@ struct MatchView: View {
     }
 
     private var statusColor: Color {
+        if store.error != nil { return Palette.danger }
         if hosting { return store.courtOpen ? Palette.accent : Palette.muted }
         return store.guestSynced ? Palette.accent : Palette.danger
     }

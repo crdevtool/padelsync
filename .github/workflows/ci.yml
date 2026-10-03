@@ -1,9 +1,24 @@
 name: CI
 
+# Started by hand only. Private repositories get a limited number of free
+# build minutes a month, and running everything on every push uses them up
+# within a day or two. Start a run from the Actions tab ("Run workflow") and
+# tick only what is needed:
+#   - Nothing ticked: shared tests and the Android APKs (about 10 minutes).
+#   - Emulators: also runs the apps on Android emulators (about 80 minutes).
+#   - Apple: also builds and runs the iPhone and Apple Watch apps (about 15
+#     minutes on a Mac, which GitHub counts ten times over).
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      emulators:
+        description: Also run the Android emulator tests (about 80 minutes)
+        type: boolean
+        default: false
+      apple:
+        description: Also build the iPhone and Apple Watch apps (about 15 Mac minutes, counted 10x)
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -76,6 +91,7 @@ jobs:
 
   smoke:
     name: Emulator run (${{ matrix.device }})
+    if: inputs.emulators
     needs: android
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -121,6 +137,7 @@ jobs:
 
   sync:
     name: Phone hosts, ${{ matrix.guest }} joins (emulators)
+    if: inputs.emulators
     needs: android
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -158,11 +175,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: .github/scripts/publish-log.sh sync-${{ matrix.guest }} smoke.log "${{ job.status }}" shots
 
-  # Mac build minutes are expensive, so this runs only when asked for: put
-  # "[apple]" in the commit message, or start the workflow by hand.
   apple:
     name: iPhone and Apple Watch apps
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[apple]')
+    if: inputs.apple
     runs-on: macos-15
     timeout-minutes: 45
     steps:
