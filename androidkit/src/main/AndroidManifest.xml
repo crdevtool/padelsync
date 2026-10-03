@@ -24,6 +24,13 @@
 
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
+    <!-- Lets the app find the device's text-to-speech voice to call the score. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application>
         <service
             android:name=".CourtService"

@@ -1,0 +1,52 @@
+name: Export build dependencies
+
+# Started by hand, rarely. Packs the libraries the Android apps compile
+# against into one archive on the "build-deps" release, so the code can be
+# type-checked on a machine that cannot reach Maven. Nothing is compiled, so
+# this takes only a few minutes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    name: Export compile classpath
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Collect libraries
+        run: |
+          set -o pipefail
+          ./gradlew :mobile:exportCompileClasspath :wear:exportCompileClasspath --stacktrace 2>&1 | tee build.log
+          mkdir deps
+          cp -r mobile/build/compile-classpath deps/mobile
+          cp -r wear/build/compile-classpath deps/wear
+          platform="$(ls "$ANDROID_HOME/platforms" | sort -V | tail -1)"
+          cp "$ANDROID_HOME/platforms/$platform/android.jar" deps/android.jar
+          echo "$platform" > deps/platform.txt
+          ls -la deps deps/mobile deps/wear | tee -a build.log
+          tar czf build-deps.tar.gz deps
+      - name: Publish archive
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          notes="Libraries the Android apps compile against, from commit ${GITHUB_SHA:0:7}. For type-checking offline; not an app build."
+          if gh release view build-deps >/dev/null 2>&1; then
+            gh release edit build-deps --notes "$notes"
+          else
+            gh release create build-deps --prerelease --title "Build dependencies" --notes "$notes"
+          fi
+          gh release upload build-deps build-deps.tar.gz --clobber
+      - name: Publish log
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/publish-log.sh deps build.log "${{ job.status }}"

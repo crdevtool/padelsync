@@ -4,12 +4,14 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import com.netsports.core.engine.MatchConfig
+import com.netsports.core.engine.Team
 import com.netsports.core.history.MatchHistory
 import com.netsports.core.history.MatchRecord
 import com.netsports.core.match.Action
 import com.netsports.core.match.CommandOutcome
 import com.netsports.core.match.MatchLog
 import com.netsports.core.match.MatchSnapshot
+import com.netsports.core.match.Roster
 import com.netsports.core.sync.ClientEffect
 import com.netsports.core.sync.ClientSession
 import com.netsports.core.sync.ClientStatus
@@ -17,9 +19,13 @@ import com.netsports.core.sync.DeviceKind
 import com.netsports.core.sync.HostSession
 import com.netsports.core.sync.JoinRejection
 import com.netsports.core.sync.Outgoing
+import com.netsports.core.sync.PeerInfo
 import com.netsports.core.sync.RandomIdSource
 import com.netsports.core.sync.TapFeedback
+import com.netsports.core.ui.MatchStats
+import com.netsports.core.ui.ScoreSpeech
 import com.netsports.core.ui.ScoreView
+import com.netsports.core.ui.SpeechSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,6 +72,20 @@ data class CourtUiState(
     val remoteScoreCount: Int = 0,
     /** Whether a hosted match from an earlier run can be resumed. */
     val hasSavedMatch: Boolean = false,
+    /** Whether this device may change the score. Always true for the host. */
+    val canScore: Boolean = true,
+    /** Host only: the devices that have joined, with what each may do. */
+    val guests: List<PeerInfo> = emptyList(),
+    /** Host only: whether devices the host has not singled out may score. */
+    val guestsCanScore: Boolean = true,
+    /** Points, breaks and streaks so far, or `null` when there is no match. */
+    val stats: MatchStats? = null,
+    /** When this device first had the match, for the running clock. */
+    val startedAtMillis: Long? = null,
+    /** How this device announces the score. */
+    val speech: SpeechSettings = SpeechSettings.OFF,
+    /** False once the device turned out to have no text-to-speech voice. */
+    val voiceAvailable: Boolean = true,
 )
 
 /**
@@ -84,7 +104,18 @@ class CourtController private constructor(
     private val handler = Handler(Looper.getMainLooper())
     private val identity = DeviceIdentity(app)
     private val store = MatchStore(app)
+    private val settings = SettingsStore(app, voiceOnWhenHosting = kind == DeviceKind.PHONE)
     private val ids = RandomIdSource()
+
+    private val announcer = Announcer(app, handler) {
+        error = "This device has no voice installed, so it cannot call the score."
+        publish()
+    }
+
+    /** The match as last put through the announcer, so each change is spoken once. */
+    private var announced: MatchSnapshot? = null
+
+    private val reminder = Runnable { remind() }
 
     private val _ui = MutableStateFlow(CourtUiState(hasSavedMatch = store.load() != null))
     val ui: StateFlow<CourtUiState> = _ui.asStateFlow()
@@ -139,11 +170,25 @@ class CourtController private constructor(
 
     // --- Hosting -----------------------------------------------------------
 
+    /** The match last set up on this device, to pre-fill the setup screen. */
+    val lastSetup: MatchSetup?
+        get() = settings.lastSetup()
+
+    /** Starts a new match on this device with default options. Nothing is shared until [openCourt]. */
+    fun startMatch(config: MatchConfig) = startMatch(MatchSetup(config))
+
     /** Starts a new match on this device. Nothing is shared until [openCourt]. */
-    fun startMatch(config: MatchConfig) {
+    fun startMatch(setup: MatchSetup) {
         leaveInternal()
+        settings.saveSetup(setup)
         joinCode = Random.nextInt(1000, 10000)
-        host = HostSession(MatchLog.start(ids.next(), config, now()), identity.deviceId, joinCode, ids)
+        host = HostSession(
+            log = MatchLog.start(ids.next(), setup.config, now(), setup.roster),
+            hostDeviceId = identity.deviceId,
+            joinCode = joinCode,
+            ids = ids,
+            guestsCanScore = setup.guestsCanScore,
+        )
         publish()
     }
 
@@ -159,14 +204,60 @@ class CourtController private constructor(
             return
         }
         joinCode = Random.nextInt(1000, 10000)
-        host = HostSession(log, identity.deviceId, joinCode, ids)
+        host = HostSession(
+            log = log,
+            hostDeviceId = identity.deviceId,
+            joinCode = joinCode,
+            ids = ids,
+            guestsCanScore = settings.lastSetup()?.guestsCanScore ?: true,
+        )
+        // Picking a match back up is not news: do not read the score out.
+        announced = host?.snapshot()
         publish()
     }
 
+    /** Replaces the hosted match with a fresh one with default options, keeping connected devices. */
+    fun startNewMatch(config: MatchConfig) = startNewMatch(MatchSetup(config))
+
     /** Replaces the hosted match with a fresh one, keeping connected devices. */
-    fun startNewMatch(config: MatchConfig) {
-        val session = host ?: return startMatch(config)
-        deliver(session.startNewMatch(config, now()))
+    fun startNewMatch(setup: MatchSetup) {
+        val session = host ?: return startMatch(setup)
+        settings.saveSetup(setup)
+        deliver(session.startNewMatch(setup.config, now(), setup.roster))
+        if (session.guestsCanScore != setup.guestsCanScore) deliver(session.setGuestsCanScore(setup.guestsCanScore))
+        publish()
+    }
+
+    /** Host only: plays again with the same format and the same players. */
+    fun rematch() {
+        val session = host ?: return
+        val snapshot = session.snapshot()
+        deliver(session.startNewMatch(snapshot.config, now(), snapshot.roster))
+        publish()
+    }
+
+    /** Host only: changes the players' names mid-match. */
+    fun updateRoster(roster: Roster) {
+        val session = host ?: return
+        deliver(session.updateRoster(roster))
+        settings.saveSetup(MatchSetup(session.state.config, roster, session.guestsCanScore))
+        store.save(session)
+        publish()
+    }
+
+    /** Host only: lets one joined device score, or makes it view-only. */
+    fun setCanScore(deviceId: Long, allowed: Boolean) {
+        val session = host ?: return
+        deliver(session.setCanScore(deviceId, allowed))
+        publish()
+    }
+
+    /** Host only: lets every joined device score, or makes them all view-only. */
+    fun setGuestsCanScore(allowed: Boolean) {
+        val session = host ?: return
+        deliver(session.setGuestsCanScore(allowed))
+        val snapshot = session.snapshot()
+        settings.saveSetup(MatchSetup(snapshot.config, snapshot.roster, allowed))
         publish()
     }
 
@@ -338,6 +429,61 @@ class CourtController private constructor(
         publish()
     }
 
+    // --- Voice -------------------------------------------------------------
+
+    /** How this device announces the score in its current role. */
+    val speech: SpeechSettings
+        get() = settings.speech(hosting = client == null)
+
+    /** Changes how this device announces the score. Remembered between matches. */
+    fun setSpeech(value: SpeechSettings) {
+        settings.saveSpeech(value, hosting = client == null)
+        if (!value.enabled) announcer.silence()
+        scheduleReminder()
+        publish()
+    }
+
+    /** Reads out the whole score now, whatever the settings say. */
+    fun sayScore() {
+        currentSnapshot()?.let { announcer.say(ScoreSpeech.reminder(it)) }
+    }
+
+    /** The match as the host has it: this device's own when hosting, the last one received when a guest. */
+    private fun currentSnapshot(): MatchSnapshot? = host?.snapshot() ?: client?.confirmed
+
+    /**
+     * Speaks whatever changed since the last call. Only confirmed scores are
+     * announced, never a guest's own unconfirmed tap, so the voice cannot
+     * call a point the host then refuses.
+     */
+    private fun announce(snapshot: MatchSnapshot?) {
+        if (snapshot == null || snapshot == announced) return
+        val phrases = ScoreSpeech.announce(announced, snapshot, speech)
+        announced = snapshot
+        if (phrases.isNotEmpty()) {
+            announcer.say(phrases)
+            // The reminder counts from the last time anything was said.
+            scheduleReminder()
+        }
+    }
+
+    private fun scheduleReminder() {
+        handler.removeCallbacks(reminder)
+        val current = speech
+        if (!current.enabled || current.reminderMinutes == 0) return
+        if (host == null && client == null) return
+        handler.postDelayed(reminder, current.reminderMinutes * 60_000L)
+    }
+
+    private fun remind() {
+        val snapshot = currentSnapshot()
+        // Nothing to remind anyone of before the first point or after the last.
+        if (snapshot != null && snapshot.points.isNotEmpty() && !snapshot.state.isComplete) {
+            announcer.say(ScoreSpeech.reminder(snapshot))
+        }
+        scheduleReminder()
+    }
+
     /** Ends the match (host) or leaves the court (guest) and returns to idle. */
     fun leave() {
         val wasHost = host != null
@@ -367,6 +513,9 @@ class CourtController private constructor(
 
         error = null
         lastFeedback = null
+        announced = null
+        handler.removeCallbacks(reminder)
+        announcer.silence()
         CourtService.stop(app)
     }
 
@@ -398,25 +547,50 @@ class CourtController private constructor(
             trackHistory(snapshot, firstSeen.getOrPut(snapshot.matchId) { now() })
         }
 
+        val wasIdle = _ui.value.mode == CourtMode.IDLE
+        announce(currentSnapshot())
+        val voice = speech
+        val voiceAvailable = !announcer.unavailable
+
         _ui.value = when {
-            hostSession != null -> CourtUiState(
-                mode = CourtMode.HOST,
-                score = ScoreView.of(hostSession.state),
-                config = hostSession.state.config,
-                deviceCount = hostSession.deviceCount,
-                courtOpen = hostTransport != null,
-                joinCode = joinCode,
-                error = error,
-                lastFeedback = lastFeedback,
-                feedbackCount = feedbackCount,
-                remoteScoreCount = remoteScoreCount,
-                hasSavedMatch = true,
-            )
+            hostSession != null -> {
+                val snapshot = hostSession.snapshot()
+                CourtUiState(
+                    mode = CourtMode.HOST,
+                    score = ScoreView.of(snapshot),
+                    config = snapshot.config,
+                    deviceCount = hostSession.deviceCount,
+                    courtOpen = hostTransport != null,
+                    joinCode = joinCode,
+                    error = error,
+                    lastFeedback = lastFeedback,
+                    feedbackCount = feedbackCount,
+                    remoteScoreCount = remoteScoreCount,
+                    hasSavedMatch = true,
+                    canScore = true,
+                    guests = hostSession.guests,
+                    guestsCanScore = hostSession.guestsCanScore,
+                    stats = MatchStats.of(snapshot),
+                    startedAtMillis = hostSession.log.startedAtMillis,
+                    speech = voice,
+                    voiceAvailable = voiceAvailable,
+                )
+            }
             guestSession != null -> {
                 val display = guestSession.displayState
+                val confirmed = guestSession.confirmed
                 CourtUiState(
                     mode = CourtMode.GUEST,
-                    score = display?.let { ScoreView.of(it) },
+                    score = if (display != null && confirmed != null) {
+                        ScoreView.of(
+                            display,
+                            confirmed.roster,
+                            guestSession.displayServeFlip(Team.A),
+                            guestSession.displayServeFlip(Team.B),
+                        )
+                    } else {
+                        null
+                    },
                     config = display?.config,
                     deviceCount = guestSession.deviceCount,
                     guestStatus = guestSession.status,
@@ -428,10 +602,22 @@ class CourtController private constructor(
                     feedbackCount = feedbackCount,
                     remoteScoreCount = remoteScoreCount,
                     hasSavedMatch = store.load() != null,
+                    canScore = guestSession.canScore,
+                    stats = confirmed?.let { MatchStats.of(it) },
+                    startedAtMillis = confirmed?.let { firstSeen[it.matchId] },
+                    speech = voice,
+                    voiceAvailable = voiceAvailable,
                 )
             }
-            else -> CourtUiState(error = error, hasSavedMatch = store.load() != null)
+            else -> CourtUiState(
+                error = error,
+                hasSavedMatch = store.load() != null,
+                speech = voice,
+                voiceAvailable = voiceAvailable,
+            )
         }
+        // A match has just begun on this device: start the reminder clock.
+        if (wasIdle && _ui.value.mode != CourtMode.IDLE) scheduleReminder()
     }
 
     /**

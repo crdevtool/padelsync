@@ -63,3 +63,5 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
 }
+
+apply(from = rootProject.file("gradle/export-classpath.gradle.kts"))

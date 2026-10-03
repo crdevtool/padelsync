@@ -3,9 +3,11 @@ package com.padelsync.kit
 import com.netsports.core.engine.DeuceRule
 import com.netsports.core.engine.FinalSetRule
 import com.netsports.core.engine.MatchConfig
+import com.netsports.core.engine.ServeSide
 import com.netsports.core.engine.Sport
 import com.netsports.core.engine.Team
 import com.netsports.core.sync.JoinRejection
+import com.netsports.core.sync.TapFeedback
 import com.netsports.core.ui.Highlight
 import com.netsports.core.ui.ScoreView
 
@@ -16,7 +18,7 @@ object Labels {
 
     /** The call-out for the next point, or `null` when there is nothing to call out. */
     fun highlight(score: ScoreView, config: MatchConfig?): String? {
-        val who = score.highlightTeam?.let { " · ${team(it).uppercase()}" }.orEmpty()
+        val who = score.highlightTeam?.let { " · ${score.nameOf(it).uppercase()}" }.orEmpty()
         return when (score.highlight) {
             Highlight.NONE -> null
             Highlight.TIEBREAK -> "TIEBREAK"
@@ -27,7 +29,7 @@ object Labels {
             Highlight.BREAK_POINT -> "BREAK POINT$who"
             Highlight.SET_POINT -> "SET POINT$who"
             Highlight.MATCH_POINT -> "MATCH POINT$who"
-            Highlight.MATCH_WON -> score.winner?.let { "${team(it).uppercase()} WINS" }
+            Highlight.MATCH_WON -> score.winner?.let { "${score.nameOf(it).uppercase()} ${wins(score, it).uppercase()}" }
         }
     }
 
@@ -40,6 +42,60 @@ object Labels {
             Highlight.SET_POINT -> "SET POINT$who"
             Highlight.MATCH_POINT -> "MATCH POINT$who"
             else -> highlight(score, config)
+        }
+    }
+
+    /** `win` for a pair or an unnamed team, `wins` for one named player. */
+    fun wins(score: ScoreView, team: Team): String = if (score.playersOf(team).size == 1) "wins" else "win"
+
+    /** The line over the trophy: `Ana & Leo win!` */
+    fun winnerHeadline(score: ScoreView, team: Team): String = "${score.nameOf(team)} ${wins(score, team)}!"
+
+    /** Which side the server stands on, from the server's own point of view. */
+    fun serveSide(side: ServeSide): String = if (side == ServeSide.RIGHT) "right side" else "left side"
+
+    /** A duration as `48 min` or `1 h 12 min`. */
+    fun duration(millis: Long): String {
+        val minutes = (millis / 60_000).toInt()
+        return if (minutes < 60) "$minutes min" else "${minutes / 60} h ${minutes % 60} min"
+    }
+
+    /** A running clock as `7:05` or `1:07:05`. */
+    fun clock(millis: Long): String {
+        val seconds = (millis.coerceAtLeast(0) / 1000).toInt()
+        val minutesPart = (seconds / 60) % 60
+        val secondsPart = (seconds % 60).toString().padStart(2, '0')
+        val hours = seconds / 3600
+        return if (hours > 0) "$hours:${minutesPart.toString().padStart(2, '0')}:$secondsPart" else "$minutesPart:$secondsPart"
+    }
+
+    fun tapFeedback(feedback: TapFeedback?): String? = when (feedback) {
+        TapFeedback.SUPERSEDED -> "Already scored on another device"
+        TapFeedback.MATCH_COMPLETE -> "The match is over"
+        TapFeedback.NOT_ALLOWED -> "View only: the host scores this match"
+        TapFeedback.ACCEPTED, TapFeedback.NOTHING_TO_UNDO, null -> null
+    }
+
+    /**
+     * The result as plain text, for sharing in a chat:
+     * `Ana & Leo beat Mia & Sam 6-4 3-6 7-5 (Padel, 1 h 12 min)`.
+     */
+    fun shareText(score: ScoreView, config: MatchConfig?, durationMillis: Long?): String {
+        val winner = score.winner ?: score.decidedWinner
+        val headline = if (winner == null) {
+            "${score.nameA} vs ${score.nameB}"
+        } else {
+            "${score.nameOf(winner)} beat ${score.nameOf(winner.opponent)}"
+        }
+        val details = listOfNotNull(
+            config?.let { sport(it.sport) },
+            durationMillis?.takeIf { it >= 60_000 }?.let { duration(it) },
+        ).joinToString(", ")
+        return buildString {
+            append(headline)
+            if (score.setSummary.isNotEmpty()) append(' ').append(score.setSummary)
+            if (details.isNotEmpty()) append(" (").append(details).append(')')
+            append("\nScored with PadelSync")
         }
     }
 
@@ -59,10 +115,14 @@ object Labels {
 
     /** One line describing a format, for example `Padel · Best of 3 · Golden point`. */
     fun format(config: MatchConfig): String =
-        "${sport(config.sport)} · ${sets(config.bestOf)} · ${deuceRule(config.deuceRule)}"
+        "${sport(config.sport)} · ${sets(config)} · ${deuceRule(config.deuceRule)}"
 
-    /** `1 set`, `Best of 3`, `Best of 5`. */
-    fun sets(bestOf: Int): String = if (bestOf == 1) "1 set" else "Best of $bestOf"
+    /** `1 set`, `Best of 3`, or `3 sets` when every set is played. */
+    fun sets(config: MatchConfig): String = when {
+        config.bestOf == 1 -> "1 set"
+        config.playAllSets -> "${config.bestOf} sets"
+        else -> "Best of ${config.bestOf}"
+    }
 
     fun rejection(reason: JoinRejection?): String = when (reason) {
         JoinRejection.BAD_CODE -> "That code is not right. Check the host's screen and try again."
