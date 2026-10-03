@@ -268,7 +268,9 @@ private fun BouncingBall() {
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-            },
+            }
+            // The seam is drawn as two wide arcs; this trims them to the ball.
+            .clip(CircleShape),
     ) {
         drawCircle(Palette.Ball)
         // The seam: two arcs curving away from each other.

@@ -476,7 +476,8 @@ private fun NetStrip(ui: CourtUiState, score: ScoreView, note: String?, onUndo: 
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(Color.Black.copy(alpha = 0.62f))
+            // Solid, so the net drawn behind it does not strike through the text.
+            .background(Palette.NetBand)
             .padding(start = 14.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

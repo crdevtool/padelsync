@@ -18,7 +18,10 @@ tap "New match" && wait_for "Start match"
 shot setup-default
 tap "Tennis"; tap "Best of 5"; tap "Match tiebreak"; tap "Team B"
 shot setup-changed
-tap "Padel"; tap "Best of 3"; tap "Full set"; tap "Team A"
+# Back to the top of the form: tapping only ever scrolls down to find things.
+for _ in 1 2 3; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWIPE_FROM" 200; done
+sleep 1
+tap "Padel"; tap "Team A"; tap "Best of 3"; tap "Full set"
 shot setup-padel
 tap "Start match"
 
@@ -74,6 +77,8 @@ texts
 # --- A second match with names -----------------------------------------------
 tap "Menu"; tap "New match"
 wait_for "Start match"
+for _ in 1 2 3; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWIPE_FROM" 200; done
+sleep 1
 tap "Player 1"; adb shell input text "Ana"; sleep 1
 shot setup-names
 tap "Start match"

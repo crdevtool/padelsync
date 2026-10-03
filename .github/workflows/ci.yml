@@ -103,16 +103,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: ${{ fromJSON(inputs.emulators == 'all' && '["phone", "watch"]' || format('["{0}"]', inputs.emulators)) }}
-        include:
-          - device: phone
-            api: 34
-            target: default
-            profile: pixel_5
-          - device: watch
-            api: 33
-            target: android-wear
-            profile: wearos_large_round
+        # Built as whole entries: a fixed "include" list would add the other
+        # device back in as an extra combination.
+        include: >-
+          ${{ fromJSON(inputs.emulators == 'all' && '[{"device": "phone", "api": 34, "target": "default", "profile": "pixel_5"}, {"device": "watch", "api": 33, "target": "android-wear", "profile": "wearos_large_round"}]' || inputs.emulators == 'watch' && '[{"device": "watch", "api": 33, "target": "android-wear", "profile": "wearos_large_round"}]' || '[{"device": "phone", "api": 34, "target": "default", "profile": "pixel_5"}]') }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4

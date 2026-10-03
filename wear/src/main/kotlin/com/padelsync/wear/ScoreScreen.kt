@@ -122,6 +122,8 @@ fun ScoreScreen(
         else -> Labels.highlightShort(score, ui.config)
             ?: "SWAP ENDS".takeIf { score.changeEnds }
             ?: "VIEW ONLY".takeIf { !ui.canScore }
+            // Decided, with sets still to play.
+            ?: score.decidedWinner?.let { "${Labels.shortName(score, it)} WON" }
             ?: serveLine(score)
             ?: score.setSummary.ifEmpty { null }
     }

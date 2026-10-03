@@ -32,6 +32,9 @@ object Palette {
     val TennisCourt = Color(0xFF1F5FA8)
 
     val CourtLine = Color(0xFFF4F7FB)
+
+    /** The band across the net that carries the call-outs and Undo. */
+    val NetBand = Color(0xFF0C1524)
     val Ball = Color(0xFFD7F23C)
     val Gold = Color(0xFFFFD24A)
 }
