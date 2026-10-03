@@ -34,6 +34,8 @@ class NearbyCourt internal constructor(
 internal class CourtScanner(
     context: Context,
     private val handler: Handler,
+    /** How hard to look: the join screen wants results at once, a background watch can take its time. */
+    private val scanMode: Int = ScanSettings.SCAN_MODE_LOW_LATENCY,
     private val onChange: (List<NearbyCourt>) -> Unit,
 ) {
     private val manager: BluetoothManager? = context.getSystemService(BluetoothManager::class.java)
@@ -47,7 +49,7 @@ internal class CourtScanner(
         found.clear()
         onChange(emptyList())
         val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(CourtUuids.SERVICE)).build()
-        val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+        val settings = ScanSettings.Builder().setScanMode(scanMode).build()
         return try {
             scanner.startScan(listOf(filter), settings, callback)
             scanning = true
@@ -89,8 +91,8 @@ internal class CourtScanner(
 
 /**
  * One guest's Bluetooth link to a host: connects, switches notifications on,
- * moves packets both ways, and keeps trying to reconnect when the link drops
- * until [close] is called.
+ * moves packets both ways, and, while [keepTrying] is set, keeps trying to
+ * reconnect when the link drops until [close] is called.
  *
  * It only moves packets; the shared `ClientSession` decides what they mean.
  * All [Listener] calls arrive on [handler]'s thread.
@@ -99,8 +101,13 @@ internal class CourtScanner(
 internal class GuestLink(
     private val context: Context,
     private val handler: Handler,
-    private val device: BluetoothDevice,
+    val device: BluetoothDevice,
     private val listener: Listener,
+    /**
+     * Whether to reconnect after a failure. A link to a court that has only
+     * just been found, and may not be the right one, gets a single attempt.
+     */
+    var keepTrying: Boolean = true,
 ) {
     interface Listener {
         /** Notifications are on; packets can flow. */
@@ -109,6 +116,9 @@ internal class GuestLink(
         fun onLinkDown()
 
         fun onPacket(packet: ByteArray)
+
+        /** A link with [keepTrying] off failed and will not be tried again. */
+        fun onGaveUp() = Unit
     }
 
     private var gatt: BluetoothGatt? = null
@@ -142,6 +152,10 @@ internal class GuestLink(
         teardown()
     }
 
+    /** Whether packets can flow right now. */
+    val isUp: Boolean
+        get() = up
+
     private fun open() {
         if (closed || gatt != null) return
         gatt = try {
@@ -149,7 +163,7 @@ internal class GuestLink(
         } catch (e: RuntimeException) {
             null
         }
-        if (gatt == null) scheduleReconnect()
+        if (gatt == null) linkLost()
     }
 
     private fun teardown() {
@@ -178,7 +192,12 @@ internal class GuestLink(
 
     private fun linkLost() {
         teardown()
-        scheduleReconnect()
+        if (keepTrying) {
+            scheduleReconnect()
+        } else if (!closed) {
+            closed = true
+            listener.onGaveUp()
+        }
     }
 
     /** Writes one packet at a time; Android allows a single write in flight. */

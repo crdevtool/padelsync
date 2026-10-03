@@ -115,6 +115,28 @@ never its own unconfirmed tap, so the voice cannot call a point that is then
 refused. By default the phone hosting the match speaks and guests stay
 quiet, so four phones on one court do not all talk at once.
 
+### Finding the host again
+
+A guest whose link drops first retries the Bluetooth address it joined. That
+is enough for a short gap, but phones change their Bluetooth address from
+time to time (iPhones always, recent Android versions too), and after a long
+gap the old address leads nowhere.
+
+So if the link has been down for 15 seconds, the guest also scans for a
+court advertising the name it joined, while the direct retry carries on. It
+connects to what it finds and sends the join code the player already
+entered. The court's first answer decides:
+
+- the same match, at the same hosting epoch or a later one: accepted, and
+  this becomes the device to reconnect to from now on;
+- a different match, an earlier epoch, or a refusal of the code: somebody
+  else's court under the same name. The guest disconnects, leaves that court
+  alone for two minutes, and keeps looking. The player is not shown a
+  "wrong code" message for a code they did not just type.
+
+A host that is closed and reopened keeps its join code, so guests still
+looking for it are let back in without typing anything.
+
 ### Joining
 
 The host shows a 4-digit code. A guest picks the court from a list of nearby
@@ -152,9 +174,10 @@ advertising with the screen off.
   shortly after the wrist is lowered, which drops the link; it reconnects and
   catches up when the wrist is raised. Running as a workout session would
   keep it connected throughout and is the planned fix.
-- **Reconnecting to an iPhone host** from Android after a long gap may need
-  the player to re-join, because iPhones change their Bluetooth address
-  periodically.
+- **A guest away from a host that then starts a new match** has to join
+  again by hand. A guest that finds its court again by name accepts it only
+  if it still carries the same match (see "Finding the host again" above),
+  and a new match is a different match.
 
 ## 7. Not built yet
 

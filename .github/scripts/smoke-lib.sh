@@ -74,7 +74,8 @@ launch_app() {
   stop_if_failed
   local deadline=$(( SECONDS + ${3:-180} ))
   while [ "$SECONDS" -lt "$deadline" ]; do
-    adb shell am start -n "$1" >/dev/null 2>&1 || true
+    # LAUNCH_EXTRAS carries options for the app, such as test switches.
+    adb shell am start -n "$1" ${LAUNCH_EXTRAS:-} >/dev/null 2>&1 || true
     for _ in 1 2 3 4 5 6 7 8 9 10; do
       if find_center "$2" >/dev/null; then return 0; fi
       sleep 2
@@ -240,13 +241,15 @@ print(" | ".join(seen))
 PY
 }
 
-# Waits up to 20 seconds for the screen to contain $1; $2 describes the check.
-# Stops the run if it never does.
+# Waits for the screen to contain $1, reading it up to $3 times (default 10,
+# which is about 20 seconds plus the reads); $2 describes the check. Stops the
+# run if it never does.
 expect() {
   stop_if_failed
   local seen=""
-  local deadline=$(( SECONDS + 60 ))
-  for _ in $(seq 1 10); do
+  local tries=${3:-10}
+  local deadline=$(( SECONDS + tries * 6 ))
+  for _ in $(seq 1 "$tries"); do
     seen=$(screen_text)
     if echo "$seen" | grep -qF "$1"; then
       log "PASS: $2"

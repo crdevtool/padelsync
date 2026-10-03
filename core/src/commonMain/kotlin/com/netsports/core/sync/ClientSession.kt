@@ -58,6 +58,14 @@ sealed class ClientEffect {
 
     /** Drop the link and do not reconnect: the host refused this device or closed the court. */
     data object Disconnect : ClientEffect()
+
+    /**
+     * The court found while looking for a lost host is not the one this
+     * device was playing on. Drop this link, remember not to try that court
+     * again for a while, and keep looking. Only ever raised after
+     * [ClientSession.connectedToFoundCourt].
+     */
+    data object WrongCourt : ClientEffect()
 }
 
 /**
@@ -93,6 +101,13 @@ class ClientSession(
 
     /** Whether the oldest unresolved tap has been sent on the current link. */
     private var headSent = false
+
+    /**
+     * True from [connectedToFoundCourt] until the court has proved to be the
+     * right one. While it is set, the court's first answer is checked rather
+     * than believed.
+     */
+    private var provingCourt = false
 
     var status: ClientStatus = ClientStatus.DISCONNECTED
         private set
@@ -148,6 +163,32 @@ class ClientSession(
      * @param maxPacketSize most bytes one packet to the host may carry.
      */
     fun connected(maxPacketSize: Int): List<ClientEffect> {
+        provingCourt = false
+        return greet(maxPacketSize)
+    }
+
+    /**
+     * A link is up to a court that was found by scanning after the host was
+     * lost, rather than to the device this session first joined.
+     *
+     * Phones change their Bluetooth address from time to time, and another
+     * player may have taken over as host, so the court that answers to the
+     * same name may be the same match on a new address, or somebody else's
+     * court altogether. Its first answer decides: it is accepted only if it
+     * carries the match this device already holds, at the same hosting epoch
+     * or a later one. Anything else (another match, a host left behind by a
+     * takeover, a refusal of the join code) yields [ClientEffect.WrongCourt]
+     * and leaves this session exactly as it was.
+     *
+     * A device that has not received a match yet has nothing to compare
+     * with, and accepts the court as [connected] would.
+     */
+    fun connectedToFoundCourt(maxPacketSize: Int): List<ClientEffect> {
+        provingCourt = confirmed != null
+        return greet(maxPacketSize)
+    }
+
+    private fun greet(maxPacketSize: Int): List<ClientEffect> {
         this.maxPacketSize = maxOf(maxPacketSize, Framing.MIN_PACKET_SIZE)
         reassembler.reset()
         status = ClientStatus.JOINING
@@ -161,6 +202,7 @@ class ClientSession(
     fun disconnected() {
         reassembler.reset()
         headSent = false
+        provingCourt = false
         // A refusal or a closed court is final for this link; keep showing it.
         if (status != ClientStatus.REJECTED && status != ClientStatus.ENDED) status = ClientStatus.DISCONNECTED
     }
@@ -177,11 +219,18 @@ class ClientSession(
             is Message.State -> onState(message)
             is Message.CommandResult -> onCommandResult(message)
             is Message.JoinRejected -> {
-                status = ClientStatus.REJECTED
-                rejection = message.reason
-                listOf(ClientEffect.Disconnect)
+                if (provingCourt) {
+                    // A different court that happens to share the name: its
+                    // refusal says nothing about the court this device is on.
+                    wrongCourt()
+                } else {
+                    status = ClientStatus.REJECTED
+                    rejection = message.reason
+                    listOf(ClientEffect.Disconnect)
+                }
             }
             Message.SessionEnded -> {
+                if (provingCourt) return wrongCourt()
                 status = ClientStatus.ENDED
                 // Nothing still waiting can ever be delivered.
                 pending.clear()
@@ -225,10 +274,24 @@ class ClientSession(
         return sendHeadIfDue()
     }
 
+    /** Turns down a court found by scanning, leaving the session as it was before the link came up. */
+    private fun wrongCourt(): List<ClientEffect> {
+        provingCourt = false
+        status = ClientStatus.DISCONNECTED
+        return listOf(ClientEffect.WrongCourt)
+    }
+
     private fun onState(message: Message.State): List<ClientEffect> {
         val incoming = message.snapshot
         val current = confirmed
         val effects = ArrayList<ClientEffect>()
+
+        if (provingCourt && current != null) {
+            val behind = incoming.epoch < current.epoch ||
+                (incoming.epoch == current.epoch && incoming.version < current.version)
+            if (incoming.matchId != current.matchId || behind) return wrongCourt()
+            provingCourt = false
+        }
 
         val sameLineage = current != null && current.matchId == incoming.matchId && current.epoch == incoming.epoch
         if (current != null && current.matchId == incoming.matchId) {

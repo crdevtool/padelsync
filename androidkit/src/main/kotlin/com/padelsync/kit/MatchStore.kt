@@ -27,9 +27,21 @@ internal class MatchStore(context: Context) {
         return HostSession.restoreSnapshot(bytes)
     }
 
-    fun clear() = prefs.edit().remove(KEY).apply()
+    /**
+     * Remembers the join code of the hosted court. A match resumed after the
+     * app was closed opens under the same code, so guests that are still
+     * looking for the court are let back in without typing it again.
+     */
+    fun saveCode(code: Int?) {
+        if (code == null) prefs.edit().remove(KEY_CODE).apply() else prefs.edit().putInt(KEY_CODE, code).apply()
+    }
+
+    fun loadCode(): Int? = if (prefs.contains(KEY_CODE)) prefs.getInt(KEY_CODE, 0) else null
+
+    fun clear() = prefs.edit().remove(KEY).remove(KEY_CODE).apply()
 
     private companion object {
         const val KEY = "hosted_match"
+        const val KEY_CODE = "hosted_code"
     }
 }

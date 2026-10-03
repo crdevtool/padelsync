@@ -166,6 +166,8 @@ class Court(
                 is ClientEffect.Send -> if (name in linked) effect.packets.forEach { toHost.addLast(name to it) }
                 is ClientEffect.Feedback -> feedback.getValue(name) += effect.feedback
                 ClientEffect.Disconnect -> disconnect(name)
+                // This simulator has one court, always joined directly.
+                ClientEffect.WrongCourt -> error("a court joined directly is never the wrong one")
             }
         }
     }

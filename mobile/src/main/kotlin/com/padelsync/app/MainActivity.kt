@@ -1,5 +1,6 @@
 package com.padelsync.app
 
+import android.content.pm.ApplicationInfo
 import android.graphics.Color
 import android.media.AudioManager
 import android.os.Bundle
@@ -22,10 +23,27 @@ class MainActivity : ComponentActivity() {
         // The score is called on the media volume, so the volume keys should move that.
         volumeControlStream = AudioManager.STREAM_MUSIC
         val controller = CourtController.get(this, DeviceKind.PHONE)
+        applyTestOptions(controller)
         setContent {
             PadelSyncTheme {
                 AppRoot(controller)
             }
         }
+    }
+
+    /**
+     * Options the emulator tests pass on the launch command. They are
+     * ignored in a build that is not debuggable, so a released app cannot be
+     * put into a test mode by another app.
+     */
+    private fun applyTestOptions(controller: CourtController) {
+        val debuggable = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
+        if (debuggable && intent?.getBooleanExtra(EXTRA_SCAN_RECONNECT_ONLY, false) == true) {
+            controller.scanReconnectOnly = true
+        }
+    }
+
+    private companion object {
+        const val EXTRA_SCAN_RECONNECT_ONLY = "scan_reconnect_only"
     }
 }

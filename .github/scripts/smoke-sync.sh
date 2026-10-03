@@ -21,12 +21,14 @@ if [ "$GUEST_KIND" = watch ]; then
   GUEST_APK=PadelSync-watch.apk
   GUEST_ACTIVITY=com.padelsync.app/com.padelsync.wear.MainActivity
   UNDO=UNDO
+  OFFLINE=OFFLINE
 else
   GUEST_IMAGE="system-images;android-34;default;x86_64"
   GUEST_PROFILE=pixel_5
   GUEST_APK=PadelSync-phone.apk
   GUEST_ACTIVITY=com.padelsync.app/.MainActivity
   UNDO=Undo
+  OFFLINE="Reconnecting"
 fi
 
 # Points adb, and the scroll gesture used to find off-screen items, at one device.
@@ -141,7 +143,10 @@ shot host-court-open
 
 log "--- guest: find the court and join"
 on "$GUEST"
-launch_app "$GUEST_ACTIVITY" "Join a court"
+# The guest is told to reconnect only by scanning for the court. An
+# emulator's Bluetooth address never changes, so otherwise its retry of the
+# old address would always win and the scanning path would go untested.
+LAUNCH_EXTRAS="--ez scan_reconnect_only true" launch_app "$GUEST_ACTIVITY" "Join a court"
 guest_join
 shot guest-joined
 on "$HOST"
@@ -212,7 +217,34 @@ expect "Team A. Points" "guest is back in the match after rejoining"
 on "$HOST"
 expect "2 devices" "host shows the guest again"
 
+log "--- the host's app is closed and reopened; the guest finds the court again by scanning"
+on "$HOST"
+adb shell am force-stop com.padelsync.app
+on "$GUEST"
+expect "$OFFLINE" "guest notices that the host has gone"
+shot guest-host-gone
+on "$HOST"
+launch_app com.padelsync.app/.MainActivity "Resume last match"
+tap "Resume last match"
+wait_for "Team A" 60
+tap "Menu"; tap "Play with others"
+expect "Court open" "host reopened the court"
+expect "Code $CODE" "the court reopened under the same join code"
+# The guest starts scanning 15 seconds after losing the host, then has to
+# find the court, connect and be checked: allow a couple of minutes.
+expect "2 devices" "the guest found the court again by scanning, with nothing typed" 20
+shot host-guest-back
+on "$GUEST"
+expect "Team A. Points 0. Games 1." "guest shows the match again"
+sleep 5
+tap_many "Team B" 1
+on "$HOST"
+expect "Team B. Points 15." "a point from the guest reaches the reopened court"
+on "$GUEST"
+shot guest-back-after-scan
+
 log "--- host stops sharing"
+on "$HOST"
 tap "Menu"; tap "Stop sharing this court"
 expect "This device only" "host carries on alone"
 on "$GUEST"

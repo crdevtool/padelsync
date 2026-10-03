@@ -145,8 +145,15 @@ class CourtController private constructor(
 
     // Guest side.
     private var client: ClientSession? = null
-    private var link: GuestLink? = null
+    private var link: GuestConnection? = null
     private var courtName: String? = null
+
+    /**
+     * For the emulator test only: reconnect solely by scanning for the court,
+     * never by retrying the address joined. On an emulator the host's address
+     * never changes, so without this the scanning path would not be exercised.
+     */
+    var scanReconnectOnly = false
 
     private var scanner: CourtScanner? = null
     private var error: String? = null
@@ -184,6 +191,7 @@ class CourtController private constructor(
         leaveInternal()
         settings.saveSetup(setup)
         joinCode = Random.nextInt(1000, 10000)
+        store.saveCode(joinCode)
         host = HostSession(
             log = MatchLog.start(ids.next(), setup.config, now(), setup.roster),
             hostDeviceId = identity.deviceId,
@@ -205,7 +213,10 @@ class CourtController private constructor(
             publish()
             return
         }
-        joinCode = Random.nextInt(1000, 10000)
+        // The same code as before the app closed, so that guests still
+        // looking for this court can come back without typing anything.
+        joinCode = store.loadCode() ?: Random.nextInt(1000, 10000)
+        store.saveCode(joinCode)
         host = HostSession(
             log = log,
             hostDeviceId = identity.deviceId,
@@ -365,15 +376,18 @@ class CourtController private constructor(
         val session = ClientSession(identity.deviceId, identity.deviceName, kind, code, ids)
         client = session
         courtName = court.name
-        link = GuestLink(app, handler, court.device, guestListener).also { it.connect() }
+        link = GuestConnection(app, handler, court, guestListener, directRetry = !scanReconnectOnly)
+            .also { it.connect() }
         CourtService.start(app)
         publish()
     }
 
-    private val guestListener = object : GuestLink.Listener {
-        override fun onLinkUp(maxPacketSize: Int) {
+    private val guestListener = object : GuestConnection.Listener {
+        override fun onLinkUp(maxPacketSize: Int, foundByScan: Boolean) {
             val session = client ?: return
-            handle(session.connected(maxPacketSize))
+            // A court found by scanning has to show it carries this match
+            // before it is believed; the session checks its first answer.
+            handle(if (foundByScan) session.connectedToFoundCourt(maxPacketSize) else session.connected(maxPacketSize))
             publish()
         }
 
@@ -392,6 +406,9 @@ class CourtController private constructor(
             val changed = before != null && after != null &&
                 (after.version != before.version || after.matchId != before.matchId)
             if (changed && !ownTap) remoteScoreCount++
+            // In step with the host again: if this was a court found by
+            // scanning, it has proved itself and is the one to stay with.
+            if (session.status == ClientStatus.SYNCED) link?.courtProved()
             publish()
         }
     }
@@ -404,6 +421,8 @@ class CourtController private constructor(
                     lastFeedback = effect.feedback
                     feedbackCount++
                 }
+                // Somebody else's court under the same name: let go and keep looking.
+                ClientEffect.WrongCourt -> link?.wrongCourt()
                 ClientEffect.Disconnect -> {
                     // The court closed: keep the result if there was one.
                     recordIfDecided()
