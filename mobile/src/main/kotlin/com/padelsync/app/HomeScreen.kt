@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +25,7 @@ fun HomeScreen(
     onNewMatch: () -> Unit,
     onJoin: () -> Unit,
     onResume: () -> Unit,
+    onHistory: () -> Unit,
 ) {
     Column(
         Modifier
@@ -54,6 +56,10 @@ fun HomeScreen(
             OutlinedButton(onClick = onResume, modifier = Modifier.fillMaxWidth().height(64.dp)) {
                 Text("Resume last match", fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
+        }
+        Spacer(Modifier.height(16.dp))
+        TextButton(onClick = onHistory) {
+            Text("Match history", fontSize = 18.sp)
         }
     }
 }

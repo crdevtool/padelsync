@@ -4,8 +4,11 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import com.netsports.core.engine.MatchConfig
+import com.netsports.core.history.MatchHistory
+import com.netsports.core.history.MatchRecord
 import com.netsports.core.match.Action
 import com.netsports.core.match.MatchLog
+import com.netsports.core.match.MatchSnapshot
 import com.netsports.core.sync.ClientEffect
 import com.netsports.core.sync.ClientSession
 import com.netsports.core.sync.ClientStatus
@@ -87,6 +90,15 @@ class CourtController private constructor(
 
     /** Courts found by the current scan, nearest first. */
     val nearby: StateFlow<List<NearbyCourt>> = _nearby.asStateFlow()
+
+    private val historyStore = HistoryStore(app)
+    private val _history = MutableStateFlow(historyStore.load())
+
+    /** Finished matches this device took part in, newest first. */
+    val history: StateFlow<List<MatchRecord>> = _history.asStateFlow()
+
+    /** Guest side: when this device first saw each match, for its duration. */
+    private val firstSeen = HashMap<Long, Long>()
 
     // Host side.
     private var host: HostSession? = null
@@ -362,7 +374,11 @@ class CourtController private constructor(
                 store.save(hostSession)
                 savedVersion = log.version
                 savedMatchId = log.matchId
+                trackHistory(hostSession.snapshot(), log.startedAtMillis)
             }
+        }
+        guestSession?.confirmed?.let { snapshot ->
+            trackHistory(snapshot, firstSeen.getOrPut(snapshot.matchId) { now() })
         }
 
         _ui.value = when {
@@ -395,6 +411,23 @@ class CourtController private constructor(
             }
             else -> CourtUiState(error = error, hasSavedMatch = store.load() != null)
         }
+    }
+
+    /**
+     * Keeps the history in step with a match: adds it when it is won, and
+     * takes it out again if the winning point is undone.
+     */
+    private fun trackHistory(snapshot: MatchSnapshot, startedAtMillis: Long) {
+        val current = _history.value
+        val recorded = current.firstOrNull { it.matchId == snapshot.matchId }
+        val updated = when {
+            snapshot.state.isComplete && recorded?.snapshot?.version != snapshot.version ->
+                MatchHistory.add(current, MatchRecord(snapshot, startedAtMillis, now()))
+            !snapshot.state.isComplete && recorded != null -> MatchHistory.remove(current, snapshot.matchId)
+            else -> return
+        }
+        _history.value = updated
+        historyStore.save(updated)
     }
 
     private fun now(): Long = System.currentTimeMillis()

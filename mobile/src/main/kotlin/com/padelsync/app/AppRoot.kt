@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import com.padelsync.kit.CourtController
 import com.padelsync.kit.CourtMode
 
-private enum class Screen { HOME, SETUP, JOIN }
+private enum class Screen { HOME, SETUP, JOIN, HISTORY }
 
 /** Chooses the screen. A live match always wins, so the app reopens on the scoreboard. */
 @Composable
@@ -62,11 +62,18 @@ fun AppRoot(controller: CourtController) {
                 JoinScreen(controller = controller, error = ui.error, onBack = { screen = Screen.HOME })
             }
 
+            screen == Screen.HISTORY -> {
+                BackHandler { screen = Screen.HOME }
+                val history by controller.history.collectAsState()
+                HistoryScreen(records = history, onBack = { screen = Screen.HOME })
+            }
+
             else -> HomeScreen(
                 hasSavedMatch = ui.hasSavedMatch,
                 onNewMatch = { screen = Screen.SETUP },
                 onJoin = { screen = Screen.JOIN },
                 onResume = { controller.resumeSavedMatch() },
+                onHistory = { screen = Screen.HISTORY },
             )
         }
     }

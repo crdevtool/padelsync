@@ -20,7 +20,7 @@ struct PadelSyncApp: App {
 
 /// Chooses the screen. A live match always wins, so the app reopens on the scoreboard.
 struct RootView: View {
-    private enum Screen { case home, setup, join }
+    private enum Screen { case home, setup, join, history }
 
     @EnvironmentObject private var store: CourtStore
     @State private var screen: Screen = .home
@@ -47,10 +47,13 @@ struct RootView: View {
                 )
             } else if screen == .join {
                 JoinView(onBack: { screen = .home })
+            } else if screen == .history {
+                HistoryView(onBack: { screen = .home })
             } else {
                 HomeView(
                     onNewMatch: { screen = .setup },
-                    onJoin: { screen = .join }
+                    onJoin: { screen = .join },
+                    onHistory: { screen = .history }
                 )
             }
         }
@@ -61,6 +64,7 @@ struct HomeView: View {
     @EnvironmentObject private var store: CourtStore
     let onNewMatch: () -> Void
     let onJoin: () -> Void
+    let onHistory: () -> Void
 
     var body: some View {
         VStack(spacing: 16) {
@@ -79,6 +83,9 @@ struct HomeView: View {
             if store.hasSavedMatch {
                 BigButton(title: "Resume last match", filled: false) { store.resumeSavedMatch() }
             }
+            Button("Match history", action: onHistory)
+                .font(.title3)
+                .padding(.top, 8)
             Spacer()
         }
         .padding(24)

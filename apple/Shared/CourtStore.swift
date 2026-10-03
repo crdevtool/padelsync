@@ -47,6 +47,8 @@ final class CourtStore: ObservableObject {
     @Published private(set) var nearby: [NearbyCourt] = []
     /// Whether a hosted match from an earlier run can be resumed.
     @Published private(set) var hasSavedMatch: Bool
+    /// Finished matches this device took part in, newest first.
+    @Published private(set) var history: [MatchRecord] = []
 
     /// Whether this kind of device can host other devices. Apple Watch cannot:
     /// watchOS does not allow Bluetooth advertising.
@@ -70,12 +72,19 @@ final class CourtStore: ObservableObject {
     private var savedMatchId: Int64 = 0
 
     private static let savedMatchKey = "hosted_match"
+    private static let historyKey = "match_history"
+
+    /// Guest side: when this device first saw each match, for its duration.
+    private var firstSeen: [Int64: Int64] = [:]
 
     /// Matches `Sessions.NO_CODE` in the shared core.
     private static let noCode = -1
 
     init() {
         hasSavedMatch = UserDefaults.standard.data(forKey: CourtStore.savedMatchKey) != nil
+        if let saved = UserDefaults.standard.data(forKey: CourtStore.historyKey) {
+            history = MatchHistory.shared.decode(bytes: saved.toKotlinByteArray())
+        }
 
         guestTransport.onCourts = { [weak self] courts in self?.nearby = courts }
         guestTransport.onProblem = { [weak self] problem in
@@ -321,6 +330,7 @@ final class CourtStore: ObservableObject {
                 UserDefaults.standard.set(host.savedState().toData(), forKey: CourtStore.savedMatchKey)
                 savedVersion = log.version
                 savedMatchId = log.matchId
+                trackHistory(host.snapshot(), startedAtMillis: log.startedAtMillis)
             }
             mode = .host
             score = ScoreView.companion.of(state: host.state)
@@ -337,6 +347,11 @@ final class CourtStore: ObservableObject {
             rejection = nil
             hasSavedMatch = true
         } else if let client {
+            if let confirmed = client.confirmed {
+                let seen = firstSeen[confirmed.matchId] ?? now()
+                firstSeen[confirmed.matchId] = seen
+                trackHistory(confirmed, startedAtMillis: seen)
+            }
             let display = client.displayState
             mode = .guest
             score = display.map { ScoreView.companion.of(state: $0) }
@@ -360,6 +375,22 @@ final class CourtStore: ObservableObject {
             rejection = nil
             hasSavedMatch = UserDefaults.standard.data(forKey: CourtStore.savedMatchKey) != nil
         }
+    }
+
+    /// Keeps the history in step with a match: adds it when it is won, and
+    /// takes it out again if the winning point is undone.
+    private func trackHistory(_ snapshot: MatchSnapshot, startedAtMillis: Int64) {
+        let recorded = history.first { $0.matchId == snapshot.matchId }
+        let complete = snapshot.state.isComplete
+        if complete && recorded?.snapshot.version != snapshot.version {
+            let record = MatchRecord(snapshot: snapshot, startedAtMillis: startedAtMillis, finishedAtMillis: now())
+            history = MatchHistory.shared.add(records: history, record: record)
+        } else if !complete && recorded != nil {
+            history = MatchHistory.shared.remove(records: history, matchId: snapshot.matchId)
+        } else {
+            return
+        }
+        UserDefaults.standard.set(MatchHistory.shared.encode(records: history).toData(), forKey: CourtStore.historyKey)
     }
 
     private func now() -> Int64 {
