@@ -131,9 +131,16 @@ final class CourtStore: ObservableObject {
             // Only relevant while searching or playing as a guest.
             if self.mode != .host { self.report(problem) }
         }
-        guestTransport.onLinkUp = { [weak self] maxPacketSize in
+        guestTransport.onLinkUp = { [weak self] maxPacketSize, foundByScan in
             guard let self, let client = self.client else { return }
-            self.handle(client.connected(maxPacketSize: Int32(maxPacketSize)))
+            let size = Int32(maxPacketSize)
+            // A court found by scanning has to show it carries this match
+            // before it is believed; the session checks its first answer.
+            if foundByScan {
+                self.handle(client.connectedToFoundCourt(maxPacketSize: size))
+            } else {
+                self.handle(client.connected(maxPacketSize: size))
+            }
             self.publish()
         }
         guestTransport.onLinkDown = { [weak self] in
@@ -149,6 +156,9 @@ final class CourtStore: ObservableObject {
                after.version != before.version || after.matchId != before.matchId, !ownTap {
                 self.remoteScoreCount += 1
             }
+            // In step with the host again: if this was a court found by
+            // scanning, it has proved itself and is the one to stay with.
+            if client.status == ClientStatus.synced { self.guestTransport.courtProved() }
             self.publish()
         }
     }
@@ -366,6 +376,9 @@ final class CourtStore: ObservableObject {
             } else if let feedback = effect as? ClientEffect.Feedback {
                 if feedback.feedback == TapFeedback.accepted { ownTapAccepted = true }
                 show(feedback: feedback.feedback)
+            } else if effect is ClientEffect.WrongCourt {
+                // Somebody else's court under the same name: let go and keep looking.
+                guestTransport.wrongCourt()
             } else if effect is ClientEffect.Disconnect {
                 // The court closed: keep the result if there was one.
                 recordIfDecided()
