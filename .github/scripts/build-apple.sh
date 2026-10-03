@@ -133,21 +133,34 @@ raise SystemExit(1)
   xcrun simctl boot "$udid"
   xcrun simctl bootstatus "$udid" -b >/dev/null
   xcrun simctl install "$udid" "$2"
-  xcrun simctl launch "$udid" "$3" -demoMatch
+  # A simulator, the watch above all, can take a few seconds to register an
+  # app it has just been given, and refuses to launch it until then.
+  local attempt
+  for attempt in 1 2 3 4 5 6; do
+    if xcrun simctl launch "$udid" "$3" -demoMatch; then break; fi
+    echo "launch attempt $attempt failed; trying again"
+    sleep 8
+  done
   sleep 10
   xcrun simctl io "$udid" screenshot "shots/$4.png"
   # A crashed app is no longer in the list of running services.
+  local alive=1
   if xcrun simctl spawn "$udid" launchctl list | grep -q "$3"; then
     echo "RUNNING: $3 is alive on the simulator"
   else
-    echo "NOT RUNNING: $3 exited after launch"
+    echo "NOT RUNNING: $3 did not start, or exited after launch"
+    alive=0
   fi
   xcrun simctl shutdown "$udid"
+  [ "$alive" = 1 ]
 }
 
+# An app that does not stay up on its simulator fails the job, after both have been tried.
+status=0
 run_on_simulator "iPhone" build/apple/Build/Products/Debug-iphonesimulator/PadelSync.app \
-  com.padelsync.app iphone-match || echo "iPhone simulator run did not complete"
+  com.padelsync.app iphone-match || status=1
 run_on_simulator "Apple Watch" build/apple/Build/Products/Debug-watchsimulator/PadelSyncWatch.app \
-  com.padelsync.app.watchkitapp watch-match || echo "Apple Watch simulator run did not complete"
+  com.padelsync.app.watchkitapp watch-match || status=1
 
 echo "== Done =="
+exit "$status"
