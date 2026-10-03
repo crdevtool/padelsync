@@ -1,5 +1,6 @@
 package com.netsports.core.history
 
+import com.netsports.core.match.Roster
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.Team
 import com.netsports.core.match.MatchSnapshot
@@ -66,5 +67,27 @@ class MatchHistoryTest {
         assertTrue(MatchHistory.decode(byteArrayOf(9, 0, 1)).isEmpty(), "unknown format version")
         // Cut off part-way through the second record: the first survives.
         assertEquals(listOf(2L), MatchHistory.decode(encoded.copyOf(encoded.size - 5)).map { it.matchId })
+    }
+
+    @Test
+    fun namesAndOptionsSurviveSaving() {
+        val roster = Roster(listOf("Ana", "Leo"), listOf("Mia", "Sam"))
+        val config = MatchConfig.padel().copy(playAllSets = true)
+        val points = List(48) { Team.A } + List(24) { Team.B }
+        val saved = MatchRecord(MatchSnapshot(7, 1, 72, config, points, roster = roster), 1_000, 9_000)
+
+        val restored = MatchHistory.decode(MatchHistory.encode(listOf(saved))).single()
+        assertEquals(roster, restored.snapshot.roster)
+        assertEquals(config, restored.snapshot.config)
+        assertEquals("Ana & Leo", restored.score.nameA)
+        assertEquals(Team.A, restored.score.winner)
+        assertEquals("6-0 6-0 0-6", restored.score.setSummary)
+    }
+
+    @Test
+    fun historySavedByAnOlderVersionIsIgnoredNotMisread() {
+        val bytes = MatchHistory.encode(listOf(record(1)))
+        bytes[0] = 1
+        assertTrue(MatchHistory.decode(bytes).isEmpty())
     }
 }

@@ -6,6 +6,7 @@ import com.netsports.core.match.Action
 import com.netsports.core.match.CommandOutcome
 import com.netsports.core.match.MatchLog
 import com.netsports.core.match.MatchSnapshot
+import com.netsports.core.match.Roster
 import com.netsports.core.match.ScoreCommand
 
 /** A device that has joined the session. */
@@ -15,6 +16,8 @@ data class PeerInfo(
     val deviceId: Long,
     val deviceKind: DeviceKind,
     val deviceName: String,
+    /** Whether the host lets this device change the score. */
+    val canScore: Boolean = true,
 )
 
 /** Packets the platform Bluetooth layer must deliver to one connected device, in order. */
@@ -45,6 +48,9 @@ class Outgoing(val peerId: String, val packets: List<ByteArray>)
  * @param joinCode code guests must present, or `null` for an open session.
  * @param maxGuests most guests admitted at once. Phones typically sustain
  * about seven Bluetooth LE connections, hence the default.
+ * @param guestsCanScore whether a device joining for the first time may
+ * change the score. The host can change this later for everyone
+ * ([setGuestsCanScore]) or for one device ([setCanScore]).
  */
 class HostSession(
     log: MatchLog,
@@ -52,6 +58,7 @@ class HostSession(
     private val joinCode: Int? = null,
     private val ids: IdSource = RandomIdSource(),
     private val maxGuests: Int = DEFAULT_MAX_GUESTS,
+    guestsCanScore: Boolean = true,
 ) {
     private class Link(var maxPacketSize: Int) {
         val reassembler = Reassembler()
@@ -59,6 +66,18 @@ class HostSession(
     }
 
     private val links = LinkedHashMap<String, Link>()
+
+    /**
+     * The host's explicit choice for individual devices, by device id. It is
+     * kept when a device drops off, so a reconnecting watch does not regain a
+     * permission the host took away. Devices not listed follow
+     * [guestsCanScore].
+     */
+    private val permissions = HashMap<Long, Boolean>()
+
+    /** Whether devices the host has made no explicit choice for may change the score. */
+    var guestsCanScore: Boolean = guestsCanScore
+        private set
 
     /** The authoritative match record. */
     var log: MatchLog = log
@@ -70,7 +89,29 @@ class HostSession(
 
     /** Guests admitted to the session, in the order they joined. */
     val guests: List<PeerInfo>
-        get() = links.values.mapNotNull { it.info }
+        get() = links.values.mapNotNull { link -> link.info?.let { it.copy(canScore = canScore(it.deviceId)) } }
+
+    /** Whether the device with [deviceId] may currently change the score. */
+    fun canScore(deviceId: Long): Boolean = permissions[deviceId] ?: guestsCanScore
+
+    /**
+     * Lets one device change the score, or makes it view-only. The choice
+     * sticks to the device for the rest of the session.
+     */
+    fun setCanScore(deviceId: Long, allowed: Boolean): List<Outgoing> {
+        permissions[deviceId] = allowed
+        return broadcastState()
+    }
+
+    /**
+     * Lets every guest change the score, or makes them all view-only. This
+     * replaces any per-device choices and applies to devices that join later.
+     */
+    fun setGuestsCanScore(allowed: Boolean): List<Outgoing> {
+        guestsCanScore = allowed
+        permissions.clear()
+        return broadcastState()
+    }
 
     /** Devices in the session, this host included. */
     val deviceCount: Int
@@ -165,8 +206,14 @@ class HostSession(
     }
 
     /** Replaces the current match with a new one and tells every guest. */
-    fun startNewMatch(config: MatchConfig, nowMillis: Long): List<Outgoing> {
-        log = MatchLog.start(ids.next(), config, nowMillis)
+    fun startNewMatch(config: MatchConfig, nowMillis: Long, roster: Roster = Roster.EMPTY): List<Outgoing> {
+        log = MatchLog.start(ids.next(), config, nowMillis, roster)
+        return broadcastState()
+    }
+
+    /** Changes the players' names mid-match and tells every guest. */
+    fun updateRoster(roster: Roster): List<Outgoing> {
+        log = log.withRoster(roster)
         return broadcastState()
     }
 
@@ -191,6 +238,11 @@ class HostSession(
 
     private fun onCommand(peerId: String, link: Link, command: ScoreCommand, nowMillis: Long): List<Outgoing> {
         val info = link.info ?: return emptyList()
+        if (!canScore(info.deviceId)) {
+            // Refused before the log sees it, so a view-only device cannot
+            // even use up a command id.
+            return listOf(send(peerId, link, Message.CommandResult(command.commandId, CommandOutcome.NOT_ALLOWED, log.version)))
+        }
         val result = log.apply(command, info.deviceId, nowMillis)
         log = result.log
         val reply = send(peerId, link, Message.CommandResult(command.commandId, result.outcome, log.version))
@@ -200,10 +252,16 @@ class HostSession(
     }
 
     private fun broadcastState(): List<Outgoing> {
-        val bytes = WireCodec.encode(Message.State(log.snapshot(), deviceCount))
-        return links.entries
-            .filter { it.value.info != null }
-            .map { (peerId, link) -> Outgoing(peerId, Framing.split(bytes, link.maxPacketSize)) }
+        val snapshot = log.snapshot()
+        val count = deviceCount
+        // The message differs between guests only in the permission flag, so
+        // it is encoded at most twice however many devices are connected.
+        val allowed by lazy { WireCodec.encode(Message.State(snapshot, count, canScore = true)) }
+        val viewOnly by lazy { WireCodec.encode(Message.State(snapshot, count, canScore = false)) }
+        return links.entries.mapNotNull { (peerId, link) ->
+            val info = link.info ?: return@mapNotNull null
+            Outgoing(peerId, Framing.split(if (canScore(info.deviceId)) allowed else viewOnly, link.maxPacketSize))
+        }
     }
 
     private fun send(peerId: String, link: Link, message: Message): Outgoing =

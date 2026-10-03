@@ -49,6 +49,18 @@ data class MatchState(
     val isComplete: Boolean
         get() = winner != null
 
+    /**
+     * The team that has already won enough sets to win the match, or `null`.
+     * With [MatchConfig.playAllSets] this is known before the match is
+     * [isComplete], because the remaining sets are still played.
+     */
+    val decidedWinner: Team?
+        get() = when {
+            setsWonBy(Team.A) >= config.setsToWin -> Team.A
+            setsWonBy(Team.B) >= config.setsToWin -> Team.B
+            else -> null
+        }
+
     val isTiebreak: Boolean
         get() = gameKind != GameKind.STANDARD
 
@@ -73,6 +85,49 @@ data class MatchState(
             if (gameKind == GameKind.STANDARD) return gameFirstServer
             val played = pointsA + pointsB
             return if (((played + 1) / 2) % 2 == 0) gameFirstServer else gameFirstServer.opponent
+        }
+
+    /**
+     * Side the next serve is hit from. Every game and every tiebreak starts
+     * from the right, and the side alternates with each point.
+     */
+    val serveSide: ServeSide
+        get() = if ((pointsA + pointsB) % 2 == 0) ServeSide.RIGHT else ServeSide.LEFT
+
+    /**
+     * Which of the serving team's two players serves next in doubles: 0 or 1.
+     * Always 0 in singles.
+     *
+     * Within a set the four players serve in a fixed rotation, one game each,
+     * and a tiebreak carries the same rotation on (one point, then two each).
+     * By default each team's first-listed player serves its first service
+     * game of a set; [flipped] swaps that for the serving team.
+     */
+    fun serverPlayerIndex(flipped: Boolean = false): Int {
+        if (!config.doubles) return 0
+        // Position in the set's rotation: one step per game, and in a
+        // tiebreak one step per service turn after that.
+        val turnsInTiebreak = if (gameKind == GameKind.STANDARD) 0 else (pointsA + pointsB + 1) / 2
+        val position = gamesA + gamesB + turnsInTiebreak
+        val index = (position / 2) % 2
+        return if (flipped) 1 - index else index
+    }
+
+    /**
+     * True at the moments players swap ends: after every odd game of a set
+     * (including into the next set), and every six points in a tiebreak.
+     */
+    val changeEnds: Boolean
+        get() {
+            if (isComplete) return false
+            val pointsPlayed = pointsA + pointsB
+            if (gameKind != GameKind.STANDARD) return pointsPlayed > 0 && pointsPlayed % 6 == 0
+            if (pointsPlayed != 0) return false
+            val gamesPlayed = gamesA + gamesB
+            if (gamesPlayed > 0) return gamesPlayed % 2 == 1
+            // Start of a new set: change only if the last set had an odd number of games.
+            val last = completedSets.lastOrNull() ?: return false
+            return (last.gamesA + last.gamesB) % 2 == 1
         }
 
     /** True at 40-40 (and at every later tie) in a standard game. */

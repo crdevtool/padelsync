@@ -43,6 +43,9 @@ enum class TapFeedback {
 
     /** There was nothing to undo. */
     NOTHING_TO_UNDO,
+
+    /** The host has made this device view-only. */
+    NOT_ALLOWED,
 }
 
 /** What the platform layer must do after calling a [ClientSession] method. */
@@ -106,6 +109,14 @@ class ClientSession(
     var deviceCount: Int = 0
         private set
 
+    /**
+     * Whether the host lets this device change the score. When `false` the
+     * device is a scoreboard only, and taps are refused with
+     * [TapFeedback.NOT_ALLOWED].
+     */
+    var canScore: Boolean = true
+        private set
+
     /** Taps made here that the host has not yet resolved. */
     val pendingCount: Int
         get() = pending.size
@@ -120,6 +131,16 @@ class ClientSession(
             if (pending.isEmpty()) return snapshot.state
             return ScoringEngine.replay(snapshot.config, projectedPoints(snapshot))
         }
+
+    /**
+     * Whether [team]'s serving order is shown swapped: the host's value with
+     * this device's unresolved swaps applied on top.
+     */
+    fun displayServeFlip(team: Team): Boolean {
+        val snapshot = confirmed ?: return false
+        val swap = Action.swapServerFor(team)
+        return snapshot.serveFlip(team) != (pending.count { it.action == swap } % 2 == 1)
+    }
 
     /**
      * The link to the host is up.
@@ -179,16 +200,22 @@ class ClientSession(
      * synced and no earlier tap is unresolved; otherwise it is held and sent
      * as soon as it can be, including after a reconnection.
      * Taps that cannot apply to the displayed score (a point after match
-     * point, undo with nothing scored) are ignored.
+     * point, undo with nothing scored) are ignored. On a view-only device
+     * nothing is sent and the tap is answered with
+     * [TapFeedback.NOT_ALLOWED] straight away.
      */
     fun submit(action: Action): List<ClientEffect> {
         val snapshot = confirmed ?: return emptyList()
         if (status == ClientStatus.REJECTED || status == ClientStatus.ENDED) return emptyList()
+        if (!canScore) return listOf(ClientEffect.Feedback(NO_COMMAND, TapFeedback.NOT_ALLOWED))
 
         val points = projectedPoints(snapshot)
         val valid = when (action) {
             Action.UNDO -> points.isNotEmpty()
-            else -> points.size < MatchSnapshot.MAX_POINTS && !ScoringEngine.replay(snapshot.config, points).isComplete
+            Action.POINT_A, Action.POINT_B ->
+                points.size < MatchSnapshot.MAX_POINTS && !ScoringEngine.replay(snapshot.config, points).isComplete
+            // Only doubles has a serving order to swap.
+            Action.SWAP_SERVER_A, Action.SWAP_SERVER_B -> snapshot.config.doubles
         }
         if (!valid) return emptyList()
 
@@ -230,6 +257,7 @@ class ClientSession(
 
         confirmed = incoming
         deviceCount = message.deviceCount
+        canScore = message.canScore
         status = ClientStatus.SYNCED
 
         // Covers the next queued tap after an acceptance, and taps made while
@@ -259,6 +287,11 @@ class ClientSession(
             CommandOutcome.STALE, CommandOutcome.SAME_RALLY -> dropPending(TapFeedback.SUPERSEDED)
             CommandOutcome.MATCH_COMPLETE -> dropPending(TapFeedback.MATCH_COMPLETE, result.commandId)
             CommandOutcome.NOTHING_TO_UNDO -> dropPending(TapFeedback.NOTHING_TO_UNDO, result.commandId)
+            // The host withdrew the permission while the tap was on its way.
+            CommandOutcome.NOT_ALLOWED -> {
+                canScore = false
+                dropPending(TapFeedback.NOT_ALLOWED)
+            }
         }
     }
 
@@ -281,12 +314,22 @@ class ClientSession(
         if (pending.isEmpty()) return snapshot.points
         val points = snapshot.points.toMutableList()
         for (command in pending) {
-            val team = command.action.team
-            if (team != null) points += team else if (points.isNotEmpty()) points.removeAt(points.lastIndex)
+            when (command.action) {
+                Action.POINT_A -> points += Team.A
+                Action.POINT_B -> points += Team.B
+                Action.UNDO -> if (points.isNotEmpty()) points.removeAt(points.lastIndex)
+                // Swapping the server does not touch the score.
+                Action.SWAP_SERVER_A, Action.SWAP_SERVER_B -> Unit
+            }
         }
         return points
     }
 
     private fun send(message: Message): ClientEffect.Send =
         ClientEffect.Send(Framing.split(WireCodec.encode(message), maxPacketSize))
+
+    companion object {
+        /** Command id reported for a tap that was refused without ever being sent. */
+        const val NO_COMMAND = 0L
+    }
 }

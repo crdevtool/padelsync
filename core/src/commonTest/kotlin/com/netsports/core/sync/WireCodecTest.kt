@@ -8,6 +8,7 @@ import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
 import com.netsports.core.match.CommandOutcome
 import com.netsports.core.match.MatchSnapshot
+import com.netsports.core.match.Roster
 import com.netsports.core.match.ScoreCommand
 import kotlin.random.Random
 import kotlin.test.Test
@@ -111,11 +112,73 @@ class WireCodecTest {
                 firstServer = Team.B,
             ),
             MatchConfig.tennis().copy(finalSetRule = FinalSetRule.ADVANTAGE_SET, bestOf = 1),
+            MatchConfig.tennis().copy(playAllSets = true),
+            MatchConfig.tennis().copy(doubles = true),
+            MatchConfig.padel().copy(playAllSets = true, doubles = false),
         )
         for (config in configs) {
             val state = Message.State(MatchSnapshot(1, 1, 0, config, emptyList()), deviceCount = 1)
             assertEquals(state, roundTrip(state))
         }
+    }
+
+    @Test
+    fun stateRoundTripsPlayerNamesServingOrderAndPermission() {
+        val rosters = listOf(
+            Roster.EMPTY,
+            Roster(listOf("Ana"), emptyList()),
+            Roster(emptyList(), listOf("Leo", "Mía")),
+            Roster(listOf("Ana", "Leo"), listOf("José 🎾", "x".repeat(Roster.MAX_NAME_BYTES))),
+        )
+        for (roster in rosters) {
+            for (bits in 0..7) {
+                val snapshot = MatchSnapshot(
+                    matchId = 9,
+                    epoch = 2,
+                    version = 12,
+                    config = MatchConfig.padel(),
+                    points = alternatingGames(9),
+                    lastCommandId = 5,
+                    roster = roster,
+                    serveFlipA = bits and 1 != 0,
+                    serveFlipB = bits and 2 != 0,
+                )
+                val state = Message.State(snapshot, deviceCount = 4, canScore = bits and 4 != 0)
+                assertEquals(state, roundTrip(state), "roster=$roster bits=$bits")
+            }
+        }
+    }
+
+    @Test
+    fun everyActionAndOutcomeRoundTrips() {
+        for (action in Action.entries) {
+            val command = Message.Command(ScoreCommand(3, 1, 7, action))
+            assertEquals(command, roundTrip(command))
+            assertEquals(16, WireCodec.encode(command).size)
+        }
+        for (outcome in CommandOutcome.entries) {
+            val result = Message.CommandResult(3, outcome, 7)
+            assertEquals(result, roundTrip(result))
+        }
+    }
+
+    @Test
+    fun invalidFlagsAndPlayerNamesAreRejected() {
+        val named = MatchSnapshot(1, 1, 0, MatchConfig.padel(), emptyList(), roster = Roster(listOf("Ana"), listOf("Leo")))
+        val valid = WireCodec.encode(Message.State(named, 1))
+        assertEquals(named, (WireCodec.decode(valid) as Message.State).snapshot)
+
+        // A flag bit this version does not know.
+        assertFailsWith<ProtocolException> { WireCodec.decode(valid.copyOf().also { it[FLAGS_OFFSET] = 0x08 }) }
+        // Play-all-sets must be 0 or 1.
+        assertFailsWith<ProtocolException> { WireCodec.decode(valid.copyOf().also { it[CONFIG_OFFSET + 9] = 2 }) }
+        // Three players in a team.
+        assertFailsWith<ProtocolException> { WireCodec.decode(valid.copyOf().also { it[ROSTER_OFFSET] = 3 }) }
+        // A name longer than the limit.
+        assertFailsWith<ProtocolException> { WireCodec.decode(valid.copyOf().also { it[ROSTER_OFFSET + 1] = 21 }) }
+        // A name made of spaces.
+        val blank = valid.copyOf().also { bytes -> for (i in 2..4) bytes[ROSTER_OFFSET + i] = ' '.code.toByte() }
+        assertFailsWith<ProtocolException> { WireCodec.decode(blank) }
     }
 
     @Test
@@ -180,8 +243,7 @@ class WireCodecTest {
         val overrun = WireCodec.encode(
             Message.State(MatchSnapshot(1, 1, 48, MatchConfig.padel(), List(48) { Team.A }), 1),
         )
-        val pointCountOffset = CONFIG_OFFSET + 9
-        overrun[pointCountOffset + 1] = 49
+        overrun[POINT_COUNT_OFFSET + 1] = 49
         assertFailsWith<ProtocolException> { WireCodec.decode(overrun + 0) }
     }
 
@@ -208,6 +270,11 @@ class WireCodecTest {
 
     private companion object {
         /** type(1) + matchId(8) + epoch(2) + version(4) + lastCommandId(8) + deviceCount(1) */
-        const val CONFIG_OFFSET = 24
+        const val FLAGS_OFFSET = 24
+        const val CONFIG_OFFSET = FLAGS_OFFSET + 1
+        const val ROSTER_OFFSET = CONFIG_OFFSET + 11
+
+        /** With no player names the roster is two zero counts. */
+        const val POINT_COUNT_OFFSET = ROSTER_OFFSET + 2
     }
 }

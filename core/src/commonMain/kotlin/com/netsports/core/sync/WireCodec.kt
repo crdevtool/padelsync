@@ -8,6 +8,7 @@ import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
 import com.netsports.core.match.CommandOutcome
 import com.netsports.core.match.MatchSnapshot
+import com.netsports.core.match.Roster
 import com.netsports.core.match.ScoreCommand
 
 /**
@@ -25,7 +26,7 @@ import com.netsports.core.match.ScoreCommand
  */
 object WireCodec {
     /** Bumped on any incompatible change to the layouts below. */
-    const val PROTOCOL_VERSION = 1
+    const val PROTOCOL_VERSION = 2
 
     /** Longest device name, in UTF-8 bytes. Longer names are truncated. */
     const val MAX_NAME_BYTES = 24
@@ -41,6 +42,11 @@ object WireCodec {
     private const val TYPE_SESSION_ENDED = 0x13
 
     private const val NO_JOIN_CODE = 0xFFFF
+
+    private const val FLAG_CAN_SCORE = 0x01
+    private const val FLAG_SERVE_FLIP_A = 0x02
+    private const val FLAG_SERVE_FLIP_B = 0x04
+    private const val KNOWN_FLAGS = FLAG_CAN_SCORE or FLAG_SERVE_FLIP_A or FLAG_SERVE_FLIP_B
 
     fun encode(message: Message): ByteArray {
         val out = ByteWriter()
@@ -71,7 +77,13 @@ object WireCodec {
                     .u32(snapshot.version)
                     .i64(snapshot.lastCommandId)
                     .u8(message.deviceCount)
+                    .u8(
+                        (if (message.canScore) FLAG_CAN_SCORE else 0) or
+                            (if (snapshot.serveFlipA) FLAG_SERVE_FLIP_A else 0) or
+                            (if (snapshot.serveFlipB) FLAG_SERVE_FLIP_B else 0),
+                    )
                 writeConfig(out, snapshot.config)
+                writeRoster(out, snapshot.roster)
                 out.u16(snapshot.points.size).bytes(packPoints(snapshot.points))
             }
             is Message.CommandResult -> {
@@ -154,20 +166,33 @@ object WireCodec {
         val version = reader.u31()
         val lastCommandId = reader.i64()
         val deviceCount = reader.u8()
+        val flags = reader.u8()
+        if (flags and KNOWN_FLAGS.inv() != 0) throw ProtocolException("unknown state flags: $flags")
         val config = readConfig(reader)
+        val roster = readRoster(reader)
         val pointCount = reader.u16()
         if (pointCount > MatchSnapshot.MAX_POINTS) throw ProtocolException("too many points: $pointCount")
         val points = unpackPoints(reader.bytes((pointCount + 7) / 8), pointCount)
         reader.expectEnd()
         val snapshot = try {
-            MatchSnapshot(matchId, epoch, version, config, points, lastCommandId)
+            MatchSnapshot(
+                matchId = matchId,
+                epoch = epoch,
+                version = version,
+                config = config,
+                points = points,
+                lastCommandId = lastCommandId,
+                roster = roster,
+                serveFlipA = flags and FLAG_SERVE_FLIP_A != 0,
+                serveFlipB = flags and FLAG_SERVE_FLIP_B != 0,
+            )
         } catch (e: IllegalArgumentException) {
             throw ProtocolException("impossible match state: ${e.message}")
         }
-        return Message.State(snapshot, deviceCount)
+        return Message.State(snapshot, deviceCount, canScore = flags and FLAG_CAN_SCORE != 0)
     }
 
-    // --- Match format: 9 bytes -------------------------------------------
+    // --- Match format: 11 bytes ------------------------------------------
 
     private fun writeConfig(out: ByteWriter, config: MatchConfig) {
         out.u8(config.sport.code)
@@ -179,6 +204,14 @@ object WireCodec {
             .u8(config.finalSetRule.code)
             .u8(config.matchTiebreakPoints)
             .u8(config.firstServer.code)
+            .u8(if (config.playAllSets) 1 else 0)
+            .u8(if (config.doubles) 1 else 0)
+    }
+
+    private fun readFlag(reader: ByteReader, name: String): Boolean = when (val flag = reader.u8()) {
+        0 -> false
+        1 -> true
+        else -> throw ProtocolException("invalid $name flag: $flag")
     }
 
     private fun readConfig(reader: ByteReader): MatchConfig {
@@ -186,15 +219,13 @@ object WireCodec {
         val bestOf = reader.u8()
         val gamesPerSet = reader.u8()
         val deuceRule = deuceRuleOf(reader.u8())
-        val setTiebreak = when (val flag = reader.u8()) {
-            0 -> false
-            1 -> true
-            else -> throw ProtocolException("invalid tiebreak flag: $flag")
-        }
+        val setTiebreak = readFlag(reader, "tiebreak")
         val tiebreakPoints = reader.u8()
         val finalSetRule = finalSetRuleOf(reader.u8())
         val matchTiebreakPoints = reader.u8()
         val firstServer = teamOf(reader.u8())
+        val playAllSets = readFlag(reader, "play-all-sets")
+        val doubles = readFlag(reader, "doubles")
         return try {
             MatchConfig(
                 sport = sport,
@@ -206,9 +237,43 @@ object WireCodec {
                 finalSetRule = finalSetRule,
                 matchTiebreakPoints = matchTiebreakPoints,
                 firstServer = firstServer,
+                playAllSets = playAllSets,
+                doubles = doubles,
             )
         } catch (e: IllegalArgumentException) {
             throw ProtocolException("invalid match format: ${e.message}")
+        }
+    }
+
+    // --- Player names: per team, a count then length-prefixed UTF-8 --------
+
+    private fun writeRoster(out: ByteWriter, roster: Roster) {
+        for (team in Team.entries) {
+            val players = roster.players(team)
+            out.u8(players.size)
+            for (name in players) {
+                val bytes = name.encodeToByteArray()
+                out.u8(bytes.size).bytes(bytes)
+            }
+        }
+    }
+
+    private fun readRoster(reader: ByteReader): Roster {
+        fun readTeam(): List<String> {
+            val count = reader.u8()
+            if (count > Roster.MAX_PLAYERS) throw ProtocolException("too many players: $count")
+            return List(count) {
+                val length = reader.u8()
+                if (length > Roster.MAX_NAME_BYTES) throw ProtocolException("player name too long: $length")
+                reader.bytes(length).decodeToString()
+            }
+        }
+        val teamA = readTeam()
+        val teamB = readTeam()
+        return try {
+            Roster(teamA, teamB)
+        } catch (e: IllegalArgumentException) {
+            throw ProtocolException("invalid player names: ${e.message}")
         }
     }
 
@@ -224,18 +289,6 @@ object WireCodec {
 
     private fun unpackPoints(packed: ByteArray, count: Int): List<Team> = List(count) { index ->
         if ((packed[index / 8].toInt() shr (index % 8)) and 1 == 1) Team.B else Team.A
-    }
-
-    /** Cuts [text] to at most [maxBytes] of UTF-8 without splitting a character. */
-    private fun truncateUtf8(text: String, maxBytes: Int): ByteArray {
-        var end = text.length
-        while (true) {
-            // Never cut between the two halves of a surrogate pair.
-            if (end > 0 && end < text.length && text[end - 1].isHighSurrogate()) end--
-            val encoded = text.substring(0, end).encodeToByteArray()
-            if (encoded.size <= maxBytes) return encoded
-            end--
-        }
     }
 
     // --- Enum codes --------------------------------------------------------
@@ -257,12 +310,16 @@ object WireCodec {
             Action.POINT_A -> 0
             Action.POINT_B -> 1
             Action.UNDO -> 2
+            Action.SWAP_SERVER_A -> 3
+            Action.SWAP_SERVER_B -> 4
         }
 
     private fun actionOf(code: Int): Action = when (code) {
         0 -> Action.POINT_A
         1 -> Action.POINT_B
         2 -> Action.UNDO
+        3 -> Action.SWAP_SERVER_A
+        4 -> Action.SWAP_SERVER_B
         else -> throw ProtocolException("unknown action: $code")
     }
 
@@ -274,6 +331,7 @@ object WireCodec {
             CommandOutcome.MATCH_COMPLETE -> 3
             CommandOutcome.NOTHING_TO_UNDO -> 4
             CommandOutcome.SAME_RALLY -> 5
+            CommandOutcome.NOT_ALLOWED -> 6
         }
 
     private fun outcomeOf(code: Int): CommandOutcome = when (code) {
@@ -283,6 +341,7 @@ object WireCodec {
         3 -> CommandOutcome.MATCH_COMPLETE
         4 -> CommandOutcome.NOTHING_TO_UNDO
         5 -> CommandOutcome.SAME_RALLY
+        6 -> CommandOutcome.NOT_ALLOWED
         else -> throw ProtocolException("unknown command outcome: $code")
     }
 

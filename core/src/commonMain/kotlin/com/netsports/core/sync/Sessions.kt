@@ -6,6 +6,7 @@ import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.Sport
 import com.netsports.core.engine.Team
 import com.netsports.core.match.MatchLog
+import com.netsports.core.match.Roster
 
 /**
  * Convenience constructors with no optional or nullable-primitive parameters.
@@ -37,22 +38,78 @@ object Sessions {
         firstServer = firstServer,
     )
 
+    /** As [config], with the options added for social padel. */
+    fun config(
+        sport: Sport,
+        bestOf: Int,
+        deuceRule: DeuceRule,
+        finalSetRule: FinalSetRule,
+        firstServer: Team,
+        playAllSets: Boolean,
+        doubles: Boolean,
+    ): MatchConfig = MatchConfig(
+        sport = sport,
+        bestOf = bestOf,
+        deuceRule = deuceRule,
+        finalSetRule = finalSetRule,
+        firstServer = firstServer,
+        playAllSets = playAllSets,
+        doubles = doubles,
+    )
+
+    /**
+     * Player names from four form fields. Empty fields are dropped, so pass
+     * `""` for a player that was not named or does not exist.
+     */
+    fun roster(playerA1: String, playerA2: String, playerB1: String, playerB2: String): Roster =
+        Roster.of(listOf(playerA1, playerA2), listOf(playerB1, playerB2))
+
     /** Starts hosting a new match. Pass [NO_CODE] for a court anyone nearby can join. */
     fun host(config: MatchConfig, hostDeviceId: Long, joinCode: Int, nowMillis: Long): HostSession =
-        HostSession(MatchLog.start(ids.next(), config, nowMillis), hostDeviceId, codeOrNull(joinCode), ids)
+        host(config, Roster.EMPTY, hostDeviceId, joinCode, true, nowMillis)
+
+    /**
+     * Starts hosting a new match with named players.
+     *
+     * @param guestsCanScore whether devices that join may change the score.
+     */
+    fun host(
+        config: MatchConfig,
+        roster: Roster,
+        hostDeviceId: Long,
+        joinCode: Int,
+        guestsCanScore: Boolean,
+        nowMillis: Long,
+    ): HostSession = HostSession(
+        log = MatchLog.start(ids.next(), config, nowMillis, roster),
+        hostDeviceId = hostDeviceId,
+        joinCode = codeOrNull(joinCode),
+        ids = ids,
+        guestsCanScore = guestsCanScore,
+    )
 
     /**
      * Resumes hosting a match saved with [HostSession.savedState].
      * Returns `null` if the saved data cannot be used.
      */
-    fun resumeHost(saved: ByteArray, hostDeviceId: Long, joinCode: Int, nowMillis: Long): HostSession? {
+    fun resumeHost(saved: ByteArray, hostDeviceId: Long, joinCode: Int, nowMillis: Long): HostSession? =
+        resumeHost(saved, hostDeviceId, joinCode, true, nowMillis)
+
+    /** As [resumeHost], choosing whether devices that join may change the score. */
+    fun resumeHost(
+        saved: ByteArray,
+        hostDeviceId: Long,
+        joinCode: Int,
+        guestsCanScore: Boolean,
+        nowMillis: Long,
+    ): HostSession? {
         val snapshot = HostSession.restoreSnapshot(saved) ?: return null
         val log = try {
             MatchLog.takeOver(snapshot, nowMillis)
         } catch (_: IllegalArgumentException) {
             return null
         }
-        return HostSession(log, hostDeviceId, codeOrNull(joinCode), ids)
+        return HostSession(log, hostDeviceId, codeOrNull(joinCode), ids, guestsCanScore = guestsCanScore)
     }
 
     /** Creates the guest side of a session. Pass [NO_CODE] if the player entered no code. */

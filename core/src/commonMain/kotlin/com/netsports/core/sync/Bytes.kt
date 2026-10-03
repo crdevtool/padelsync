@@ -79,3 +79,15 @@ internal class ByteReader(private val bytes: ByteArray) {
         if (remaining != 0) throw ProtocolException("$remaining unexpected trailing bytes")
     }
 }
+
+/** Cuts [text] to at most [maxBytes] of UTF-8 without splitting a character. */
+internal fun truncateUtf8(text: String, maxBytes: Int): ByteArray {
+    var end = text.length
+    while (true) {
+        // Never cut between the two halves of a surrogate pair.
+        if (end > 0 && end < text.length && text[end - 1].isHighSurrogate()) end--
+        val encoded = text.substring(0, end).encodeToByteArray()
+        if (encoded.size <= maxBytes) return encoded
+        end--
+    }
+}

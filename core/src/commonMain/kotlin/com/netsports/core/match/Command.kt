@@ -2,22 +2,37 @@ package com.netsports.core.match
 
 import com.netsports.core.engine.Team
 
-/** What a player can do to the score. */
+/** What a player can do to the match. */
 enum class Action {
     POINT_A,
     POINT_B,
-    UNDO;
+    UNDO,
 
-    /** The team this action scores for, or `null` for [UNDO]. */
+    /**
+     * Swap which of team A's two players is shown as serving. Players are
+     * free to choose their serving order at the start of each set, so the
+     * app's guess sometimes needs correcting.
+     */
+    SWAP_SERVER_A,
+
+    /** As [SWAP_SERVER_A], for team B. */
+    SWAP_SERVER_B;
+
+    /** The team this action scores for, or `null` if it is not a point. */
     val team: Team?
         get() = when (this) {
             POINT_A -> Team.A
             POINT_B -> Team.B
-            UNDO -> null
+            UNDO, SWAP_SERVER_A, SWAP_SERVER_B -> null
         }
+
+    val isPoint: Boolean
+        get() = this == POINT_A || this == POINT_B
 
     companion object {
         fun pointFor(team: Team): Action = if (team == Team.A) POINT_A else POINT_B
+
+        fun swapServerFor(team: Team): Action = if (team == Team.A) SWAP_SERVER_A else SWAP_SERVER_B
     }
 }
 
@@ -60,4 +75,7 @@ enum class CommandOutcome {
      * the same rally reported twice. Nothing changed.
      */
     SAME_RALLY,
+
+    /** The host has not allowed this device to change the score. Nothing changed. */
+    NOT_ALLOWED,
 }

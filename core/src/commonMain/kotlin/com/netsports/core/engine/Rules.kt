@@ -55,5 +55,11 @@ enum class GameKind {
     MATCH_TIEBREAK,
 }
 
+/**
+ * The side of the court the server stands on, from the server's own point of
+ * view. Points start from the right ("deuce") side and alternate.
+ */
+enum class ServeSide { RIGHT, LEFT }
+
 /** What winning the next point would be worth to a team. */
 enum class PointStake { NONE, GAME_POINT, SET_POINT, MATCH_POINT }

@@ -30,13 +30,16 @@ class MatchLog private constructor(
     val matchId: Long,
     val epoch: Int,
     val config: MatchConfig,
+    val roster: Roster,
     val startedAtMillis: Long,
     /** Points that currently count, oldest first. Undone points are removed. */
     val points: List<PointRecord>,
-    /** Number of commands accepted so far (points and undos). */
+    /** Number of commands accepted so far (points, undos and server swaps). */
     val version: Int,
     private val appliedCommandIds: Set<Long>,
     private val lastCommandId: Long,
+    private val serveFlipA: Boolean,
+    private val serveFlipB: Boolean,
     /** Current score, derived from [points]. */
     val state: MatchState,
 ) {
@@ -56,6 +59,29 @@ class MatchLog private constructor(
         config = config,
         points = points.map { it.team },
         lastCommandId = lastCommandId,
+        roster = roster,
+        serveFlipA = serveFlipA,
+        serveFlipB = serveFlipB,
+    )
+
+    /**
+     * The same match with the players' names replaced. Names are labels only,
+     * so this is not a command and does not change the version: a snapshot
+     * taken afterwards simply carries the new names.
+     */
+    fun withRoster(roster: Roster): MatchLog = MatchLog(
+        matchId = matchId,
+        epoch = epoch,
+        config = config,
+        roster = roster,
+        startedAtMillis = startedAtMillis,
+        points = points,
+        version = version,
+        appliedCommandIds = appliedCommandIds,
+        lastCommandId = lastCommandId,
+        serveFlipA = serveFlipA,
+        serveFlipB = serveFlipB,
+        state = state,
     )
 
     /**
@@ -74,21 +100,33 @@ class MatchLog private constructor(
             return ApplyResult(this, CommandOutcome.STALE)
         }
 
-        val team = command.action.team
-        if (team != null) {
-            if (state.isComplete) return ApplyResult(this, CommandOutcome.MATCH_COMPLETE)
-            if (isSameRally(deviceId, atMillis)) return ApplyResult(this, CommandOutcome.SAME_RALLY)
-            if (points.size >= MatchSnapshot.MAX_POINTS) return ApplyResult(this, CommandOutcome.MATCH_COMPLETE)
-            val record = PointRecord(team, command.commandId, deviceId, atMillis)
-            return accepted(command, points + record, ScoringEngine.pointWonBy(state, team))
-        }
+        return when (command.action) {
+            Action.POINT_A, Action.POINT_B -> {
+                val team = if (command.action == Action.POINT_A) Team.A else Team.B
+                when {
+                    state.isComplete || points.size >= MatchSnapshot.MAX_POINTS ->
+                        ApplyResult(this, CommandOutcome.MATCH_COMPLETE)
+                    isSameRally(deviceId, atMillis) -> ApplyResult(this, CommandOutcome.SAME_RALLY)
+                    else -> {
+                        val record = PointRecord(team, command.commandId, deviceId, atMillis)
+                        accepted(command, points = points + record, state = ScoringEngine.pointWonBy(state, team))
+                    }
+                }
+            }
 
-        if (points.isEmpty()) return ApplyResult(this, CommandOutcome.NOTHING_TO_UNDO)
-        // Undo is allowed after match point too, to recover from a mis-tap.
-        // Replaying from the start is the simplest way to step back across a
-        // game or set boundary, and a match is only a few hundred points.
-        val remaining = points.dropLast(1)
-        return accepted(command, remaining, ScoringEngine.replay(config, remaining.map { it.team }))
+            Action.UNDO -> {
+                if (points.isEmpty()) return ApplyResult(this, CommandOutcome.NOTHING_TO_UNDO)
+                // Undo is allowed after match point too, to recover from a
+                // mis-tap. Replaying from the start is the simplest way to
+                // step back across a game or set boundary, and a match is
+                // only a few hundred points.
+                val remaining = points.dropLast(1)
+                accepted(command, points = remaining, state = ScoringEngine.replay(config, remaining.map { it.team }))
+            }
+
+            Action.SWAP_SERVER_A -> accepted(command, serveFlipA = !serveFlipA)
+            Action.SWAP_SERVER_B -> accepted(command, serveFlipB = !serveFlipB)
+        }
     }
 
     /**
@@ -110,16 +148,25 @@ class MatchLog private constructor(
         return elapsed in 0 until RALLY_WINDOW_MILLIS
     }
 
-    private fun accepted(command: ScoreCommand, points: List<PointRecord>, state: MatchState) = ApplyResult(
+    private fun accepted(
+        command: ScoreCommand,
+        points: List<PointRecord> = this.points,
+        state: MatchState = this.state,
+        serveFlipA: Boolean = this.serveFlipA,
+        serveFlipB: Boolean = this.serveFlipB,
+    ) = ApplyResult(
         MatchLog(
             matchId = matchId,
             epoch = epoch,
             config = config,
+            roster = roster,
             startedAtMillis = startedAtMillis,
             points = points,
             version = version + 1,
             appliedCommandIds = appliedCommandIds + command.commandId,
             lastCommandId = command.commandId,
+            serveFlipA = serveFlipA,
+            serveFlipB = serveFlipB,
             state = state,
         ),
         CommandOutcome.ACCEPTED,
@@ -137,15 +184,23 @@ class MatchLog private constructor(
         const val RALLY_WINDOW_MILLIS = 4_000L
 
         /** Starts an empty log for a new match. */
-        fun start(matchId: Long, config: MatchConfig, startedAtMillis: Long): MatchLog = MatchLog(
+        fun start(
+            matchId: Long,
+            config: MatchConfig,
+            startedAtMillis: Long,
+            roster: Roster = Roster.EMPTY,
+        ): MatchLog = MatchLog(
             matchId = matchId,
             epoch = 1,
             config = config,
+            roster = roster,
             startedAtMillis = startedAtMillis,
             points = emptyList(),
             version = 0,
             appliedCommandIds = emptySet(),
             lastCommandId = 0,
+            serveFlipA = false,
+            serveFlipB = false,
             state = ScoringEngine.start(config),
         )
 
@@ -166,11 +221,14 @@ class MatchLog private constructor(
                 matchId = snapshot.matchId,
                 epoch = snapshot.epoch + 1,
                 config = snapshot.config,
+                roster = snapshot.roster,
                 startedAtMillis = nowMillis,
                 points = snapshot.points.map { PointRecord(it, 0, UNKNOWN_DEVICE, nowMillis) },
                 version = snapshot.version,
                 appliedCommandIds = emptySet(),
                 lastCommandId = 0,
+                serveFlipA = snapshot.serveFlipA,
+                serveFlipB = snapshot.serveFlipB,
                 state = snapshot.state,
             )
         }

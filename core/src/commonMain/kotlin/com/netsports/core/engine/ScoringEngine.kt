@@ -94,7 +94,9 @@ object ScoringEngine {
         if (state.isComplete) return PointStake.NONE
         val next = pointWonBy(state, team)
         return when {
-            next.isComplete -> PointStake.MATCH_POINT
+            // The point that decides who wins the match. When every set is
+            // played regardless, later sets carry set points only.
+            state.decidedWinner == null && next.decidedWinner != null -> PointStake.MATCH_POINT
             next.completedSets.size > state.completedSets.size -> PointStake.SET_POINT
             next.gamesA != state.gamesA || next.gamesB != state.gamesB -> PointStake.GAME_POINT
             else -> PointStake.NONE
@@ -165,7 +167,14 @@ object ScoringEngine {
         )
         val setsA = completedSets.count { it.winner == Team.A }
         val setsB = completedSets.size - setsA
-        val matchWon = (if (team == Team.A) setsA else setsB) >= config.setsToWin
+        // Normally the match ends when a team has enough sets. With
+        // playAllSets it ends only when every set has been played.
+        val matchWon = if (config.playAllSets) {
+            completedSets.size == config.bestOf
+        } else {
+            maxOf(setsA, setsB) >= config.setsToWin
+        }
+        val matchWinner = if (setsA > setsB) Team.A else Team.B
 
         return MatchState(
             config = config,
@@ -181,7 +190,7 @@ object ScoringEngine {
             },
             gameFirstServer = nextFirstServer,
             totalPointsPlayed = totalPointsPlayed,
-            winner = if (matchWon) team else null,
+            winner = if (matchWon) matchWinner else null,
         )
     }
 

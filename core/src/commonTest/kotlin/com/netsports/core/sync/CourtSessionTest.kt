@@ -1,5 +1,8 @@
 package com.netsports.core.sync
 
+import com.netsports.core.match.CommandOutcome
+import com.netsports.core.match.ScoreCommand
+import com.netsports.core.match.Roster
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
@@ -641,5 +644,182 @@ class CourtSessionTest {
                 }
             }
         }
+    }
+
+    // --- Who may score -------------------------------------------------------
+
+    @Test
+    fun aViewOnlyGuestSeesTheScoreButCannotChangeIt() {
+        val court = Court(guestsCanScore = false)
+        val watch = court.join("watch")
+        assertFalse(watch.canScore)
+        assertFalse(court.host.guests.single().canScore)
+
+        court.tap("watch", Action.POINT_A)
+        assertEquals(listOf(TapFeedback.NOT_ALLOWED), court.feedbackOf("watch"))
+        assertEquals(0, watch.pendingCount)
+        assertEquals(0, court.pendingToHost())
+        assertEquals(0, court.host.log.version)
+
+        // It still follows the match.
+        court.hostTap(Action.POINT_B)
+        court.settle()
+        assertEquals(1, watch.displayState?.pointsB)
+    }
+
+    @Test
+    fun theHostCanAllowOneDeviceAndNotAnother() {
+        val court = Court(guestsCanScore = false)
+        val scorer = court.join("scorer")
+        val viewer = court.join("viewer")
+        court.allow("scorer", true)
+        court.settle()
+        assertTrue(scorer.canScore)
+        assertFalse(viewer.canScore)
+
+        court.tap("scorer", Action.POINT_A)
+        court.tap("viewer", Action.POINT_B)
+        court.settle()
+        assertEquals(listOf(Team.A), court.host.snapshot().points)
+        assertEquals(listOf(TapFeedback.ACCEPTED), court.feedbackOf("scorer"))
+        assertEquals(listOf(TapFeedback.NOT_ALLOWED), court.feedbackOf("viewer"))
+        assertAllInSync(court)
+    }
+
+    @Test
+    fun aTapInFlightWhenPermissionIsWithdrawnDoesNotCount() {
+        val court = Court()
+        val watch = court.join("watch")
+        court.tap("watch", Action.POINT_A)
+        court.tap("watch", Action.POINT_A)
+        // The host makes the watch view-only before its tap arrives.
+        court.allow("watch", false)
+        court.settle()
+
+        assertEquals(0, court.host.log.version)
+        assertFalse(watch.canScore)
+        assertEquals(0, watch.pendingCount)
+        assertEquals(listOf(TapFeedback.NOT_ALLOWED, TapFeedback.NOT_ALLOWED), court.feedbackOf("watch"))
+        assertAllInSync(court)
+    }
+
+    @Test
+    fun aForgedCommandFromAViewOnlyDeviceIsRefusedByTheHost() {
+        val court = Court(guestsCanScore = false)
+        court.join("watch")
+        // Bypass the guest's own check, as a modified app would.
+        val forged = WireCodec.encode(Message.Command(ScoreCommand(999, 1, 0, Action.POINT_A)))
+        val replies = court.host.packetReceived("watch", Framing.split(forged, 182).single(), court.clock)
+        assertEquals(0, court.host.log.version)
+        val reply = WireCodec.decode(Reassembler().accept(replies.single().packets.single())!!)
+        assertEquals(Message.CommandResult(999, CommandOutcome.NOT_ALLOWED, 0), reply)
+    }
+
+    @Test
+    fun aPermissionSticksToTheDeviceAcrossReconnections() {
+        val court = Court()
+        val watch = court.join("watch")
+        court.allow("watch", false)
+        court.settle()
+        court.disconnect("watch")
+        court.connect("watch")
+        court.settle()
+        assertFalse(watch.canScore)
+        assertFalse(court.host.canScore(court.deviceId("watch")))
+    }
+
+    @Test
+    fun changingEveryoneReplacesIndividualChoices() {
+        val court = Court()
+        val one = court.join("one")
+        val two = court.join("two")
+        court.allow("one", false)
+        court.allowEveryone(true)
+        court.settle()
+        assertTrue(one.canScore)
+        assertTrue(two.canScore)
+
+        court.allowEveryone(false)
+        court.settle()
+        assertFalse(one.canScore)
+        assertFalse(two.canScore)
+        // A device joining later follows the same rule.
+        assertFalse(court.join("three").canScore)
+        // The host itself can always score.
+        court.hostTap(Action.POINT_A)
+        assertEquals(1, court.host.log.version)
+    }
+
+    // --- Names and serving order --------------------------------------------
+
+    @Test
+    fun playerNamesReachEveryDevice() {
+        val roster = Roster(listOf("Ana", "Leo"), listOf("Mia", "Sam"))
+        val court = Court(roster = roster)
+        val watch = court.join("watch")
+        assertEquals(roster, watch.confirmed?.roster)
+
+        val renamed = Roster(listOf("Ana", "Leo"), listOf("Mia", "Tom"))
+        court.rename(renamed)
+        court.settle()
+        assertEquals(renamed, watch.confirmed?.roster)
+        assertAllInSync(court)
+    }
+
+    @Test
+    fun renamingDoesNotDisturbATapInFlight() {
+        val court = Court()
+        val watch = court.join("watch")
+        court.tap("watch", Action.POINT_A)
+        court.rename(Roster(listOf("Ana"), listOf("Mia")))
+        court.settle()
+        assertEquals(listOf(TapFeedback.ACCEPTED), court.feedbackOf("watch"))
+        assertEquals(1, watch.displayState?.pointsA)
+        assertAllInSync(court)
+    }
+
+    @Test
+    fun aGuestCanSwapTheServerAndSeesItAtOnce() {
+        val court = Court()
+        val watch = court.join("watch")
+        val phone = court.join("phone")
+
+        court.tap("watch", Action.SWAP_SERVER_A)
+        // Shown on the watch before the host has answered.
+        assertTrue(watch.displayServeFlip(Team.A))
+        assertFalse(watch.displayServeFlip(Team.B))
+        assertFalse(phone.displayServeFlip(Team.A))
+        assertEquals(court.host.state, watch.displayState)
+
+        court.settle()
+        assertTrue(court.host.snapshot().serveFlipA)
+        assertTrue(phone.displayServeFlip(Team.A))
+        assertEquals(listOf(TapFeedback.ACCEPTED), court.feedbackOf("watch"))
+        assertAllInSync(court)
+    }
+
+    @Test
+    fun aSwapQueuedBehindAPointKeepsTheScoreRight() {
+        val court = Court()
+        val watch = court.join("watch")
+        court.tap("watch", Action.POINT_A)
+        court.tap("watch", Action.SWAP_SERVER_B)
+        court.tap("watch", Action.POINT_A)
+        assertEquals(2, watch.displayState?.pointsA)
+        assertTrue(watch.displayServeFlip(Team.B))
+        court.settle()
+        assertEquals(3, court.host.log.version)
+        assertEquals(2, court.host.state.pointsA)
+        assertAllInSync(court)
+    }
+
+    @Test
+    fun singlesHasNoServerToSwap() {
+        val court = Court(MatchConfig.tennis())
+        val watch = court.join("watch")
+        court.tap("watch", Action.SWAP_SERVER_A)
+        court.settle()
+        assertEquals(0, watch.pendingCount)
+        assertEquals(0, court.host.log.version)
     }
 }

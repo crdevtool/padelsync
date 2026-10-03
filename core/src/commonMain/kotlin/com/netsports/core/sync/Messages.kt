@@ -43,8 +43,14 @@ sealed class Message {
      * repeated as a heartbeat. Also acts as the "welcome" after [Hello].
      *
      * @property deviceCount devices in the session, host included.
+     * @property canScore whether the receiving device may change the score.
+     * The host decides this per device, so two guests can get different values.
      */
-    data class State(val snapshot: MatchSnapshot, val deviceCount: Int) : Message()
+    data class State(
+        val snapshot: MatchSnapshot,
+        val deviceCount: Int,
+        val canScore: Boolean = true,
+    ) : Message()
 
     /** Host to the guest that sent a command: what happened to it. */
     data class CommandResult(val commandId: Long, val outcome: CommandOutcome, val version: Int) : Message()

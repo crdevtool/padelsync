@@ -3,6 +3,7 @@ package com.netsports.core.sync
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.match.Action
 import com.netsports.core.match.MatchLog
+import com.netsports.core.match.Roster
 
 /** Predictable ids, so failures are reproducible. */
 class SequentialIds(private var next: Long) : IdSource {
@@ -21,6 +22,8 @@ class Court(
     config: MatchConfig = MatchConfig.padel(),
     joinCode: Int? = null,
     maxGuests: Int = HostSession.DEFAULT_MAX_GUESTS,
+    roster: Roster = Roster.EMPTY,
+    guestsCanScore: Boolean = true,
 ) {
     var clock = 1_000L
 
@@ -30,7 +33,15 @@ class Court(
      * zero to make devices tap for the same rally.
      */
     var rallyGapMillis = 10_000L
-    val host = HostSession(MatchLog.start(1, config, clock), HOST_DEVICE_ID, joinCode, SequentialIds(1_000_000), maxGuests)
+    val host = HostSession(
+        MatchLog.start(1, config, clock, roster),
+        HOST_DEVICE_ID,
+        joinCode,
+        SequentialIds(1_000_000),
+        maxGuests,
+        guestsCanScore,
+    )
+    private val deviceIds = HashMap<String, Long>()
     val guests = LinkedHashMap<String, ClientSession>()
     val feedback = HashMap<String, MutableList<TapFeedback>>()
 
@@ -49,6 +60,7 @@ class Court(
         val number = guests.size + 1
         val session = ClientSession(number.toLong(), name, kind, code, SequentialIds(number * 10_000L))
         guests[name] = session
+        deviceIds[name] = number.toLong()
         packetSizes[name] = packetSize
         feedback[name] = ArrayList()
         toGuest[name] = ArrayDeque()
@@ -88,6 +100,16 @@ class Court(
     }
 
     fun heartbeat() = fromHost(host.heartbeat())
+
+    fun deviceId(name: String): Long = deviceIds.getValue(name)
+
+    /** The host lets [name] score, or makes it view-only. */
+    fun allow(name: String, allowed: Boolean) = fromHost(host.setCanScore(deviceId(name), allowed))
+
+    /** The host lets every guest score, or makes them all view-only. */
+    fun allowEveryone(allowed: Boolean) = fromHost(host.setGuestsCanScore(allowed))
+
+    fun rename(roster: Roster) = fromHost(host.updateRoster(roster))
 
     /** The host closes the court. */
     fun endSession() = fromHost(host.endSession())

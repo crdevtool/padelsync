@@ -28,7 +28,7 @@ class MatchRecord(
 
     /** The final scoreboard. */
     val score: ScoreView
-        get() = ScoreView.of(snapshot.state)
+        get() = ScoreView.of(snapshot)
 
     val durationMillis: Long
         get() = (finishedAtMillis - startedAtMillis).coerceAtLeast(0)
@@ -57,7 +57,8 @@ object MatchHistory {
     /** Oldest records beyond this many are dropped. */
     const val MAX_RECORDS = 200
 
-    private const val FORMAT_VERSION = 1
+    /** 2: records carry player names and the options added with them. */
+    private const val FORMAT_VERSION = 2
 
     /** Adds [record] at the front, replacing any earlier record of the same match. */
     fun add(records: List<MatchRecord>, record: MatchRecord): List<MatchRecord> =

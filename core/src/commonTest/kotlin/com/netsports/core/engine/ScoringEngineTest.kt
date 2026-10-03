@@ -425,4 +425,158 @@ class ScoringEngineTest {
             padel.copy(bestOf = 1, finalSetRule = FinalSetRule.MATCH_TIEBREAK)
         }
     }
+
+    // --- Play every set ----------------------------------------------------
+
+    private val social = padel.copy(playAllSets = true)
+
+    @Test
+    fun withPlayAllSetsTheMatchGoesOnAfterItIsDecided() {
+        var state = winSet(winSet(ScoringEngine.start(social), Team.A), Team.A)
+        assertFalse(state.isComplete)
+        assertNull(state.winner)
+        assertEquals(Team.A, state.decidedWinner)
+        assertEquals(3, state.currentSetNumber)
+        // The extra set is an ordinary set, not a match tiebreak.
+        assertEquals(GameKind.STANDARD, state.gameKind)
+
+        state = winSet(state, Team.B)
+        assertTrue(state.isComplete)
+        assertEquals(Team.A, state.winner)
+        assertEquals(listOf(Team.A, Team.A, Team.B), state.completedSets.map { it.winner })
+    }
+
+    @Test
+    fun withPlayAllSetsADecidingSetStillFollowsTheFinalSetRule() {
+        val config = social.copy(finalSetRule = FinalSetRule.MATCH_TIEBREAK)
+        val level = winSet(winSet(ScoringEngine.start(config), Team.A), Team.B)
+        assertNull(level.decidedWinner)
+        assertEquals(GameKind.MATCH_TIEBREAK, level.gameKind)
+
+        // But at two sets to love the third set is a full set.
+        val decided = winSet(winSet(ScoringEngine.start(config), Team.B), Team.B)
+        assertEquals(GameKind.STANDARD, decided.gameKind)
+        val done = winSet(decided, Team.A)
+        assertEquals(Team.B, done.winner)
+    }
+
+    @Test
+    fun withPlayAllSetsMatchPointIsThePointThatDecidesTheMatch() {
+        // 6-0, 5-0, 40-0: the next point decides the match for A.
+        val beforeDecision = play(winGames(winSet(ScoringEngine.start(social), Team.A), Team.A, 5), "AAA")
+        assertEquals(PointStake.MATCH_POINT, ScoringEngine.stakeFor(beforeDecision, Team.A))
+
+        // In the set played afterwards the last point is only a set point.
+        val lastSet = play(winGames(winSet(winSet(ScoringEngine.start(social), Team.A), Team.A), Team.B, 5), "BBB")
+        assertEquals(PointStake.SET_POINT, ScoringEngine.stakeFor(lastSet, Team.B))
+        assertEquals(PointStake.NONE, ScoringEngine.stakeFor(lastSet, Team.A))
+    }
+
+    @Test
+    fun withoutPlayAllSetsNothingChanges() {
+        val state = winSet(winSet(ScoringEngine.start(padel), Team.A), Team.A)
+        assertTrue(state.isComplete)
+        assertEquals(Team.A, state.winner)
+        assertEquals(Team.A, state.decidedWinner)
+    }
+
+    @Test
+    fun aFiveSetMatchPlaysAllFive() {
+        var state = ScoringEngine.start(social.copy(bestOf = 5))
+        for (winner in listOf(Team.B, Team.B, Team.B, Team.A)) {
+            state = winSet(state, winner)
+            assertFalse(state.isComplete)
+        }
+        state = winSet(state, Team.A)
+        assertEquals(Team.B, state.winner)
+    }
+
+    // --- Serving -------------------------------------------------------------
+
+    @Test
+    fun theServeStartsOnTheRightAndAlternates() {
+        var state = ScoringEngine.start(padel)
+        for (side in listOf(ServeSide.RIGHT, ServeSide.LEFT, ServeSide.RIGHT, ServeSide.LEFT)) {
+            assertEquals(side, state.serveSide)
+            state = play(state, "A")
+        }
+        // New game: back to the right.
+        assertEquals(ServeSide.RIGHT, state.serveSide)
+    }
+
+    @Test
+    fun inDoublesTheFourPlayersServeInRotation() {
+        var state = ScoringEngine.start(padel)
+        val order = ArrayList<String>()
+        repeat(7) {
+            order += "${state.server}${state.serverPlayerIndex()}"
+            state = winGame(state, Team.A)
+        }
+        // The seventh game opens the next set, where the rotation starts again.
+        assertEquals(listOf("A0", "B0", "A1", "B1", "A0", "B0", "A0"), order)
+    }
+
+    @Test
+    fun swappingATeamsOrderMovesOnlyThatTeam() {
+        val state = ScoringEngine.start(padel)
+        assertEquals(0, state.serverPlayerIndex(flipped = false))
+        assertEquals(1, state.serverPlayerIndex(flipped = true))
+        val third = winGames(state, Team.A, 2)
+        assertEquals(1, third.serverPlayerIndex(flipped = false))
+        assertEquals(0, third.serverPlayerIndex(flipped = true))
+    }
+
+    @Test
+    fun singlesAlwaysHasOneServer() {
+        var state = ScoringEngine.start(tennis)
+        repeat(5) {
+            assertEquals(0, state.serverPlayerIndex())
+            assertEquals(0, state.serverPlayerIndex(flipped = true))
+            state = winGame(state, Team.B)
+        }
+    }
+
+    @Test
+    fun aTiebreakCarriesTheRotationOn() {
+        var state = reachGamesAll(ScoringEngine.start(padel))
+        assertEquals(GameKind.TIEBREAK, state.gameKind)
+        // After B1 served game 12, the tiebreak goes A0, then B0 B0, A1 A1, B1 B1, A0 A0.
+        val order = ArrayList<String>()
+        repeat(9) {
+            order += "${state.server}${state.serverPlayerIndex()}"
+            state = play(state, if (it % 2 == 0) "A" else "B")
+        }
+        assertEquals(listOf("A0", "B0", "B0", "A1", "A1", "B1", "B1", "A0", "A0"), order)
+    }
+
+    @Test
+    fun endsChangeAfterOddGamesAndEverySixTiebreakPoints() {
+        var state = ScoringEngine.start(padel)
+        assertFalse(state.changeEnds)
+        val changes = ArrayList<Boolean>()
+        repeat(4) {
+            state = winGame(state, Team.A)
+            changes += state.changeEnds
+        }
+        assertEquals(listOf(true, false, true, false), changes)
+        // Not in the middle of a game.
+        assertFalse(play(winGame(ScoringEngine.start(padel), Team.A), "A").changeEnds)
+
+        // 6-0 is an even set: no change into the next set. 6-1 is odd: change.
+        assertFalse(winSet(ScoringEngine.start(padel), Team.A).changeEnds)
+        val sixOne = winGames(winGame(ScoringEngine.start(padel), Team.B), Team.A, 6)
+        assertEquals(1, sixOne.completedSets.size)
+        assertTrue(sixOne.changeEnds)
+
+        var tiebreak = reachGamesAll(ScoringEngine.start(padel))
+        val tiebreakChanges = ArrayList<Int>()
+        repeat(12) {
+            tiebreak = play(tiebreak, if (it % 2 == 0) "A" else "B")
+            if (tiebreak.changeEnds) tiebreakChanges += tiebreak.pointsA + tiebreak.pointsB
+        }
+        assertEquals(listOf(6, 12), tiebreakChanges)
+
+        // Never once the match is over.
+        assertFalse(winSet(winSet(ScoringEngine.start(padel), Team.A), Team.A).changeEnds)
+    }
 }

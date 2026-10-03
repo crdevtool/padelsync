@@ -76,4 +76,36 @@ class SessionsTest {
         assertNotEquals(0L, first)
         assertNotEquals(first, second)
     }
+
+    @Test
+    fun theSocialPadelOptionsCanBeSet() {
+        val config = Sessions.config(Sport.PADEL, 3, DeuceRule.GOLDEN_POINT, FinalSetRule.SAME_AS_OTHER_SETS, Team.A, true, true)
+        assertEquals(MatchConfig.padel().copy(playAllSets = true), config)
+        val singles = Sessions.config(Sport.TENNIS, 3, DeuceRule.ADVANTAGE, FinalSetRule.SAME_AS_OTHER_SETS, Team.A, false, false)
+        assertEquals(MatchConfig.tennis(), singles)
+    }
+
+    @Test
+    fun aRosterIsBuiltFromFormFields() {
+        val roster = Sessions.roster(" Ana ", "", "Mia", "Sam")
+        assertEquals(listOf("Ana"), roster.teamA)
+        assertEquals(listOf("Mia", "Sam"), roster.teamB)
+        assertEquals(com.netsports.core.match.Roster.EMPTY, Sessions.roster("", "  ", "", ""))
+    }
+
+    @Test
+    fun aHostedMatchCarriesNamesAndTheScoringRule() {
+        val roster = Sessions.roster("Ana", "Leo", "Mia", "Sam")
+        val host = Sessions.host(MatchConfig.padel(), roster, 1, Sessions.NO_CODE, false, 0)
+        val guest = Sessions.guest(2, "Watch", DeviceKind.WATCH, Sessions.NO_CODE)
+        connect(host, guest)
+        assertEquals(roster, guest.confirmed?.roster)
+        assertEquals(false, guest.canScore)
+
+        // Names survive closing and reopening the app.
+        val resumed = Sessions.resumeHost(host.savedState(), 1, Sessions.NO_CODE, true, 5)
+        assertNotNull(resumed)
+        assertEquals(roster, resumed.snapshot().roster)
+        assertEquals(true, resumed.guestsCanScore)
+    }
 }

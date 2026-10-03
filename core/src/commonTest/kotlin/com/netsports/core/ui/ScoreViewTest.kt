@@ -1,5 +1,8 @@
 package com.netsports.core.ui
 
+import com.netsports.core.engine.ServeSide
+import com.netsports.core.match.MatchSnapshot
+import com.netsports.core.match.Roster
 import com.netsports.core.engine.FinalSetRule
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.ScoringEngine
@@ -116,5 +119,97 @@ class ScoreViewTest {
         state = play(state, "A".repeat(8) + "B".repeat(10))
         assertEquals("7-6(5) 0-6 [8-10]", ScoreView.of(state).setSummary)
         assertEquals(Team.B, ScoreView.of(state).winner)
+    }
+
+    // --- Names, server and deciding the match -------------------------------
+
+    private val roster = Roster(listOf("Ana", "Leo"), listOf("Mia", "Sam"))
+
+    @Test
+    fun withoutNamesTeamsAreCalledAAndB() {
+        val view = view(padel, "")
+        assertEquals("Team A", view.nameA)
+        assertEquals("Team B", view.nameB)
+        assertEquals("Team A", view.serverName)
+        assertTrue(view.playersA.isEmpty())
+        assertTrue(view.doubles)
+        assertFalse(view(tennis, "").doubles)
+    }
+
+    @Test
+    fun namesAndTheServingPlayerAreShown() {
+        val start = ScoreView.of(ScoringEngine.start(padel), roster)
+        assertEquals("Ana & Leo", start.nameA)
+        assertEquals("Mia & Sam", start.nameB)
+        assertEquals("Ana", start.serverName)
+        assertEquals(ServeSide.RIGHT, start.serveSide)
+
+        val afterOnePoint = ScoreView.of(play(ScoringEngine.start(padel), "B"), roster)
+        assertEquals("Ana", afterOnePoint.serverName)
+        assertEquals(ServeSide.LEFT, afterOnePoint.serveSide)
+
+        val secondGame = ScoreView.of(play(ScoringEngine.start(padel), "AAAA"), roster)
+        assertEquals(Team.B, secondGame.server)
+        assertEquals("Mia", secondGame.serverName)
+
+        val thirdGame = ScoreView.of(play(ScoringEngine.start(padel), "AAAAAAAA"), roster)
+        assertEquals("Leo", thirdGame.serverName)
+        assertEquals(1, thirdGame.serverPlayerIndex)
+    }
+
+    @Test
+    fun aSwappedOrderShowsTheOtherPlayer() {
+        val state = ScoringEngine.start(padel)
+        assertEquals("Leo", ScoreView.of(state, roster, serveFlipA = true).serverName)
+        // Team B's swap does not affect team A's game.
+        assertEquals("Ana", ScoreView.of(state, roster, serveFlipB = true).serverName)
+        val snapshot = MatchSnapshot(1, 1, 5, padel, List(4) { Team.A }, roster = roster, serveFlipB = true)
+        assertEquals("Sam", ScoreView.of(snapshot).serverName)
+    }
+
+    @Test
+    fun aHalfNamedTeamFallsBackToTheTeamNameForTheUnnamedPlayer() {
+        val partial = Roster(listOf("Ana"), emptyList())
+        val thirdGame = ScoreView.of(play(ScoringEngine.start(padel), "AAAAAAAA"), partial)
+        assertEquals("Ana", thirdGame.nameA)
+        assertEquals("Ana", thirdGame.serverName)
+        val secondGame = ScoreView.of(play(ScoringEngine.start(padel), "AAAA"), partial)
+        assertEquals("Team B", secondGame.serverName)
+    }
+
+    @Test
+    fun nothingIsServedOnceTheMatchIsOver() {
+        val done = ScoreView.of(winSet(winSet(ScoringEngine.start(padel), Team.A), Team.A), roster)
+        assertNull(done.server)
+        assertNull(done.serverName)
+        assertNull(done.serveSide)
+        assertEquals(2, done.setNumber)
+    }
+
+    @Test
+    fun aDecidedMatchStillBeingPlayedIsNotYetWon() {
+        val social = padel.copy(playAllSets = true)
+        val decided = ScoreView.of(winSet(winSet(ScoringEngine.start(social), Team.A), Team.A), roster)
+        assertNull(decided.winner)
+        assertEquals(Team.A, decided.decidedWinner)
+        assertEquals(Highlight.NONE, decided.highlight)
+        assertEquals(3, decided.setNumber)
+        assertEquals("6-0 6-0", decided.setSummary)
+
+        val matchPoint = ScoreView.of(play(winGames(winSet(ScoringEngine.start(social), Team.A), Team.A, 5), "AAA"))
+        assertEquals(Highlight.MATCH_POINT, matchPoint.highlight)
+        assertEquals(Team.A, matchPoint.highlightTeam)
+
+        val lastSetPoint = ScoreView.of(
+            play(winGames(winSet(winSet(ScoringEngine.start(social), Team.A), Team.A), Team.B, 5), "BBB"),
+        )
+        assertEquals(Highlight.SET_POINT, lastSetPoint.highlight)
+        assertEquals(Team.B, lastSetPoint.highlightTeam)
+    }
+
+    @Test
+    fun changeEndsIsFlagged() {
+        assertTrue(view(padel, "AAAA").changeEnds)
+        assertFalse(view(padel, "AAAAA").changeEnds)
     }
 }

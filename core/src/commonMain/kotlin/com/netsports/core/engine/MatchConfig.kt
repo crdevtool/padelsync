@@ -24,6 +24,13 @@ data class MatchConfig(
     val matchTiebreakPoints: Int = 10,
     /** Team serving the first game of the match. */
     val firstServer: Team = Team.A,
+    /**
+     * Play every set even after one team has won the match, as is common in
+     * social padel. The winner is still the team with more sets.
+     */
+    val playAllSets: Boolean = false,
+    /** Two players a side. Only affects which player is shown as serving. */
+    val doubles: Boolean = false,
 ) {
     init {
         require(bestOf == 1 || bestOf == 3 || bestOf == 5) { "bestOf must be 1, 3 or 5, was $bestOf" }
@@ -44,7 +51,8 @@ data class MatchConfig(
         const val MAX_TARGET = 99
 
         /** Common club padel format: best of 3, golden point, tiebreak at 6-6. */
-        fun padel(): MatchConfig = MatchConfig(sport = Sport.PADEL, deuceRule = DeuceRule.GOLDEN_POINT)
+        fun padel(): MatchConfig =
+            MatchConfig(sport = Sport.PADEL, deuceRule = DeuceRule.GOLDEN_POINT, doubles = true)
 
         /** Standard tennis format: best of 3, advantage, tiebreak at 6-6. */
         fun tennis(): MatchConfig = MatchConfig(sport = Sport.TENNIS)

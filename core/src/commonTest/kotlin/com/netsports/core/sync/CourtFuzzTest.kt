@@ -2,7 +2,9 @@ package com.netsports.core.sync
 
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.ScoringEngine
+import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
+import com.netsports.core.match.Roster
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -43,7 +45,12 @@ class CourtFuzzTest {
                 in 90..91 -> court.dropOneTo(name)
                 in 92..93 -> court.disconnect(name)
                 in 94..96 -> if (!court.isLinked(name)) court.connect(name)
-                in 97..98 -> court.heartbeat()
+                97 -> court.heartbeat()
+                98 -> when (random.nextInt(4)) {
+                    0 -> court.allowEveryone(random.nextBoolean())
+                    1 -> court.rename(Roster.of(listOf("Ana", "Leo ${random.nextInt(9)}"), listOf("Mia")))
+                    else -> court.allow(name, random.nextBoolean())
+                }
                 else -> if (court.host.state.isComplete) court.newMatch(MatchConfig.tennis())
             }
 
@@ -76,12 +83,18 @@ class CourtFuzzTest {
             assertEquals(0, guest.pendingCount, "seed $seed: $name still has unresolved taps")
             assertEquals(court.host.state, guest.displayState, "seed $seed: $name")
             assertEquals(8, guest.deviceCount, "seed $seed: $name")
+            assertEquals(court.host.canScore(court.deviceId(name)), guest.canScore, "seed $seed: $name permission")
+            for (team in Team.entries) {
+                assertEquals(expected.serveFlip(team), guest.displayServeFlip(team), "seed $seed: $name serve order")
+            }
         }
     }
 
-    private fun randomAction(random: Random): Action = when (random.nextInt(10)) {
-        in 0..4 -> Action.POINT_A
-        in 5..8 -> Action.POINT_B
+    private fun randomAction(random: Random): Action = when (random.nextInt(20)) {
+        in 0..8 -> Action.POINT_A
+        in 9..16 -> Action.POINT_B
+        17 -> Action.SWAP_SERVER_A
+        18 -> Action.SWAP_SERVER_B
         else -> Action.UNDO
     }
 }
