@@ -14,8 +14,9 @@ captures/
 xcuserdata/
 DerivedData/
 *.xcworkspace/xcuserdata/
-ios/**/*.xcodeproj/project.xcworkspace/
-ios/Frameworks/
+apple/*.xcodeproj/
+apple/Frameworks/
+apple/*/Info.plist
 
 # OS
 .DS_Store

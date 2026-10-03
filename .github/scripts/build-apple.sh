@@ -10,9 +10,10 @@ xcodebuild -showsdks | grep -iE "ios|watch" || true
 echo "== Shared core (simulator slices) =="
 ./gradlew :core:linkDebugFrameworkIosSimulatorArm64 :core:linkDebugFrameworkWatchosSimulatorArm64 --stacktrace
 
-# Package the two slices the way the Xcode project expects to find them. A
-# full build for real devices uses :core:assemblePadelSyncCoreDebugXCFramework.
-out=core/build/XCFrameworks/debug
+# Package the two slices where the Xcode project looks for the core. A full
+# build, with real devices, uses :core:assemblePadelSyncCoreDebugXCFramework
+# and apple/use-core.sh.
+out=apple/Frameworks
 rm -rf "$out" && mkdir -p "$out"
 xcodebuild -create-xcframework \
   -framework core/build/bin/iosSimulatorArm64/debugFramework/PadelSyncCore.framework \
@@ -23,18 +24,22 @@ echo "== Xcode project =="
 command -v xcodegen >/dev/null || brew install xcodegen
 xcodegen generate --spec apple/project.yml
 
+# build scheme destination products-folder
+# The destination alone picks the simulator. Naming an SDK as well would
+# force it on the watch app too, which is built along with the iPhone app.
 build() {
   # Prints errors in full and keeps the rest of xcodebuild's output short.
-  xcodebuild -project apple/PadelSync.xcodeproj -scheme "$1" -sdk "$2" -destination "$3" \
+  xcodebuild -project apple/PadelSync.xcodeproj -scheme "$1" -destination "$2" \
     -configuration Debug -derivedDataPath build/apple \
     CODE_SIGNING_ALLOWED=NO build 2>&1 \
     | grep -E "error|warning: unre|BUILD|\*\*|Undefined|ld:|note: " | grep -v "^note: Using" || true
   # grep hides xcodebuild's own status; check for the product instead.
-  test -d "build/apple/Build/Products/Debug-$4/$5.app"
+  test -d "build/apple/Build/Products/Debug-$3/$1.app"
 }
 
-echo "== iPhone app =="
-build PadelSync iphonesimulator "generic/platform=iOS Simulator" iphonesimulator PadelSync
+echo "== iPhone app, with the watch app inside it =="
+build PadelSync "generic/platform=iOS Simulator" iphonesimulator
+bash .github/scripts/check-apple-app.sh build/apple/Build/Products/Debug-iphonesimulator/PadelSync.app
 
 echo "== Package the iPhone simulator build =="
 # A zipped simulator build can be uploaded to a browser-based simulator
@@ -46,7 +51,7 @@ if [ -n "${GH_TOKEN:-}" ]; then
 fi
 
 echo "== Apple Watch app =="
-build PadelSyncWatch watchsimulator "generic/platform=watchOS Simulator" watchsimulator PadelSyncWatch
+build PadelSyncWatch "generic/platform=watchOS Simulator" watchsimulator
 
 mkdir -p shots
 
@@ -145,7 +150,7 @@ raise SystemExit(1)
   xcrun simctl io "$udid" screenshot "shots/$4.png"
   # A crashed app is no longer in the list of running services.
   local alive=1
-  if xcrun simctl spawn "$udid" launchctl list | grep -q "$3"; then
+  if xcrun simctl spawn "$udid" launchctl list | grep -qF "$3"; then
     echo "RUNNING: $3 is alive on the simulator"
   else
     echo "NOT RUNNING: $3 did not start, or exited after launch"
@@ -158,9 +163,9 @@ raise SystemExit(1)
 # An app that does not stay up on its simulator fails the job, after both have been tried.
 status=0
 run_on_simulator "iPhone" build/apple/Build/Products/Debug-iphonesimulator/PadelSync.app \
-  com.padelsync.app iphone-match || status=1
+  com.crdevtool.padelsync iphone-match || status=1
 run_on_simulator "Apple Watch" build/apple/Build/Products/Debug-watchsimulator/PadelSyncWatch.app \
-  com.padelsync.app.watchkitapp watch-match || status=1
+  com.crdevtool.padelsync.watchkitapp watch-match || status=1
 
 echo "== Done =="
 exit "$status"
