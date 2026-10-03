@@ -9,13 +9,22 @@ internet and no account.
 
 | Part | State |
 | --- | --- |
-| Shared rules and sync core | Built and tested (127 tests) |
-| Android phone app | Builds; runs on an emulator; **not yet tried on real devices** |
-| Wear OS watch app | Builds; runs on an emulator; **not yet tried on real devices** |
-| iPhone app | Written; see the Actions tab for whether it compiles |
-| Apple Watch app | Written; see the Actions tab for whether it compiles |
-| Bluetooth sync between real devices | **Untested.** Emulators have no usable Bluetooth, so this needs real hardware. |
-| Match history and stats | Not built yet |
+| Shared rules and sync core | Built and tested (140 automated tests) |
+| Android phone app | Builds and runs on an emulator. Not yet tried on a real phone. |
+| Wear OS watch app | Builds and runs on an emulator. Not yet tried on a real watch. |
+| iPhone app | Builds for simulator and device, and runs on a simulator. Not yet tried on a real iPhone. |
+| Apple Watch app | Builds for simulator and device, and runs on a simulator. Not yet tried on a real watch. |
+| Sync between Android devices | Passes an automated test between two emulators over simulated Bluetooth (see below). **Not yet tried on real hardware.** |
+| Sync involving Apple devices | **Untested.** Apple simulators have no Bluetooth, so this needs a real iPhone or Apple Watch. |
+| Match history | On the phone apps. Not on the watch apps yet. |
+
+The emulator sync test hosts a court on one device and joins it from another.
+It checks that a point scored on either device appears on both, that undo
+works across devices, that the same rally scored on both devices counts once,
+that a device can leave and rejoin, and that guests are told when the host
+closes the court. Real radios, real distances and real watches can still
+behave differently, so treat this as "the logic and the Bluetooth plumbing
+work", not as "it is proven on a court".
 
 ## Try it on Android
 
