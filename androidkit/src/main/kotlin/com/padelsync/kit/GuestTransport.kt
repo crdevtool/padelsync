@@ -279,7 +279,7 @@ internal class GuestLink(
                 }
                 up = true
                 retryDelayMs = FIRST_RETRY_MS
-                listener.onLinkUp(mtu - ATT_HEADER)
+                listener.onLinkUp(CourtUuids.packetSizeFor(mtu))
             }
         }
 
@@ -306,7 +306,7 @@ internal class GuestLink(
 
         // Android 12 and older.
         @Deprecated("Replaced on Android 13 by the overload that carries the value.")
-        @Suppress("DEPRECATION")
+        @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
             deliver(g, characteristic, characteristic.value?.copyOf() ?: return)
         }
@@ -328,7 +328,6 @@ internal class GuestLink(
     private companion object {
         const val DEFAULT_MTU = 23
         const val REQUESTED_MTU = 517
-        const val ATT_HEADER = 3
         const val FIRST_RETRY_MS = 500L
         const val MAX_RETRY_MS = 4_000L
     }

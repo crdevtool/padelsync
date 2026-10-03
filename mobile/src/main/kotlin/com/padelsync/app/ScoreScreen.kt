@@ -174,8 +174,8 @@ private fun Scoreboard(
         )
 
         MiddleStrip(
-            highlight = note ?: Labels.highlight(score, ui.config) ?: ui.error,
-            isWarning = note != null || (Labels.highlight(score, ui.config) == null && ui.error != null),
+            highlight = note ?: Labels.highlight(score, ui.config),
+            isWarning = note != null,
             setSummary = score.setSummary,
             canUndo = score.canUndo,
             onUndo = { tap(Action.UNDO) },
@@ -219,6 +219,7 @@ private fun StatusBar(
     var menuOpen by remember { mutableStateOf(false) }
 
     val (status, statusColor) = when {
+        ui.error != null -> ui.error.orEmpty() to Palette.Danger
         hosting && ui.courtOpen ->
             "Court open · Code ${ui.joinCode} · ${devices(ui.deviceCount)}" to Palette.Accent
         hosting -> "This device only" to Palette.Muted

@@ -21,4 +21,11 @@ object CourtUuids {
 
     /** Longest host label that fits in the advertisement, in UTF-8 bytes. */
     const val MAX_LABEL_BYTES = 12
+
+    /**
+     * Most payload bytes one packet may carry on a link with the given ATT
+     * MTU: the MTU less the 3-byte ATT header, and never more than the 512
+     * bytes Bluetooth allows for a single attribute value.
+     */
+    fun packetSizeFor(mtu: Int): Int = (mtu - 3).coerceIn(20, 512)
 }

@@ -249,7 +249,7 @@ internal class HostTransport(
             handler.post {
                 mtus[device.address] = mtu
                 if (ready.containsKey(device.address)) {
-                    listener.onGuestPacketSize(device.address, mtu - ATT_HEADER)
+                    listener.onGuestPacketSize(device.address, CourtUuids.packetSizeFor(mtu))
                 }
             }
         }
@@ -265,7 +265,7 @@ internal class HostTransport(
         ) {
             val packet = value?.copyOf()
             handler.post {
-                val accepted = characteristic.uuid == CourtUuids.TO_HOST && !preparedWrite && offset == 0 && packet != null
+                val accepted = characteristic.uuid == CourtUuids.TO_HOST && !preparedWrite && offset == 0
                 if (responseNeeded) {
                     respond(device, requestId, if (accepted) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_FAILURE)
                 }
@@ -293,7 +293,7 @@ internal class HostTransport(
                 val enabled = written != null && written.isNotEmpty() && (written[0].toInt() and 0x03) != 0
                 if (enabled) {
                     ready[device.address] = device
-                    listener.onGuestReady(device.address, (mtus[device.address] ?: DEFAULT_MTU) - ATT_HEADER)
+                    listener.onGuestReady(device.address, CourtUuids.packetSizeFor(mtus[device.address] ?: DEFAULT_MTU))
                 } else {
                     guestGone(device.address)
                 }
@@ -336,9 +336,6 @@ internal class HostTransport(
 
     private companion object {
         const val DEFAULT_MTU = 23
-
-        /** Bytes of every ATT packet that are not payload. */
-        const val ATT_HEADER = 3
         const val SEND_TIMEOUT_MS = 2_000L
     }
 }
