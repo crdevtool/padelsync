@@ -96,16 +96,57 @@ different ports. Mixing them up is the usual reason this fails.
 The ports change whenever Wireless debugging is switched off and on, so
 read them fresh each time. Pairing is remembered.
 
-## 4. Trying the sync
+## 4. Updating from an earlier test build
 
-1. On one device, start a match, open the menu and choose **Play with
-   others**. A 4-digit code appears.
-2. On the other device, choose **Join a court**, pick the court, and enter
+Install the new files over the old ones; nothing needs uninstalling first:
+
+```powershell
+adb install -r PadelSync-phone.apk
+adb install -r PadelSync-watch.apk
+```
+
+Update the phone **and** the watch. The two builds talk a newer version of
+the sync protocol, so an old watch cannot join a new phone's court: it is
+told "this court uses a different version of the app". Match history saved by
+the earlier build is not carried over.
+
+## 5. Trying the sync
+
+1. On the phone choose **Host a match**, set the match up and tap **Start
+   and open the court**. A 4-digit code appears at the top of the scoreboard.
+2. On the other device choose **Join a court**, pick the court, and enter
    the code.
 
-Allow the Bluetooth permission on both devices when asked.
+Allow the Bluetooth permission on both devices when asked. A match started
+with **New match** stays on that phone; it can be opened to others later from
+**Menu > Play with others**.
 
-## 5. iPhone app, from a Windows computer
+## 6. What to try in this build
+
+| Feature | Where |
+| --- | --- |
+| Player names, singles or doubles | Setup screen. Names are optional and can be corrected mid-match from **Menu > Players**. The last names used are remembered. |
+| Play all sets | Setup screen, **Play all 3 sets**: on by default for padel. At two sets to love the app announces the winners and carries on with the third set. |
+| Court scoreboard | Team A plays the top half, team B the bottom. Tap a half to score for it. |
+| Serve side and server | The ball marker sits on the side the server stands on and names the player; the box the serve must land in is lit. If the app has the wrong player of a pair serving, use **Menu > Swap server**. |
+| Who can score | Hosting only. **Others can score** on the setup screen, then per device in **Menu > Who can score**. A view-only device shows the score but its taps do not count. |
+| Voice | **Call the score out loud** on the setup screen; details in **Menu > Voice**: every point, games and sets, big points, who serves, change ends, and a full-score reminder every 2, 5 or 10 minutes. It uses the media volume. By default only the host's phone speaks. |
+| End of match | Confetti, the winners, set scores, points won, breaks of serve, best run, **Share the result** and **Rematch**. |
+| During play | A banner for each game and set, a flash on the half that won the point, a "3 in a row" badge, a change-ends call, and a match clock. |
+
+On the watch: short names (`A+L`), the server and side on the middle strip
+(`LEO · R`), a winner screen, and **Voice** and **Others can score** switches
+in the menu.
+
+The voice speaks English. It needs a text-to-speech voice on the device,
+which nearly every Android phone has; many watches do not, and the watch
+then stays silent.
+
+## 7. iPhone app, from a Windows computer
+
+The iPhone build here is the earlier version: it does not have the features
+in section 6 yet and cannot join a court hosted by the current Android apps.
+It will be brought up to date once the Android version is final.
 
 Apple's iOS Simulator only runs on a Mac, so there are two ways to see the
 iPhone app from Windows.
