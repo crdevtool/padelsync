@@ -143,12 +143,15 @@ else
   else
     problem "the bundle is signed with a different key than the one given"
   fi
-  apk_signer=$("$tools/apksigner" verify --print-certs "$apk" 2>/dev/null \
-    | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | bare || true)
+  # apksigner words the line differently from version to version; the
+  # fingerprint is whatever follows "certificate SHA-256 digest:".
+  apk_report=$("$tools/apksigner" verify --print-certs "$apk" 2>&1 || true)
+  apk_signer=$(printf '%s\n' "$apk_report" | sed -n 's/^.*certificate SHA-256 digest: //p' | head -1 | bare || true)
   if [ "$apk_signer" = "$want" ]; then
     echo "ok: the APK of the same build is signed with the upload key"
   else
-    problem "the APK of the same build is not signed with the upload key"
+    problem "the APK of the same build is not signed with the upload key. apksigner says:"
+    printf '%s\n' "$apk_report" | head -8
   fi
 fi
 

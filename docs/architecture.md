@@ -303,8 +303,9 @@ silent: with Location off, such a device relies on the direct reconnect.
 - A first real TestFlight upload. The release workflow is in place (section
   8) but has never run with signing, because the Apple developer account is
   not enrolled yet.
-- A Google Play release, which needs a release signing key and a Play
-  account.
+- A first real Google Play upload. The signed bundles and their workflow are
+  in place (section 9), but the upload key and the Play account are yours to
+  create.
 
 ## 8. App identifiers and releasing to TestFlight
 
@@ -435,3 +436,160 @@ Neither way has run yet, because the developer account is not enrolled.
 
 The icon is the Android launcher icon redrawn at 1024 pixels: a placeholder
 until there is real artwork.
+
+## 9. Releasing to Google Play
+
+The phone app and the Wear OS app are published as one Play app,
+`com.crdevtool.padelsync`, from two separate app bundles (`.aab`). The
+workflow builds and signs both; uploading them is done by hand in Play
+Console.
+
+### Version numbers
+
+Play keeps one list of version codes per app ID, shared by the phone and the
+watch, and refuses a code it has seen. So the two apps take their codes from
+one release number:
+
+| | Version code | Release 7 | Release 8 |
+| --- | --- | --- | --- |
+| Phone app | release number x 10 + 1 | 71 | 81 |
+| Wear OS app | release number x 10 + 2 | 72 | 82 |
+
+The release number is the workflow's run number, so it rises by itself. The
+watch's code is the higher of each pair, so a watch that could be offered
+both is given the watch app. The version name players see is
+`padelsync.versionName` in `gradle.properties`; raise it there. The logic is
+in `buildSrc/src/main/kotlin/PlayRelease.kt`. Builds made without a release
+number, which includes every debug build, are release 0: codes 1 and 2.
+
+### The upload key
+
+Google Play signs what players install with a key it keeps itself (Play App
+Signing). What you hold is the **upload key**: it proves that a bundle comes
+from you. It is created once, on your own computer, and never stored in this
+repository.
+
+Create it on Windows, in PowerShell, with the `keytool` that comes with
+Android Studio:
+
+```powershell
+& "C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe" -genkeypair -v -storetype PKCS12 -keystore "$HOME\padelsync-upload.jks" -alias padelsync-upload -keyalg RSA -keysize 4096 -validity 10000
+```
+
+It asks for a password (twice), then for your name, organisation, city and
+two-letter country code, then for `yes` to confirm. The file appears as
+`padelsync-upload.jks` in your user folder, outside the project on purpose.
+With this kind of keystore the key has no password of its own: its password
+is the keystore's.
+
+**Back the keystore and its password up, in two places that are not this
+computer** (a password manager that stores files, and an offline copy). If
+either is lost, no further update can be uploaded until Google has reset the
+upload key, which is a support request that takes days. If the file is ever
+exposed, ask for the same reset.
+
+Then add four repository secrets on GitHub (Settings > Secrets and variables
+> Actions):
+
+| Secret | Value |
+| --- | --- |
+| `PLAY_KEYSTORE_BASE64` | The keystore file as base64 text (command below) |
+| `PLAY_KEYSTORE_PASSWORD` | The password you chose |
+| `PLAY_KEY_ALIAS` | `padelsync-upload` |
+| `PLAY_KEY_PASSWORD` | The same password again |
+
+This copies the keystore to the clipboard as base64, ready to paste into the
+first secret:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$HOME\padelsync-upload.jks")) | Set-Clipboard
+```
+
+To build a signed release on your own computer instead, set
+`PLAY_KEYSTORE_FILE` to the keystore's path, with the same three other
+variables, and run `./gradlew :mobile:bundleRelease :wear:bundleRelease`.
+With none of the four set, a release build comes out unsigned. With only some
+set, the build stops and says which are missing. A release build is never
+signed with `debug.keystore`.
+
+### Building the bundles
+
+On GitHub: Actions > **Google Play release (bundles)** > Run workflow. It
+
+1. checks that the four secrets are set. If any is missing it says "Secrets
+   not configured", names the missing ones, and ends there;
+2. checks the key before building: that the keystore opens, that it holds the
+   named key, that the key can sign, and that it stays valid past October
+   2033, which Play requires. It prints the key's SHA-256 fingerprint, which
+   is not a secret and should match what Play Console shows as the upload
+   key certificate;
+3. builds both bundles and checks each one: app ID, version code, target API
+   level, launcher icon, not debuggable, signed with the upload key, and for
+   the watch that it declares itself a standalone watch app;
+4. offers `PadelSync-phone-<version>-<code>.aab` and
+   `PadelSync-watch-<version>-<code>.aab` as one download, at the bottom of
+   the run's page, for 30 days.
+
+"Release number" can be filled in to set the number by hand; it is only
+needed if the run number ever falls behind what Play has already seen.
+
+**Rehearsal on every CI run.** The CI workflow runs the same script with a
+throwaway key it makes on the spot (`release-play.sh rehearse`), so a change
+that breaks the release build is caught long before a release. CI's "build"
+option set to "release" runs the emulator tests on that build in place of the
+debug one.
+
+### What Play asks of an upload, and where it is
+
+| Need | Where |
+| --- | --- |
+| Phone app targets Android 16 (API 36) | `targetSdk` in `mobile/build.gradle.kts` |
+| Wear OS app targets Android 15 (API 35) or newer | `targetSdk` in `wear/build.gradle.kts` |
+| Launcher icon | `androidkit/src/main/res/mipmap-anydpi-v26/ic_launcher.xml`, used by both apps |
+| Wear OS: watch-only and standalone | `uses-feature android.hardware.type.watch` and `com.google.android.wearable.standalone` in `wear/src/main/AndroidManifest.xml` |
+| App bundles, signed, not debuggable | The release build type of both apps |
+| Readable crash reports | The release build is shrunk with R8; its mapping file travels inside each bundle |
+| Native libraries built for 16 KB memory pages | The apps have none of their own; the check fails if a library brings one that is not |
+
+The release build differs from the debug build in three ways: it is signed
+with the upload key, it cannot be debugged, and its code is shrunk and
+renamed by R8. The emulator tests are run on it to show that it behaves the
+same.
+
+### Uploading by hand
+
+Once, before the first upload: create the app in Play Console (All apps >
+Create app). The app ID is fixed by the first bundle uploaded.
+
+**Phone app, Internal testing track**
+
+1. Test and release > Testing > Internal testing > Create new release.
+2. On the first release, accept Play App Signing when asked.
+3. Upload `PadelSync-phone-<version>-<code>.aab`, give the release a name,
+   then Next > Save and publish.
+4. On the Testers tab, add the testers' Google accounts and send them the
+   opt-in link shown there.
+
+**Wear OS app, Wear OS track**
+
+1. Test and release > Advanced settings > Form factors > Add form factor >
+   Wear OS.
+2. Back on Internal testing, choose **Wear OS** in the form factor selector
+   at the top of the page, so that the release goes to the Wear OS track and
+   not the phone one. Create new release, upload
+   `PadelSync-watch-<version>-<code>.aab`, save and publish.
+3. Add at least one Wear OS screenshot to the store listing, and mention Wear
+   OS in the description; Play asks for both.
+4. In Advanced settings > Form factors, opt in to Wear OS and accept its
+   review policy. Wear OS releases are reviewed against the Wear OS quality
+   guidelines.
+
+Testers install both from the Play Store once they have opened the opt-in
+link: the phone app on the phone, the watch app from the Play Store on the
+watch.
+
+Play Console also asks for things that are not in this repository before a
+release can go beyond testing: a privacy policy address, the Data safety
+form, a declaration for the foreground service that keeps a court connected
+(type "connected device"), a content rating, and the store listing's icon,
+feature graphic and screenshots.

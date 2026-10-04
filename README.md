@@ -20,6 +20,7 @@ internet and no account.
 | Match history | On the phone apps. Not on the watch apps yet. |
 | Player names, play all sets, serve side and server, who can score, spoken score, result screen | On all four apps. |
 | TestFlight release | Workflow in place and rehearsed unsigned. **Never run with signing:** the Apple developer account is not enrolled yet. |
+| Google Play release | Signed app bundles for the phone and Wear OS apps, built by a workflow and rehearsed in CI with a throwaway key. **Never built with the real upload key, and nothing uploaded yet.** |
 
 The emulator sync test hosts a court on one device and joins it from another.
 It checks that a point scored on either device appears on both, that undo
@@ -47,6 +48,7 @@ core/         Shared rules, match record, sync protocol (Kotlin Multiplatform)
 androidkit/   Android Bluetooth layer shared by the phone and watch apps
 mobile/       Android phone app
 wear/         Wear OS watch app
+buildSrc/     Build logic shared by the two Android apps: version codes, release signing
 apple/        iPhone and Apple Watch apps (SwiftUI), generated with XcodeGen
 docs/         Architecture and the Bluetooth protocol
 ```
@@ -59,6 +61,7 @@ Android, on any computer with a JDK 17+ and the Android SDK:
 ./gradlew :core:jvmTest                 # run the shared tests
 ./gradlew :mobile:assembleDebug         # phone APK
 ./gradlew :wear:assembleDebug           # watch APK
+./gradlew :mobile:bundleRelease :wear:bundleRelease   # Play bundles (unsigned without the upload key)
 ```
 
 Apple, on a Mac with Xcode 16+:
@@ -110,6 +113,32 @@ unsigned, with no Apple account.
 
 Details and reasons are in
 [docs/architecture.md](docs/architecture.md), section 8.
+
+## Releasing to Google Play
+
+The phone app and the Wear OS app are one Play app, `com.crdevtool.padelsync`,
+uploaded as two bundles. Their version codes never collide: phone = release
+number x 10 + 1, watch = release number x 10 + 2.
+
+Create the upload keystore yourself (the `keytool` command is in
+[docs/architecture.md](docs/architecture.md), section 9), keep it out of the
+repository, and **back it up with its password**: if it is lost, no update
+can be uploaded until Google resets the upload key.
+
+Then add four repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `PLAY_KEYSTORE_BASE64` | The keystore file as base64 text |
+| `PLAY_KEYSTORE_PASSWORD` | The keystore's password |
+| `PLAY_KEY_ALIAS` | The key's name in the keystore |
+| `PLAY_KEY_PASSWORD` | The key's password |
+
+To build: Actions > **Google Play release (bundles)** > Run workflow. It
+builds, signs and checks both bundles and offers them as a download; with a
+secret missing it stops at the first step with "Secrets not configured".
+Nothing is uploaded automatically. The steps for uploading to the Internal
+testing track and to the Wear OS track are in section 9 as well.
 
 ## Documentation
 
