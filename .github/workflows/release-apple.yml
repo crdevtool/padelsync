@@ -94,4 +94,8 @@ jobs:
           BUILD_NUMBER: ${{ github.run_attempt == 1 && github.run_number || format('{0}.{1}', github.run_number, github.run_attempt) }}
           FULL_LOG: ${{ inputs.full_log }}
           ARCHIVE_SIGNING: ${{ inputs.archive_signing }}
-        run: bash .github/scripts/release-apple.sh upload
+        # The second script repeats the lines that say why a build failed
+        # as error notes at the top of the run's page.
+        run: |
+          set -o pipefail
+          bash .github/scripts/release-apple.sh upload 2>&1 | bash .github/scripts/annotate-failures.sh "Apple release"
