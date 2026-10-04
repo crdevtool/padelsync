@@ -75,16 +75,31 @@ function Stop-WithMessage([string]$message) {
 $oldestJava = 17
 $newestJava = 24
 
-# The major version of the Java installed in a folder, or 0 if it cannot be told.
+# Turns the start of a version such as 21.0.6 or 1.8.0 into its major number.
+function ConvertTo-JavaMajor([string]$first, [string]$second) {
+    $major = [int]$first
+    # Java 8 and older call themselves 1.8, 1.7, ...
+    if ($major -eq 1 -and $second) { $major = [int]$second }
+    return $major
+}
+
+# The major version of the Java installed in a folder, or 0 if it cannot be
+# told. The Java there is asked directly; the "release" file next to it is
+# only the fallback.
 function Get-JavaMajor([string]$javaHome) {
+    $exe = Join-Path (Join-Path $javaHome "bin") $(if ($onWindows) { "java.exe" } else { "java" })
+    if (Test-Path $exe) {
+        # Java prints its version to the error stream, which Windows
+        # PowerShell would otherwise treat as a failure of this script.
+        $ErrorActionPreference = "Continue"
+        $said = (& $exe -version 2>&1 | Out-String)
+        $ErrorActionPreference = "Stop"
+        if ($said -match 'version "(\d+)(\.(\d+))?') { return (ConvertTo-JavaMajor $Matches[1] $Matches[3]) }
+    }
     $release = Join-Path $javaHome "release"
-    if (-not (Test-Path $release)) { return 0 }
-    foreach ($line in Get-Content $release) {
-        if ($line -match '^JAVA_VERSION="?(\d+)(\.(\d+))?') {
-            $major = [int]$Matches[1]
-            # Java 8 and older call themselves 1.8, 1.7, ...
-            if ($major -eq 1 -and $Matches[3]) { $major = [int]$Matches[3] }
-            return $major
+    if (Test-Path $release) {
+        foreach ($line in Get-Content $release) {
+            if ($line -match '^JAVA_VERSION="?(\d+)(\.(\d+))?') { return (ConvertTo-JavaMajor $Matches[1] $Matches[3]) }
         }
     }
     return 0
@@ -127,9 +142,18 @@ if (-not $javaChosen) {
     $found = if ($javaSeen.Count -gt 0) { "Found only: " + ($javaSeen -join "; ") + "." } else { "No Java was found." }
     Stop-WithMessage "This build needs Java $oldestJava to $newestJava. $found Install JDK 21 (in Android Studio: Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JDK > Download JDK), or set JAVA_HOME to one."
 }
-if ($env:JAVA_HOME -ne $javaChosen) {
-    Write-Host "Using Java $javaChosenVersion from $javaChosen for this build."
-    $env:JAVA_HOME = $javaChosen
+Write-Host "Using Java $javaChosenVersion from $javaChosen for this build."
+$env:JAVA_HOME = $javaChosen
+# A line "org.gradle.java.home=..." in the user's own Gradle settings would
+# send the build to another Java whatever JAVA_HOME says. Naming the Java on
+# the command line, as Invoke-Gradle does, wins over that line.
+$userGradleSettings = Join-Path (Join-Path $HOME ".gradle") "gradle.properties"
+if (Test-Path $userGradleSettings) {
+    foreach ($line in Get-Content $userGradleSettings) {
+        if ($line -match '^\s*org\.gradle\.java\.home\s*=\s*(.+?)\s*$') {
+            Write-Host "Note: $userGradleSettings points Gradle at $($Matches[1]); this build ignores that."
+        }
+    }
 }
 # The build finds the Android SDK through local.properties, which Android
 # Studio writes, or through ANDROID_HOME.
@@ -151,8 +175,13 @@ New-Item -ItemType Directory -Force -Path $builds | Out-Null
 function Invoke-Gradle([string[]]$tasks) {
     Push-Location $root
     try {
-        & $gradle @tasks | Out-Host
-        return ($LASTEXITCODE -eq 0)
+        & $gradle "-Dorg.gradle.java.home=$javaChosen" @tasks | Out-Host
+        if ($LASTEXITCODE -eq 0) { return $true }
+        Write-Host ""
+        Write-Host "If the only reason given above is a number such as 25.0.2, the build still"
+        Write-Host "ran on a Java that is too new. These lines say which Java Gradle used:"
+        & $gradle "-Dorg.gradle.java.home=$javaChosen" --version | Select-String -Pattern "JVM" | Out-Host
+        return $false
     } finally {
         Pop-Location
     }
