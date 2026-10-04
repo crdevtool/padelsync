@@ -19,8 +19,8 @@ internet and no account.
 | Sync involving Apple devices | **Untested.** Apple simulators have no Bluetooth, so this needs a real iPhone or Apple Watch. |
 | Match history | On the phone apps. Not on the watch apps yet. |
 | Player names, play all sets, serve side and server, who can score, spoken score, result screen | On all four apps. |
-| TestFlight release | Workflow in place and rehearsed unsigned. **Never run with signing:** the Apple developer account is not enrolled yet. |
-| Google Play release | Signed app bundles for the phone and Wear OS apps, built by a workflow and rehearsed in CI with a throwaway key. **Never built with the real upload key, and nothing uploaded yet.** |
+| TestFlight release | Version 1.0 build 5 was signed and uploaded by the release workflow on 4 October 2026. **Not yet installed or tested on a real iPhone or Apple Watch.** |
+| Google Play release | Version 1.0 bundles for the phone and Wear OS apps are built and signed with the upload key by a workflow. **Nothing uploaded to Play yet.** |
 
 The emulator sync test hosts a court on one device and joins it from another.
 It checks that a point scored on either device appears on both, that undo

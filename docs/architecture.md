@@ -300,12 +300,10 @@ silent: with Location off, such a device relies on the direct reconnect.
 - Choosing which team "you" are, so your own side is always on the same half
   of the screen.
 - Apple Watch workout session (see above).
-- A first real TestFlight upload. The release workflow is in place (section
-  8) but has never run with signing, because the Apple developer account is
-  not enrolled yet.
-- A first real Google Play upload. The signed bundles and their workflow are
-  in place (section 9), but the upload key and the Play account are yours to
-  create.
+- Testing through TestFlight. The first signed build, version 1.0 build 5,
+  was uploaded on 4 October 2026 (section 8); nobody has installed it yet.
+- A first real Google Play upload. The bundles are built and signed with the
+  upload key (section 9); uploading them is done by hand.
 
 ## 8. App identifiers and releasing to TestFlight
 
@@ -378,7 +376,12 @@ On GitHub: Actions > **Apple release (TestFlight)** > Run workflow. It
 
 1. checks that the four secrets are set. If any is missing it says "Secrets
    not configured", names the missing ones, and ends there without starting
-   a Mac;
+   a Mac. It then asks App Store Connect about the key, which takes a few
+   seconds: that Apple accepts it, that it has the Admin role, that it
+   belongs to the team named in `APPLE_TEAM_ID`, and that the app and both
+   App IDs exist. Whatever is wrong is named at the top of the run's page.
+   Without this, any of them shows only at the end of the Mac build, as "No
+   Accounts with App Store Connect Access";
 2. builds the release build of the shared core for device architectures;
 3. archives the iPhone app, with the watch app inside;
 4. checks the archive for what an upload needs (IDs, matching version
@@ -421,7 +424,8 @@ HealthKit workout session will bring: an unsigned archive carries no
 entitlements. At that point register a device, switch the option to
 "automatic", and revoke the piled-up certificates from time to time.
 
-Neither way has run yet, because the developer account is not enrolled.
+The default way, signing at export only, is the one that has run: it
+produced the first upload. Signing the archive as well has never run.
 
 ### What an upload needs, and where it is
 
