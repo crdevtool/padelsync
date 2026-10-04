@@ -16,8 +16,10 @@ android {
         applicationId = "com.crdevtool.padelsync"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // The phone and watch apps share one app ID, so their version codes
+        // must differ; PlayRelease keeps them apart.
+        versionCode = PlayRelease.versionCode(project, FormFactor.PHONE)
+        versionName = PlayRelease.versionName(project)
     }
 
     signingConfigs {
@@ -29,6 +31,16 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        // The Google Play upload key. It exists only when the environment
+        // supplies it; it is never stored in this repository.
+        PlayRelease.uploadKey(project)?.let { key ->
+            create("release") {
+                storeFile = key.storeFile
+                storePassword = key.storePassword
+                keyAlias = key.keyAlias
+                keyPassword = key.keyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -36,7 +48,16 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            isMinifyEnabled = false
+            // Shrunk and optimised, as store builds should be. The build
+            // server runs the same emulator tests on this build as on the
+            // debug one, to show that it behaves the same.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            // Signed with the upload key when the environment describes one
+            // (see buildSrc/src/main/kotlin/PlayRelease.kt); unsigned
+            // otherwise. Never with the debug key.
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

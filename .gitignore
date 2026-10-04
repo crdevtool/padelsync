@@ -18,6 +18,17 @@ apple/*.xcodeproj/
 apple/Frameworks/
 apple/*/Info.plist
 
+# Signing keys. The Google Play upload key never belongs in the repository.
+# debug.keystore, a throwaway key for test builds, is the one exception.
+*.jks
+*.keystore
+*.p12
+*.p8
+!debug.keystore
+# What the Google Play release script leaves behind.
+play-release/
+release-apks/
+
 # OS
 .DS_Store
 Thumbs.db

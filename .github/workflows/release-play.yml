@@ -1,0 +1,93 @@
+# Builds the two signed app bundles for Google Play, one for the phone app
+# and one for the Wear OS app, and offers them as a download. Started by hand
+# only. Nothing is uploaded to Play; that is done by hand in Play Console.
+#
+# It needs four repository secrets (Settings, Secrets and variables, Actions):
+#   PLAY_KEYSTORE_BASE64     the upload keystore file, base64-encoded
+#   PLAY_KEYSTORE_PASSWORD   the keystore's password
+#   PLAY_KEY_ALIAS           the name of the key inside the keystore
+#   PLAY_KEY_PASSWORD        the key's password
+# "Releasing to Google Play" in docs/architecture.md says how to create them.
+#
+# Without all four the run stops at its first step, says "secrets not
+# configured", and builds nothing.
+name: Google Play release (bundles)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_number:
+        description: Release number for the version codes (phone = number x 10 + 1, watch = + 2). Leave empty to use this workflow's run number
+        type: string
+        default: ""
+
+# Two releases at once could come out with the same version codes.
+concurrency:
+  group: play-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Check signing secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - name: Check that the four secrets are set
+        id: check
+        env:
+          PLAY_KEYSTORE_BASE64: ${{ secrets.PLAY_KEYSTORE_BASE64 }}
+          PLAY_KEYSTORE_PASSWORD: ${{ secrets.PLAY_KEYSTORE_PASSWORD }}
+          PLAY_KEY_ALIAS: ${{ secrets.PLAY_KEY_ALIAS }}
+          PLAY_KEY_PASSWORD: ${{ secrets.PLAY_KEY_PASSWORD }}
+        run: |
+          # Only whether each secret is set is looked at; no value is printed.
+          missing=""
+          for name in PLAY_KEYSTORE_BASE64 PLAY_KEYSTORE_PASSWORD PLAY_KEY_ALIAS PLAY_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            message="Secrets not configured:$missing. Nothing was built. Add them under Settings, Secrets and variables, Actions; 'Releasing to Google Play' in docs/architecture.md says how to create them."
+            echo "::warning title=Secrets not configured::$message"
+            echo "### Secrets not configured" >> "$GITHUB_STEP_SUMMARY"
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "All four secrets are set."
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  bundles:
+    name: Build and sign the phone and Wear OS bundles
+    needs: secrets
+    if: needs.secrets.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build, sign and check the bundles
+        env:
+          PLAY_KEYSTORE_BASE64: ${{ secrets.PLAY_KEYSTORE_BASE64 }}
+          PLAY_KEYSTORE_PASSWORD: ${{ secrets.PLAY_KEYSTORE_PASSWORD }}
+          PLAY_KEY_ALIAS: ${{ secrets.PLAY_KEY_ALIAS }}
+          PLAY_KEY_PASSWORD: ${{ secrets.PLAY_KEY_PASSWORD }}
+          # The run number, so every release has higher version codes than
+          # the last. Play refuses a version code it has already been given.
+          PADELSYNC_RELEASE_NUMBER: ${{ inputs.release_number || github.run_number }}
+        run: bash .github/scripts/release-play.sh release
+      - name: Offer the bundles as a download
+        uses: actions/upload-artifact@v4
+        with:
+          name: PadelSync-google-play-bundles
+          path: play-release/*.aab
+          if-no-files-found: error
+          retention-days: 30
