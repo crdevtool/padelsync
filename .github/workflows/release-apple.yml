@@ -67,6 +67,21 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Asks Apple, in a few seconds, whether the key is accepted, has the
+      # Admin role, belongs to the team named, and whether the app and its
+      # two App IDs exist. Any of these being wrong would otherwise only show
+      # as an unhelpful message at the end of a ten-minute Mac build.
+      - uses: actions/checkout@v5
+        if: steps.check.outputs.ready == 'true'
+      - name: Check the key with App Store Connect
+        if: steps.check.outputs.ready == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: python3 .github/scripts/check-asc-key.py
+
   release:
     name: Build, sign and upload to TestFlight
     needs: secrets

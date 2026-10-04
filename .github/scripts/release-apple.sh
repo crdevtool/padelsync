@@ -208,6 +208,15 @@ run_xcodebuild -exportArchive \
   -archivePath "$archive" -exportOptionsPlist "$options" -exportPath "$out/export" \
   "${key_flags[@]}" || upload_status=$?
 if [ "$upload_status" != 0 ]; then
+  # Xcode keeps its own, fuller account of an export that went wrong. The
+  # lines of it that name a cause are printed here, with the IDs blanked out.
+  logs=$(find "${TMPDIR:-/tmp}" /var/folders -maxdepth 5 -name "*.xcdistributionlogs" -newer "$archive/Info.plist" 2>/dev/null | tail -1)
+  if [ -n "$logs" ]; then
+    echo "Xcode's own log of the export says:"
+    grep -hiE "error|denied|unauthor|forbidden|not allowed|no accounts|permission|status code" \
+        "$logs"/IDEDistribution.standard.log "$logs"/IDEDistribution.critical.log 2>/dev/null \
+      | redact | cut -c1-400 | sort -u | tail -6 | sed 's/^/error: export log: /' || true
+  fi
   echo "FAILED: the build was not uploaded (xcodebuild status $upload_status). Run again with the full log switched on to see why."
   exit 1
 fi
