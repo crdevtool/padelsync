@@ -18,7 +18,9 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.1.0"
+    # The version players see, for the iPhone and Apple Watch apps. It must
+    # match the version shown in App Store Connect.
+    MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
     GENERATE_INFOPLIST_FILE: "NO"
     CODE_SIGN_STYLE: Automatic
