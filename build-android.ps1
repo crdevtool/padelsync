@@ -26,8 +26,9 @@
     last version code; drop its last digit to get that release's number.
 
 .PARAMETER Keystore
-    The upload keystore file. By default padelsync-upload.jks in your user
-    folder.
+    The upload keystore file. Without it, padelsync-upload.jks is looked for
+    in your user folder, then in this project's docs folder, then next to
+    this script.
 
 .PARAMETER KeyAlias
     The name of the key inside the keystore.
@@ -43,8 +44,8 @@
 [CmdletBinding()]
 param(
     [switch]$Release,
-    [int]$ReleaseNumber = 0,
-    [string]$Keystore = (Join-Path $HOME "padelsync-upload.jks"),
+    [string]$ReleaseNumber = "",
+    [string]$Keystore = "",
     [string]$KeyAlias = "padelsync-upload"
 )
 
@@ -214,11 +215,29 @@ if (-not $Release) {
 }
 
 # --- Signed bundles for Google Play -------------------------------------------
-if ($ReleaseNumber -lt 1) {
-    Stop-WithMessage "Give the release number, for example: .\build-android.ps1 -Release -ReleaseNumber 4. It must be higher than every release already uploaded to Google Play."
+# The number arrives as text, so that a mistyped one gets a plain answer.
+$releaseText = $ReleaseNumber.Trim()
+if ($releaseText -notmatch '^[1-9][0-9]{0,8}$') {
+    Stop-WithMessage "The release number must be a whole number from 1 up, for example 4 (you gave '$releaseText'). It must be higher than every release already uploaded to Google Play."
 }
-if (-not (Test-Path $Keystore)) {
-    Stop-WithMessage "The upload keystore was not found at $Keystore. Pass its location with -Keystore."
+$releaseNo = [int]$releaseText
+
+if (-not $Keystore) {
+    $keystoreName = "padelsync-upload.jks"
+    $keystorePlaces = @(
+        (Join-Path $HOME $keystoreName),
+        (Join-Path (Join-Path $root "docs") $keystoreName),
+        (Join-Path $root $keystoreName)
+    )
+    foreach ($place in $keystorePlaces) {
+        if (Test-Path $place) { $Keystore = $place; break }
+    }
+    if (-not $Keystore) {
+        Stop-WithMessage ("The upload keystore $keystoreName was not found. Looked in: " + ($keystorePlaces -join "; ") + ". Pass its location with -Keystore.")
+    }
+    Write-Host "Using the upload keystore $Keystore."
+} elseif (-not (Test-Path $Keystore)) {
+    Stop-WithMessage "The upload keystore was not found at $Keystore."
 }
 
 $version = ""
@@ -226,8 +245,8 @@ foreach ($line in Get-Content (Join-Path $root "gradle.properties")) {
     if ($line -match "^\s*padelsync\.versionName\s*=\s*(.+?)\s*$") { $version = $Matches[1] }
 }
 if (-not $version) { Stop-WithMessage "padelsync.versionName is missing from gradle.properties." }
-$phoneCode = $ReleaseNumber * 10 + 1
-$watchCode = $ReleaseNumber * 10 + 2
+$phoneCode = $releaseNo * 10 + 1
+$watchCode = $releaseNo * 10 + 2
 
 # The password is typed here, handed to the build through its environment,
 # and removed again when the build ends. It is never written to a file.
@@ -243,11 +262,11 @@ $keyPasswordWasSet = [bool]$env:PLAY_KEY_PASSWORD
 if (-not $keyPasswordWasSet) { $env:PLAY_KEY_PASSWORD = $env:PLAY_KEYSTORE_PASSWORD }
 $env:PLAY_KEYSTORE_FILE = (Resolve-Path $Keystore).Path
 $env:PLAY_KEY_ALIAS = $KeyAlias
-$env:PADELSYNC_RELEASE_NUMBER = "$ReleaseNumber"
+$env:PADELSYNC_RELEASE_NUMBER = "$releaseNo"
 
 $built = $false
 try {
-    Write-Host "Building version $version, release $ReleaseNumber (version codes $phoneCode and $watchCode)..."
+    Write-Host "Building version $version, release $releaseNo (version codes $phoneCode and $watchCode)..."
     $built = Invoke-Gradle @(":mobile:bundleRelease", ":wear:bundleRelease")
 } finally {
     # Whatever happened, the password does not stay behind in this window.

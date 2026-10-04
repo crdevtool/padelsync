@@ -50,6 +50,7 @@ mobile/       Android phone app
 wear/         Wear OS watch app
 buildSrc/     Build logic shared by the two Android apps: version codes, release signing
 build-android.ps1   Builds the Android apps on Windows: test APKs or signed Play bundles
+build_release.bat, build_debug.bat   Double-click starters for that script
 apple/        iPhone and Apple Watch apps (SwiftUI), generated with XcodeGen
 docs/         Architecture and the Bluetooth protocol
 ```
@@ -60,12 +61,19 @@ Android on Windows, with Android Studio installed, from PowerShell in this
 folder:
 
 ```
-.\build-android.ps1                              # test builds (APKs), into builds\
-.\build-android.ps1 -Release -ReleaseNumber 4    # signed Google Play bundles, into builds\
+build_debug.bat          # test builds (APKs), into builds\
+build_release.bat        # signed Google Play bundles, into builds\
 ```
 
-Nothing on GitHub is needed for either. If Windows refuses to run the script,
-use `powershell -ExecutionPolicy Bypass -File .\build-android.ps1`.
+Both can be double-clicked. `build_release.bat` asks for the release number
+and the keystore password; `build_release.bat 5` skips the first question.
+Nothing on GitHub is needed for either. They run `build-android.ps1`, which
+can also be called directly:
+
+```
+.\build-android.ps1
+.\build-android.ps1 -Release -ReleaseNumber 5
+```
 
 The build runs on Java 17 to 24. On a newer Java, Gradle fails with only the
 Java version as its message ("What went wrong: 25.0.2"). The script looks for
@@ -160,6 +168,8 @@ testing track and to the Wear OS track are in section 9 as well.
 
 ## Documentation
 
+- [Release log](docs/releases.md): which build went to which store, and the
+  code it was made from.
 - [Architecture](docs/architecture.md): how it fits together, what each
   device can and cannot do, and the known limits.
 - [Bluetooth protocol](docs/ble-protocol.md): the exact contract between

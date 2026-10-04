@@ -520,16 +520,20 @@ are missing. A release build is never signed with `debug.keystore`.
 No GitHub is needed. On Windows, in PowerShell, from the project folder:
 
 ```powershell
-.\build-android.ps1 -Release -ReleaseNumber 4
+.\build_release.bat
 ```
 
-It asks for the keystore password, builds and signs both bundles, checks that
-they are signed, and copies them to `builds\` as
+or double-click `build_release.bat`. It asks for the release number and the
+keystore password, builds and signs both bundles, checks that they are
+signed, and copies them to `builds\` as
 `PadelSync-phone-<version>-<code>.aab` and
 `PadelSync-watch-<version>-<code>.aab`. The password is handed to the build
-and removed again; it is not written anywhere. The keystore is looked for at
-`padelsync-upload.jks` in your user folder; `-Keystore <path>` points it
-elsewhere. Without `-Release` the same script makes the two test APKs.
+and removed again; it is not written anywhere. The keystore,
+`padelsync-upload.jks`, is looked for in your user folder, then in this
+project's `docs` folder, then in the project folder itself.
+`build_debug.bat` makes the two test APKs the same way. Both batch files run
+`build-android.ps1`, which takes `-Keystore <path>` for a keystore kept
+anywhere else.
 
 **The release number is yours to choose here**, and Play refuses a version
 code it has already been given. Use a number higher than every release
