@@ -52,20 +52,84 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 $onWindows = ($env:OS -eq "Windows_NT")
 
+# The script points JAVA_HOME at a Java the build can run on. This puts back
+# whatever was there before, so the PowerShell window is left as it was found.
+$javaHomeBefore = $env:JAVA_HOME
+function Restore-JavaHome {
+    if ($javaHomeBefore) { $env:JAVA_HOME = $javaHomeBefore }
+    else { Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue }
+}
+
 function Stop-WithMessage([string]$message) {
+    Restore-JavaHome
     Write-Host ""
     Write-Host "STOPPED: $message" -ForegroundColor Red
     exit 1
 }
 
 # --- Java and the Android SDK ------------------------------------------------
-# Android Studio brings its own Java; use it unless another one is set up.
-if (-not $env:JAVA_HOME) {
-    $studioJava = "C:\Program Files\Android\Android Studio\jbr"
-    if (Test-Path $studioJava) { $env:JAVA_HOME = $studioJava }
+# The build tool in this project (Gradle 8.14) runs on Java 17 to 24. On a
+# newer Java it fails with nothing but the Java version as its message
+# ("What went wrong: 25.0.2"), so a Java in that range is looked for here and
+# used for this build, whatever JAVA_HOME is set to.
+$oldestJava = 17
+$newestJava = 24
+
+# The major version of the Java installed in a folder, or 0 if it cannot be told.
+function Get-JavaMajor([string]$javaHome) {
+    $release = Join-Path $javaHome "release"
+    if (-not (Test-Path $release)) { return 0 }
+    foreach ($line in Get-Content $release) {
+        if ($line -match '^JAVA_VERSION="?(\d+)(\.(\d+))?') {
+            $major = [int]$Matches[1]
+            # Java 8 and older call themselves 1.8, 1.7, ...
+            if ($major -eq 1 -and $Matches[3]) { $major = [int]$Matches[3] }
+            return $major
+        }
+    }
+    return 0
 }
-if (-not $env:JAVA_HOME -and -not (Get-Command java -ErrorAction SilentlyContinue)) {
-    Stop-WithMessage "Java was not found. Install Android Studio, or set JAVA_HOME to a JDK 17 or newer."
+
+# Where Java is usually found, in order of preference: the one already set
+# up, the one Android Studio brings, then others installed on this computer.
+$javaPlaces = @()
+if ($env:JAVA_HOME) { $javaPlaces += $env:JAVA_HOME }
+$javaPlaces += "C:\Program Files\Android\Android Studio\jbr"
+$javaFolders = @(
+    (Join-Path $HOME ".jdks"),
+    "C:\Program Files\Java",
+    "C:\Program Files\Eclipse Adoptium",
+    "C:\Program Files\Microsoft",
+    "C:\Program Files\Zulu",
+    "C:\Program Files\Amazon Corretto"
+)
+foreach ($folder in $javaFolders) {
+    if (Test-Path $folder) {
+        $javaPlaces += @(Get-ChildItem $folder -Directory | Sort-Object Name -Descending | ForEach-Object { $_.FullName })
+    }
+}
+
+$javaChosen = ""
+$javaChosenVersion = 0
+$javaSeen = @()
+foreach ($place in $javaPlaces) {
+    if (-not $place -or -not (Test-Path $place)) { continue }
+    $major = Get-JavaMajor $place
+    if ($major -eq 0) { continue }
+    $javaSeen += "Java $major in $place"
+    if ($major -ge $oldestJava -and $major -le $newestJava) {
+        $javaChosen = $place
+        $javaChosenVersion = $major
+        break
+    }
+}
+if (-not $javaChosen) {
+    $found = if ($javaSeen.Count -gt 0) { "Found only: " + ($javaSeen -join "; ") + "." } else { "No Java was found." }
+    Stop-WithMessage "This build needs Java $oldestJava to $newestJava. $found Install JDK 21 (in Android Studio: Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JDK > Download JDK), or set JAVA_HOME to one."
+}
+if ($env:JAVA_HOME -ne $javaChosen) {
+    Write-Host "Using Java $javaChosenVersion from $javaChosen for this build."
+    $env:JAVA_HOME = $javaChosen
 }
 # The build finds the Android SDK through local.properties, which Android
 # Studio writes, or through ANDROID_HOME.
@@ -116,6 +180,7 @@ if (-not $Release) {
     Copy-Result "mobile/build/outputs/apk/debug/mobile-debug.apk" "PadelSync-phone.apk"
     Copy-Result "wear/build/outputs/apk/debug/wear-debug.apk" "PadelSync-watch.apk"
     Write-Host "Install them with adb; see docs\install.md."
+    Restore-JavaHome
     exit 0
 }
 
@@ -168,9 +233,9 @@ $watchBundle = "wear/build/outputs/bundle/release/wear-release.aab"
 
 # A bundle that is not signed would be refused by Google Play; say so here.
 $jarsigner = ""
-if ($env:JAVA_HOME) {
+if ($javaChosen) {
     $name = if ($onWindows) { "jarsigner.exe" } else { "jarsigner" }
-    $candidate = Join-Path (Join-Path $env:JAVA_HOME "bin") $name
+    $candidate = Join-Path (Join-Path $javaChosen "bin") $name
     if (Test-Path $candidate) { $jarsigner = $candidate }
 }
 if (-not $jarsigner) {
@@ -201,3 +266,4 @@ Copy-Result $phoneBundle "PadelSync-phone-$version-$phoneCode.aab"
 Copy-Result $watchBundle "PadelSync-watch-$version-$watchCode.aab"
 Write-Host "Upload the phone bundle to Internal testing and the watch bundle to the Wear OS track;"
 Write-Host "the steps are in docs\architecture.md, section 9."
+Restore-JavaHome

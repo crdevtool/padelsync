@@ -67,6 +67,11 @@ folder:
 Nothing on GitHub is needed for either. If Windows refuses to run the script,
 use `powershell -ExecutionPolicy Bypass -File .\build-android.ps1`.
 
+The build runs on Java 17 to 24. On a newer Java, Gradle fails with only the
+Java version as its message ("What went wrong: 25.0.2"). The script looks for
+a suitable Java by itself, starting with the one Android Studio brings, and
+says which it used.
+
 The same with Gradle directly, on any computer with a JDK 17+ and the Android
 SDK:
 
