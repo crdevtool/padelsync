@@ -49,13 +49,26 @@ androidkit/   Android Bluetooth layer shared by the phone and watch apps
 mobile/       Android phone app
 wear/         Wear OS watch app
 buildSrc/     Build logic shared by the two Android apps: version codes, release signing
+build-android.ps1   Builds the Android apps on Windows: test APKs or signed Play bundles
 apple/        iPhone and Apple Watch apps (SwiftUI), generated with XcodeGen
 docs/         Architecture and the Bluetooth protocol
 ```
 
 ## Building
 
-Android, on any computer with a JDK 17+ and the Android SDK:
+Android on Windows, with Android Studio installed, from PowerShell in this
+folder:
+
+```
+.\build-android.ps1                              # test builds (APKs), into builds\
+.\build-android.ps1 -Release -ReleaseNumber 4    # signed Google Play bundles, into builds\
+```
+
+Nothing on GitHub is needed for either. If Windows refuses to run the script,
+use `powershell -ExecutionPolicy Bypass -File .\build-android.ps1`.
+
+The same with Gradle directly, on any computer with a JDK 17+ and the Android
+SDK:
 
 ```
 ./gradlew :core:jvmTest                 # run the shared tests

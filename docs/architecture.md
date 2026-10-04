@@ -505,16 +505,42 @@ first secret:
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("$HOME\padelsync-upload.jks")) | Set-Clipboard
 ```
 
-To build a signed release on your own computer instead, set
-`PLAY_KEYSTORE_FILE` to the keystore's path, with the same three other
-variables, and run `./gradlew :mobile:bundleRelease :wear:bundleRelease`.
-With none of the four set, a release build comes out unsigned. With only some
-set, the build stops and says which are missing. A release build is never
-signed with `debug.keystore`.
+The build reads the key from four environment variables:
+`PLAY_KEYSTORE_FILE` (the keystore's path), `PLAY_KEYSTORE_PASSWORD`,
+`PLAY_KEY_ALIAS` and `PLAY_KEY_PASSWORD`. With none of them set, a release
+build comes out unsigned. With only some set, the build stops and says which
+are missing. A release build is never signed with `debug.keystore`.
 
-### Building the bundles
+### Building the bundles on your own computer
 
-On GitHub: Actions > **Google Play release (bundles)** > Run workflow. It
+No GitHub is needed. On Windows, in PowerShell, from the project folder:
+
+```powershell
+.\build-android.ps1 -Release -ReleaseNumber 4
+```
+
+It asks for the keystore password, builds and signs both bundles, checks that
+they are signed, and copies them to `builds\` as
+`PadelSync-phone-<version>-<code>.aab` and
+`PadelSync-watch-<version>-<code>.aab`. The password is handed to the build
+and removed again; it is not written anywhere. The keystore is looked for at
+`padelsync-upload.jks` in your user folder; `-Keystore <path>` points it
+elsewhere. Without `-Release` the same script makes the two test APKs.
+
+**The release number is yours to choose here**, and Play refuses a version
+code it has already been given. Use a number higher than every release
+uploaded so far, whichever way it was built: Play Console shows the last
+version code, and dropping its last digit gives that release's number. The
+GitHub workflow uses its run number, so if you use both, check the number
+before each upload.
+
+The script does less checking than the workflow: it confirms the signatures,
+but not the target API levels, icons or watch declarations. Those are checked
+on every CI run.
+
+### Building the bundles on GitHub
+
+Actions > **Google Play release (bundles)** > Run workflow. It
 
 1. checks that the four secrets are set. If any is missing it says "Secrets
    not configured", names the missing ones, and ends there;
