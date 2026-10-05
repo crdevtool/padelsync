@@ -616,11 +616,54 @@ Create app). The app ID is fixed by the first bundle uploaded.
    OS in the description; Play asks for both.
 4. In Advanced settings > Form factors, opt in to Wear OS and accept its
    review policy. Wear OS releases are reviewed against the Wear OS quality
-   guidelines.
+   guidelines. Do not skip this: until Wear OS shows as Active there, no
+   watch receives the app.
 
 Testers install both from the Play Store once they have opened the opt-in
 link: the phone app on the phone, the watch app from the Play Store on the
 watch.
+
+### Phone and watch on Play: form factors and tracks
+
+What was learned on the first watch update (5 October 2026), so it does not
+have to be worked out again.
+
+- **Two sets of tracks.** A Wear OS bundle cannot go into a phone track.
+  Since September 2023 Google only serves watches from dedicated Wear OS
+  tracks; dropping both `.aab` files into one release is the old method and
+  no longer works. Advice that says otherwise, including from AI assistants,
+  describes that old method.
+- **The phone never delivers the watch app.** A watch gets it from the Play
+  Store on the watch, from whichever Wear OS track the bundle is in. Updating
+  the phone app does nothing to the watch.
+- **The opt-in must be finished.** Advanced settings > Form factors must show
+  Wear OS as **Active**. It has three steps: Wear OS screenshots, a bundle on
+  a testing track, and **Opt-in to Wear OS and agree to the review policy**.
+  With the third step open (shown as "2 of 3 complete") a Wear OS track can
+  exist and say "Available to internal testers" while no watch receives
+  anything. The opt-in starts Google's Wear OS quality review.
+- **Where each build goes during testing.** Phone bundle: the phone closed
+  track, with the testers' Google Group. Watch bundle: the Wear OS
+  **internal** track; add the testers who own a watch to the internal tester
+  list (up to 100, no review, live within minutes).
+- **No second group of 12 testers.** The rule for new personal accounts, 12
+  testers opted in for 14 days, is stated per app, and the phone closed test
+  meets it. Google's page does not mention form factors; guides from
+  tester-recruiting sites say it is shared between phone and watch. A Wear OS
+  closed track is therefore optional. One named "Wear OS closed" was created
+  and left empty in case Play asks for it when applying for production.
+- **Promote only lists tracks that exist.** To use a Wear OS closed track,
+  create it first under Testing > Closed testing with the form factor
+  selector on **Wear OS only**, set its testers and countries (a track with
+  no countries delivers to nobody), then add the bundle with **Add from
+  library**. Uploading the same file again is refused, because the version
+  code is taken.
+- **Same version label on both.** The phone and watch builds of one release
+  share a version name, so the label does not show whether a watch updated;
+  look for what changed in the app instead.
+- **A copy installed from an APK blocks the Play version.** It is signed with
+  a different key. Uninstall it from the watch (or phone) before installing
+  from the Play Store.
 
 Play Console also asks for things that are not in this repository before a
 release can go beyond testing: a privacy policy address, the Data safety
