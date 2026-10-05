@@ -5,6 +5,7 @@ line whenever a build is uploaded.
 
 | Store | Version | Build | Built (UTC) | Commit | Built by | Where the file is |
 | --- | --- | --- | --- | --- | --- | --- |
+| TestFlight | 1.0 | 6 | 5 Oct 2026, 12:21 | `ad4362b` | Apple release workflow, [run 6](https://github.com/crdevtool/padelsync/actions/runs/37307840237) | At Apple only: App Store Connect > TestFlight. Same app code as `626baac`; first build with the serve line on the watch. |
 | Google Play | 1.0 | 51 (phone), 52 (watch) | 5 Oct 2026, 11:57 | `626baac` | Play release workflow, [run 5](https://github.com/crdevtool/padelsync/actions/runs/37305889517) | On the run's page until 4 Nov 2026; in Play Console once uploaded. First build with the serve line on the watch. |
 | TestFlight | 1.0 | 5 | 4 Oct 2026, 12:22 | `16b1734` | Apple release workflow, [run 5](https://github.com/crdevtool/padelsync/actions/runs/37201436169) | At Apple only: App Store Connect > TestFlight. GitHub keeps no copy. |
 | Google Play | 1.0 | 41 (phone), 42 (watch) | 4 Oct 2026, 12:00 | `ba9b31a` | Play release workflow, [run 4](https://github.com/crdevtool/padelsync/actions/runs/37200493282) | On the run's page until 3 Nov 2026; in Play Console once uploaded |
