@@ -158,9 +158,10 @@ Also new:
 | Taking over as host | If the host's device dies or leaves, after 20 seconds the other devices offer **Host this court**. One player confirms; the rest follow by themselves under the same code. An Apple Watch cannot host and says to ask a player with a phone. |
 | Location notice | Android 11 and older, and Wear OS 3: "Join a court" explains that Location must be switched on, and that the app does not use it. |
 
-On the watch: short names (`A+L`), the server and side on the middle strip
-(`LEO · R`), a winner screen, and **Voice** and **Others can score** switches
-in the menu.
+On the watch: short names (`A+L`), a serve line on the serving team's half
+that names the server and the side (`LEO · RIGHT`, or `PLAYER 2 · LEFT` when
+no names were given), the set score on the middle strip, a winner screen, and
+**Voice** and **Others can score** switches in the menu.
 
 The voice speaks English. It needs a text-to-speech voice on the device,
 which nearly every Android phone has; many watches do not, and the watch

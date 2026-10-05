@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
@@ -36,12 +39,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Text
-import com.netsports.core.engine.ServeSide
 import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
 import com.netsports.core.sync.ClientStatus
 import com.netsports.core.sync.TapFeedback
 import com.netsports.core.ui.ScoreView
+import com.netsports.core.ui.ServeLine
 import com.padelsync.kit.CourtController
 import com.padelsync.kit.CourtMode
 import com.padelsync.kit.CourtUiState
@@ -51,7 +54,8 @@ import kotlinx.coroutines.delay
 
 /**
  * The watch scoreboard: the top half scores for Team A, the bottom half for
- * Team B, with undo and the menu on the strip between them.
+ * Team B, with undo and the menu on the strip between them. The serving
+ * team's half also says who serves and from which side.
  */
 @Composable
 fun ScoreScreen(
@@ -124,9 +128,12 @@ fun ScoreScreen(
             ?: "VIEW ONLY".takeIf { !ui.canScore }
             // Decided, with sets still to play.
             ?: score.decidedWinner?.let { "${Labels.shortName(score, it)} WON" }
-            ?: serveLine(score)
             ?: score.setSummary.ifEmpty { null }
     }
+
+    // A small round watch has less room at its top and bottom edges, which
+    // is where the serve line goes.
+    val compact = LocalConfiguration.current.screenWidthDp < COMPACT_BELOW_DP
 
     Column(Modifier.fillMaxSize()) {
         Half(
@@ -138,6 +145,8 @@ fun ScoreScreen(
             games = score.gamesA,
             sets = score.setsA,
             serving = score.server == Team.A,
+            serve = score.serveLine(Team.A, compact),
+            compact = compact,
             enabled = !finished,
             alignBottom = true,
             onClick = { tap(Action.POINT_A) },
@@ -176,6 +185,8 @@ fun ScoreScreen(
             games = score.gamesB,
             sets = score.setsB,
             serving = score.server == Team.B,
+            serve = score.serveLine(Team.B, compact),
+            compact = compact,
             enabled = !finished,
             alignBottom = false,
             onClick = { tap(Action.POINT_B) },
@@ -194,6 +205,8 @@ private fun Half(
     games: Int,
     sets: Int,
     serving: Boolean,
+    serve: ServeLine?,
+    compact: Boolean,
     enabled: Boolean,
     alignBottom: Boolean,
     onClick: () -> Unit,
@@ -212,49 +225,84 @@ private fun Half(
         // strip, so each half hugs it.
         contentAlignment = if (alignBottom) Alignment.BottomCenter else Alignment.TopCenter,
     ) {
-        // A three-letter name needs the room that a single letter leaves spare.
-        val gap = if (label.length > 1) 6.dp else 10.dp
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(vertical = 2.dp),
-        ) {
-            Text(
-                label,
-                color = color,
-                fontSize = if (label.length > 1) 16.sp else 22.sp,
-                fontWeight = FontWeight.Black,
-                maxLines = 1,
-            )
-            Spacer(Modifier.width(gap))
-            Column(horizontalAlignment = Alignment.End) {
-                Text("G $games", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text("S $sets", color = WearPalette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.width(gap))
-            Text(points, color = Color.White, fontSize = 46.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.width(gap))
-            Box(
-                Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(if (serving) WearPalette.Accent else Color.Transparent),
-            )
+        // The score hugs the strip; the serve line takes the room left
+        // towards the edge of the screen, above Team A's score and below
+        // Team B's.
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (alignBottom && serve != null) ServePill(serve, Modifier.offset(y = SERVE_OVERLAP))
+            ScoreRow(label, color, points, games, sets, compact)
+            if (!alignBottom && serve != null) ServePill(serve, Modifier.offset(y = -SERVE_OVERLAP))
         }
     }
 }
 
-/**
- * Who serves next and from which side, short enough for the strip:
- * `LEO · R`. Only shown when the player's name is known; the dot beside the
- * score already says which team serves.
- */
-private fun serveLine(score: ScoreView): String? {
-    val team = score.server ?: return null
-    val side = score.serveSide ?: return null
-    val player = score.playersOf(team).getOrNull(score.serverPlayerIndex) ?: return null
-    return "${player.take(7).uppercase()} · ${if (side == ServeSide.RIGHT) "R" else "L"}"
+/** A team's short name, its games over its sets, and its points. */
+@Composable
+private fun ScoreRow(label: String, color: Color, points: String, games: Int, sets: Int, compact: Boolean) {
+    // A three-letter name needs the room that a single letter leaves spare.
+    val gap = if (label.length > 1) 6.dp else 10.dp
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier.padding(vertical = 2.dp),
+    ) {
+        Text(
+            label,
+            color = color,
+            fontSize = if (label.length > 1) 16.sp else 22.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1,
+        )
+        Spacer(Modifier.width(gap))
+        Column(horizontalAlignment = Alignment.End) {
+            Text("G $games", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("S $sets", color = WearPalette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.width(gap))
+        Text(
+            points,
+            color = Color.White,
+            // Slightly smaller on a small watch, to leave room for the serve line.
+            fontSize = if (compact) 40.sp else 46.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1,
+        )
+    }
 }
+
+/**
+ * Who serves the next point and from which side, as on the phone: a ball,
+ * the server in the ball's colour, then the side. `LEO · RIGHT`.
+ */
+@Composable
+private fun ServePill(serve: ServeLine, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color.Black.copy(alpha = 0.6f))
+            .padding(start = 6.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(WearPalette.Accent),
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(serve.who, color = WearPalette.Accent, fontSize = 10.sp, fontWeight = FontWeight.Black, maxLines = 1)
+        Text(" · ${serve.side}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Black, maxLines = 1)
+    }
+}
+
+/** Screens narrower than this, in dp, get the shorter serve line and smaller points. */
+private const val COMPACT_BELOW_DP = 210
+
+/**
+ * How far the serve line is pushed towards the score. The big digits carry
+ * empty space above and below them, which the line can sit in.
+ */
+private val SERVE_OVERLAP = 6.dp
 
 /**
  * Runs [block] each time [key] changes, but not for the value it has when

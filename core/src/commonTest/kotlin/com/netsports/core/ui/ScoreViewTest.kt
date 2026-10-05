@@ -178,6 +178,76 @@ class ScoreViewTest {
     }
 
     @Test
+    fun theServeLineSitsOnTheServingTeamOnly() {
+        val start = ScoreView.of(ScoringEngine.start(padel), roster)
+        assertEquals(ServeLine("ANA", "RIGHT"), start.serveLine(Team.A))
+        assertNull(start.serveLine(Team.B))
+        assertEquals("ANA · RIGHT", start.serveLine(Team.A).toString())
+
+        val afterOnePoint = ScoreView.of(play(ScoringEngine.start(padel), "B"), roster)
+        assertEquals(ServeLine("ANA", "LEFT"), afterOnePoint.serveLine(Team.A))
+
+        val secondGame = ScoreView.of(play(ScoringEngine.start(padel), "AAAA"), roster)
+        assertNull(secondGame.serveLine(Team.A))
+        assertEquals(ServeLine("MIA", "RIGHT"), secondGame.serveLine(Team.B))
+    }
+
+    @Test
+    fun theServeLineNumbersAPlayerWhoseNameIsNotKnown() {
+        val start = view(padel, "")
+        assertEquals(ServeLine("PLAYER 1", "RIGHT"), start.serveLine(Team.A))
+        assertEquals(ServeLine("P1", "RIGHT"), start.serveLine(Team.A, compact = true))
+
+        val thirdGame = view(padel, "AAAAAAAA")
+        assertEquals(ServeLine("PLAYER 2", "RIGHT"), thirdGame.serveLine(Team.A))
+        assertEquals(ServeLine("P2", "RIGHT"), thirdGame.serveLine(Team.A, compact = true))
+
+        // Only one of the pair was named: the other is still numbered.
+        val partial = Roster(listOf("Ana"), emptyList())
+        assertEquals("ANA", ScoreView.of(ScoringEngine.start(padel), partial).serveLine(Team.A)?.who)
+        val partnerServes = ScoreView.of(play(ScoringEngine.start(padel), "AAAAAAAA"), partial)
+        assertEquals("PLAYER 2", partnerServes.serveLine(Team.A)?.who)
+
+        // The app can be told it guessed the wrong player of a pair.
+        val swapped = ScoreView.of(ScoringEngine.start(padel), serveFlipA = true)
+        assertEquals("PLAYER 2", swapped.serveLine(Team.A)?.who)
+    }
+
+    @Test
+    fun theServeLineInSinglesNeedsNoPlayerNumber() {
+        val start = view(tennis, "")
+        assertEquals(ServeLine("SERVE", "RIGHT"), start.serveLine(Team.A))
+        assertEquals(ServeLine("SERVE", "RIGHT"), start.serveLine(Team.A, compact = true))
+
+        val named = ScoreView.of(play(ScoringEngine.start(tennis), "AAAAB"), Roster(listOf("Leo"), listOf("Max")))
+        assertEquals(ServeLine("MAX", "LEFT"), named.serveLine(Team.B))
+    }
+
+    @Test
+    fun theServeLineCutsALongNameToFit() {
+        val long = Roster(listOf("Maximiliano", "Jo"), listOf("Mary Ann", "Bea"))
+        val start = ScoreView.of(ScoringEngine.start(padel), long)
+        assertEquals("MAXIMILI", start.serveLine(Team.A)?.who)
+        assertEquals("MAXIM", start.serveLine(Team.A, compact = true)?.who)
+
+        val secondGame = ScoreView.of(play(ScoringEngine.start(padel), "AAAA"), long)
+        assertEquals("MARY ANN", secondGame.serveLine(Team.B)?.who)
+        // A cut that lands on a space does not leave it behind.
+        assertEquals("MARY", secondGame.serveLine(Team.B, compact = true)?.who)
+
+        // A character stored as two halves is dropped whole, never split.
+        val emoji = Roster(listOf("Leo1\uD83C\uDFBE"), emptyList())
+        assertEquals("LEO1", ScoreView.of(ScoringEngine.start(padel), emoji).serveLine(Team.A, compact = true)?.who)
+    }
+
+    @Test
+    fun thereIsNoServeLineOnceTheMatchIsOver() {
+        val done = ScoreView.of(winSet(winSet(ScoringEngine.start(padel), Team.A), Team.A), roster)
+        assertNull(done.serveLine(Team.A))
+        assertNull(done.serveLine(Team.B))
+    }
+
+    @Test
     fun nothingIsServedOnceTheMatchIsOver() {
         val done = ScoreView.of(winSet(winSet(ScoringEngine.start(padel), Team.A), Team.A), roster)
         assertNull(done.server)

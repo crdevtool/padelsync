@@ -3,7 +3,8 @@ import SwiftUI
 import WatchKit
 
 /// The watch scoreboard: the top half scores for Team A, the bottom half for
-/// Team B, with undo and the menu on the strip between them.
+/// Team B, with undo and the menu on the strip between them. The serving
+/// team's half also says who serves and from which side.
 struct WatchMatchView: View {
     @EnvironmentObject private var store: CourtStore
     let score: ScoreView
@@ -31,20 +32,7 @@ struct WatchMatchView: View {
         if !store.canScore { return "VIEW ONLY" }
         // Decided, with sets still to play.
         if let decided = score.decidedWinner { return "\(Labels.shortName(score, decided)) WON" }
-        return serveLine ?? score.setSummary
-    }
-
-    /// Who serves next and from which side: `LEO · R`. Only shown when the
-    /// player's name is known; the dot beside the score already says which
-    /// team serves.
-    private var serveLine: String? {
-        guard let team = score.server, let side = score.serveSide else { return nil }
-        let players = score.playersOf(team: team)
-        let index = Int(score.serverPlayerIndex)
-        if index >= players.count { return nil }
-        let name = String(players[index].prefix(7)).uppercased()
-        let letter = side == ServeSide.right ? "R" : "L"
-        return "\(name) · \(letter)"
+        return score.setSummary
     }
 
     var body: some View {
@@ -144,29 +132,41 @@ private struct WatchHalf: View {
         let serving = score.server == team
         // A three-letter name needs the room that a single letter leaves spare.
         let short = label.count <= 1
+        // The 40 and 41 mm watches get shorter wording and slightly smaller
+        // points, to leave room for the serve line.
+        let compact = WKInterfaceDevice.current().screenBounds.width < WatchHalf.compactBelowWidth
+        let serve = score.serveLine(team: team, compact: compact)
 
         Button(action: action) {
-            HStack(spacing: short ? 8 : 5) {
-                Text(label)
-                    .font(.system(size: short ? 20 : 14, weight: .black, design: .rounded))
-                    .foregroundStyle(color)
-                    .lineLimit(1)
-                VStack(alignment: .trailing, spacing: 0) {
-                    Text("G \(games)")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.white)
-                    Text("S \(sets)")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Palette.muted)
+            // The serve line goes towards the edge of the screen: above Team
+            // A's score and below Team B's. The big digits carry empty space
+            // above and below them, which the line can sit in.
+            VStack(spacing: -3) {
+                if team == Team.a, let serve = serve {
+                    ServePill(serve: serve)
                 }
-                Text(points)
-                    .font(.system(size: 44, weight: .black, design: .rounded))
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .foregroundStyle(.white)
-                Circle()
-                    .fill(serving ? Palette.accent : Color.clear)
-                    .frame(width: 9, height: 9)
+                HStack(spacing: short ? 8 : 5) {
+                    Text(label)
+                        .font(.system(size: short ? 20 : 14, weight: .black, design: .rounded))
+                        .foregroundStyle(color)
+                        .lineLimit(1)
+                    VStack(alignment: .trailing, spacing: 0) {
+                        Text("G \(games)")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white)
+                        Text("S \(sets)")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(Palette.muted)
+                    }
+                    Text(points)
+                        .font(.system(size: compact ? 38 : 44, weight: .black, design: .rounded))
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                        .foregroundStyle(.white)
+                }
+                if team == Team.b, let serve = serve {
+                    ServePill(serve: serve)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(RoundedRectangle(cornerRadius: 14).fill(color.opacity(0.22)))
@@ -181,6 +181,36 @@ private struct WatchHalf: View {
         )
         .accessibilityHint("Adds a point for \(name)")
         .accessibilityAddTraits(.isButton)
+    }
+
+    /// Screens narrower than this, in points, count as small.
+    private static let compactBelowWidth: CGFloat = 180
+}
+
+/// Who serves the next point and from which side, as on the iPhone: a ball,
+/// the server in the ball's colour, then the side. `LEO · RIGHT`.
+private struct ServePill: View {
+    let serve: ServeLine
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(Palette.ball)
+                .frame(width: 7, height: 7)
+            HStack(spacing: 0) {
+                Text(serve.who)
+                    .foregroundStyle(Palette.ball)
+                Text(" · \(serve.side)")
+                    .foregroundStyle(.white)
+            }
+            .font(.system(size: 10, weight: .black))
+            .lineLimit(1)
+        }
+        .fixedSize()
+        .padding(.leading, 6)
+        .padding(.trailing, 8)
+        .padding(.vertical, 2)
+        .background(Capsule().fill(Color.black.opacity(0.6)))
     }
 }
 

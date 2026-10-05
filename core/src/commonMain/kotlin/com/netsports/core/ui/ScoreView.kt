@@ -26,6 +26,20 @@ enum class Highlight {
 }
 
 /**
+ * Who serves the next point and from which side, worded for a watch: `LEO`
+ * and `RIGHT`. The two parts are kept apart so a screen can colour them
+ * differently.
+ *
+ * @property who the server: the player's name, `PLAYER 2` when the name was
+ * not given, or `SERVE` in singles without names.
+ * @property side `LEFT` or `RIGHT`.
+ */
+data class ServeLine(val who: String, val side: String) {
+    /** `LEO · RIGHT` */
+    override fun toString(): String = "$who · $side"
+}
+
+/**
  * Everything a scoreboard needs to draw, already formatted.
  *
  * Every app (phone and watch, Android and Apple) renders this same value, so
@@ -82,11 +96,43 @@ data class ScoreView(
 
     fun setsOf(team: Team): Int = if (team == Team.A) setsA else setsB
 
+    /**
+     * The serve line to show on [team]'s half of a watch, or `null` if that
+     * team is not serving the next point.
+     *
+     * @param compact for a small screen: names are cut shorter and an unnamed
+     * doubles player is `P2` instead of `PLAYER 2`.
+     */
+    fun serveLine(team: Team, compact: Boolean = false): ServeLine? {
+        if (server != team) return null
+        val side = serveSide ?: return null
+        val player = playersOf(team).getOrNull(serverPlayerIndex)
+        val who = when {
+            player != null -> shorten(player, if (compact) COMPACT_NAME_LENGTH else NAME_LENGTH).uppercase()
+            doubles -> if (compact) "P${serverPlayerIndex + 1}" else "PLAYER ${serverPlayerIndex + 1}"
+            else -> "SERVE"
+        }
+        return ServeLine(who, if (side == ServeSide.RIGHT) "RIGHT" else "LEFT")
+    }
+
     /** 1-based number of the set being played, or of the last set once the match is over. */
     val setNumber: Int
         get() = if (winner != null) completedSets.size else completedSets.size + 1
 
     companion object {
+        /** As long as `PLAYER 1`, the widest thing a serve line says without a name. */
+        private const val NAME_LENGTH = 8
+
+        /** What fits beside the side on a small round watch. */
+        private const val COMPACT_NAME_LENGTH = 5
+
+        /** The first [length] characters of [name], without splitting a character in two. */
+        private fun shorten(name: String, length: Int): String {
+            if (name.length <= length) return name
+            val end = if (name[length - 1].isHighSurrogate()) length - 1 else length
+            return name.substring(0, end).trim()
+        }
+
         /** The scoreboard for a match as replicated between devices. */
         fun of(snapshot: MatchSnapshot): ScoreView =
             of(snapshot.state, snapshot.roster, snapshot.serveFlipA, snapshot.serveFlipB)
