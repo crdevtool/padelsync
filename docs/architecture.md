@@ -643,15 +643,18 @@ have to be worked out again.
   exist and say "Available to internal testers" while no watch receives
   anything. The opt-in starts Google's Wear OS quality review.
 - **Where each build goes during testing.** Phone bundle: the phone closed
-  track, with the testers' Google Group. Watch bundle: the Wear OS
-  **internal** track; add the testers who own a watch to the internal tester
-  list (up to 100, no review, live within minutes).
+  track (Alpha), with the testers' Google Group. Watch bundle: the track
+  named "Wear OS closed", with the same testers; build 52 was submitted to
+  it for review on 5 October 2026. Every release on a closed track waits for
+  Google's review. The Wear OS **internal** track is the quick alternative:
+  add the watch owners to the internal tester list (up to 100, no review,
+  live within minutes).
 - **No second group of 12 testers.** The rule for new personal accounts, 12
   testers opted in for 14 days, is stated per app, and the phone closed test
   meets it. Google's page does not mention form factors; guides from
-  tester-recruiting sites say it is shared between phone and watch. A Wear OS
-  closed track is therefore optional. One named "Wear OS closed" was created
-  and left empty in case Play asks for it when applying for production.
+  tester-recruiting sites say it is shared between phone and watch. The
+  Wear OS closed track reuses the same people; it is there so the testers
+  get the watch app, not to count them again.
 - **Promote only lists tracks that exist.** To use a Wear OS closed track,
   create it first under Testing > Closed testing with the form factor
   selector on **Wear OS only**, set its testers and countries (a track with
