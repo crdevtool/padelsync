@@ -644,9 +644,10 @@ have to be worked out again.
   anything. The opt-in starts Google's Wear OS quality review.
 - **Where each build goes during testing.** Phone bundle: the phone closed
   track (Alpha), with the testers' Google Group. Watch bundle: the track
-  named "Wear OS closed", with the same testers; build 52 was submitted to
-  it for review on 5 October 2026. Every release on a closed track waits for
-  Google's review. The Wear OS **internal** track is the quick alternative:
+  named "Wear OS closed", with the same testers; build 52 was rolled out on
+  it on 5 October 2026 and the watch then received the update. Every release
+  on a closed track waits for Google's review. The step-by-step routine for
+  an update is in `docs/releases.md`. The Wear OS **internal** track is the quick alternative:
   add the watch owners to the internal tester list (up to 100, no review,
   live within minutes).
 - **No second group of 12 testers.** The rule for new personal accounts, 12
