@@ -154,8 +154,7 @@ final class CourtStore: ObservableObject {
     private var announced: MatchSnapshot?
 
     init() {
-        // Only an iPhone calls the score unasked: a watch on a wrist is not a loudspeaker.
-        let settings = SettingsStore(voiceOnWhenHosting: CourtStore.canOpenCourt)
+        let settings = SettingsStore()
         self.settings = settings
         speech = settings.speech(hosting: true)
         hasSavedMatch = UserDefaults.standard.data(forKey: CourtStore.savedMatchKey) != nil

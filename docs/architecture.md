@@ -115,8 +115,9 @@ that every device ends up on the host's score.
 Each device decides for itself what to say; nothing about speech is sent
 between devices. A device announces only scores the host has confirmed,
 never its own unconfirmed tap, so the voice cannot call a point that is then
-refused. By default the phone hosting the match speaks and guests stay
-quiet, so four phones on one court do not all talk at once.
+refused. The voice is off until a player switches it on, and the choice is
+kept apart for hosting and for joining, so a phone that speaks when it hosts
+stays quiet as a guest.
 
 ### Finding the host again
 

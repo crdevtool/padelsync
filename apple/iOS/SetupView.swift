@@ -64,7 +64,8 @@ struct SetupView: View {
         // A one-set match saved with "No tiebreak" as its final set is the
         // same thing as an advantage set, which is now chosen under "At 6-6".
         let startedWithoutTiebreak = config.map { $0.bestOf == 1 && $0.finalSetRule == FinalSetRule.advantageSet } ?? false
-        _setTiebreak = State(initialValue: (config?.setTiebreak ?? true) && !startedWithoutTiebreak)
+        // On first use sets are advantage sets with no limit, as in `Sessions.clubPadel()`.
+        _setTiebreak = State(initialValue: (config?.setTiebreak ?? false) && !startedWithoutTiebreak)
         _setGamesCap = State(initialValue: Int(config?.setGamesCap ?? 0))
         _finalSet = State(
             initialValue: startedWithoutTiebreak
@@ -295,8 +296,8 @@ struct SetupView: View {
                 if choice == gamesAll { return }
                 setTiebreak = choice != .advantageSet
                 fast4 = choice == .fast4
-                // Most groups that skip the tiebreak still want the set to end.
-                setGamesCap = setTiebreak ? 0 : gamesPerSet + 2
+                // An advantage set starts with no limit; one is chosen below.
+                setGamesCap = 0
                 // Some ways of playing the final set need an ordinary tiebreak in the others.
                 if !SetupView.finalSetChoices(setTiebreak: setTiebreak, fast4: fast4).contains(finalSet) {
                     finalSet = FinalSetRule.sameAsOtherSets

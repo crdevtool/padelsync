@@ -78,18 +78,11 @@ struct WatchRootView: View {
 /// The two formats a match can be started in from the watch, where there is
 /// no room for a setup screen.
 enum WatchFormats {
-    /// Club padel: best of 3, advantage, doubles. Every set is played,
-    /// as social padel usually is whatever the score.
+    /// Club padel, the match the iPhone's setup screen also starts from:
+    /// best of 3 with every set played, advantage at deuce, doubles, and
+    /// advantage sets with no limit.
     static var padel: MatchConfig {
-        Sessions.shared.config(
-            sport: Sport.padel,
-            bestOf: 3,
-            deuceRule: DeuceRule.advantage,
-            finalSetRule: FinalSetRule.sameAsOtherSets,
-            firstServer: Team.a,
-            playAllSets: true,
-            doubles: true
-        )
+        Sessions.shared.clubPadel()
     }
 
     static var tennis: MatchConfig {

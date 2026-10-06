@@ -53,7 +53,7 @@ fun SetupScreen(
     onStart: (MatchSetup) -> Unit,
     onBack: () -> Unit,
 ) {
-    val start = initial?.config ?: MatchConfig.padel().copy(playAllSets = true)
+    val start = initial?.config ?: Sessions.clubPadel()
     var sport by rememberSaveable { mutableStateOf(start.sport) }
     var doubles by rememberSaveable { mutableStateOf(start.doubles) }
     var bestOf by rememberSaveable { mutableStateOf(start.bestOf) }
@@ -226,8 +226,8 @@ fun SetupScreen(
                         if (it != gamesAll) {
                             setTiebreak = it != GamesAll.ADVANTAGE_SET
                             fast4 = it == GamesAll.FAST4
-                            // Most groups that skip the tiebreak still want the set to end.
-                            setGamesCap = if (setTiebreak) 0 else gamesPerSet + 2
+                            // An advantage set starts with no limit; one is chosen below.
+                            setGamesCap = 0
                             // Some ways of playing the final set need an ordinary tiebreak in the others.
                             if (finalSet !in finalSetChoices(setTiebreak, fast4)) {
                                 finalSet = FinalSetRule.SAME_AS_OTHER_SETS

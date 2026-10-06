@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.wear.compose.foundation.BasicSwipeToDismissBox
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.sync.ClientStatus
+import com.netsports.core.sync.Sessions
 import com.padelsync.kit.CourtController
 import com.padelsync.kit.CourtMode
 import com.padelsync.kit.Labels
@@ -181,8 +182,8 @@ fun WearRoot(controller: CourtController) {
             else -> BackOnSwipe(onBack = { activity?.finish() }) {
                 HomeScreen(
                     hasSavedMatch = ui.hasSavedMatch,
-                    // Social padel is usually played to the last set whatever the score.
-                    onPadel = { controller.startMatch(MatchConfig.padel().copy(playAllSets = true)) },
+                    // The same padel match the phone's setup screen starts from.
+                    onPadel = { controller.startMatch(Sessions.clubPadel()) },
                     onTennis = { controller.startMatch(MatchConfig.tennis()) },
                     onJoin = { screen = WearScreen.JOIN },
                     onResume = {

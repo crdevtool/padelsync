@@ -15,19 +15,13 @@ struct MatchSetup {
 /// `SettingsStore`.
 final class SettingsStore {
     private let defaults = UserDefaults.standard
-    private let voiceOnWhenHosting: Bool
 
-    init(voiceOnWhenHosting: Bool) {
-        self.voiceOnWhenHosting = voiceOnWhenHosting
-    }
-
-    /// Voice settings for this device. A device calls the score by default
-    /// only when it hosts; guests stay quiet unless switched on, so four
+    /// Voice settings for this device. The voice is off until the player
+    /// switches it on. The choice is kept apart for hosting and for joining,
+    /// so a phone that speaks when it hosts stays quiet as a guest and four
     /// phones on one court do not all talk at once.
     func speech(hosting: Bool) -> SpeechSettings {
-        let enabled = hosting
-            ? bool(Keys.voiceHost, fallback: voiceOnWhenHosting)
-            : bool(Keys.voiceGuest, fallback: false)
+        let enabled = bool(hosting ? Keys.voiceHost : Keys.voiceGuest, fallback: false)
         // The core refuses a reminder outside 0...60 minutes.
         let minutes = min(max(defaults.integer(forKey: Keys.voiceReminder), 0), 60)
         return SpeechSettings(

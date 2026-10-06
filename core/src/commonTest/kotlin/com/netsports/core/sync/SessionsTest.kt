@@ -126,6 +126,27 @@ class SessionsTest {
     }
 
     @Test
+    fun clubPadelIsAdvantageSetsWithNoLimit() {
+        val config = Sessions.clubPadel()
+        assertEquals(Sport.PADEL, config.sport)
+        assertEquals(3, config.bestOf)
+        assertEquals(6, config.gamesPerSet)
+        assertEquals(DeuceRule.ADVANTAGE, config.deuceRule)
+        assertFalse(config.setTiebreak)
+        assertEquals(0, config.setGamesCap)
+        assertTrue(config.playAllSets)
+        assertTrue(config.doubles)
+        // It is a format the setup screen can also build, so it survives being sent and saved.
+        assertEquals(
+            Sessions.config(
+                Sport.PADEL, 3, 6, DeuceRule.ADVANTAGE, false, 0, false,
+                FinalSetRule.SAME_AS_OTHER_SETS, Team.A, true, true,
+            ),
+            config,
+        )
+    }
+
+    @Test
     fun theSocialPadelOptionsCanBeSet() {
         val config = Sessions.config(Sport.PADEL, 3, DeuceRule.GOLDEN_POINT, FinalSetRule.SAME_AS_OTHER_SETS, Team.A, true, true)
         assertEquals(MatchConfig.padel().copy(deuceRule = DeuceRule.GOLDEN_POINT, playAllSets = true), config)

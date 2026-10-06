@@ -23,17 +23,18 @@ data class MatchSetup(
  * score and the last match that was set up, so the same four friends do not
  * have to type their names every week.
  */
-internal class SettingsStore(context: Context, private val voiceOnWhenHosting: Boolean) {
+internal class SettingsStore(context: Context) {
     private val prefs = context.getSharedPreferences("padelsync_settings", Context.MODE_PRIVATE)
 
     /**
-     * Voice settings for this device. A device calls the score by default
-     * only when it hosts; guests stay quiet unless switched on, so four
+     * Voice settings for this device. The voice is off until the player
+     * switches it on. The choice is kept apart for hosting and for joining,
+     * so a phone that speaks when it hosts stays quiet as a guest and four
      * phones on one court do not all talk at once.
      */
     fun speech(hosting: Boolean): SpeechSettings = SpeechSettings(
         enabled = if (hosting) {
-            prefs.getBoolean(KEY_VOICE_HOST, voiceOnWhenHosting)
+            prefs.getBoolean(KEY_VOICE_HOST, false)
         } else {
             prefs.getBoolean(KEY_VOICE_GUEST, false)
         },

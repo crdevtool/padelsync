@@ -120,7 +120,7 @@ class CourtController private constructor(
     private val handler = Handler(Looper.getMainLooper())
     private val identity = DeviceIdentity(app)
     private val store = MatchStore(app)
-    private val settings = SettingsStore(app, voiceOnWhenHosting = kind == DeviceKind.PHONE)
+    private val settings = SettingsStore(app)
     private val ids = RandomIdSource()
 
     // A device without a voice simply stays quiet; the voice settings say why.

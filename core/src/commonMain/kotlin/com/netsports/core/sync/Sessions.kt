@@ -106,6 +106,18 @@ object Sessions {
     }
 
     /**
+     * The format offered before a player has chosen one, and the padel match
+     * a watch starts: club padel in doubles, best of 3 with every set played,
+     * advantage at deuce, and advantage sets with no limit (no tiebreak).
+     */
+    fun clubPadel(): MatchConfig = MatchConfig(
+        sport = Sport.PADEL,
+        doubles = true,
+        playAllSets = true,
+        setTiebreak = false,
+    )
+
+    /**
      * A points match, as in Americano.
      *
      * The settings for sets are unused in a points match and are left at

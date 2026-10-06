@@ -37,12 +37,13 @@ import androidx.wear.compose.material.Text
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
+import com.netsports.core.sync.Sessions
 import com.netsports.core.ui.ScoreView
 import com.padelsync.kit.BlePermissions
-import com.padelsync.kit.Labels
 import com.padelsync.kit.CourtController
 import com.padelsync.kit.CourtMode
 import com.padelsync.kit.CourtUiState
+import com.padelsync.kit.Labels
 import com.padelsync.kit.NearbyCourt
 import kotlinx.coroutines.delay
 
@@ -332,7 +333,7 @@ fun MenuScreen(ui: CourtUiState, controller: CourtController, onTakeOver: () -> 
             }
             item {
                 SecondaryChip("New padel match") {
-                    controller.startNewMatch(MatchConfig.padel().copy(playAllSets = true))
+                    controller.startNewMatch(Sessions.clubPadel())
                     onClose()
                 }
             }
