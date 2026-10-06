@@ -15,12 +15,18 @@ struct SetupView: View {
     private let onVoiceChange: (Bool) -> Void
     private let onStart: (MatchSetup) -> Void
     private let onBack: () -> Void
+    /// The lengths of the two kinds of tiebreak, only used to explain them.
+    private let tiebreakPoints: Int32
+    private let matchTiebreakPoints: Int32
 
     @State private var sport: Sport
     @State private var doubles: Bool
     @State private var bestOf: Int
     @State private var playAllSets: Bool
     @State private var deuceRule: DeuceRule
+    @State private var gamesPerSet: Int
+    @State private var setTiebreak: Bool
+    @State private var setGamesCap: Int
     @State private var finalSet: FinalSetRule
     @State private var firstServer: Team
     @State private var guestsCanScore: Bool
@@ -53,8 +59,20 @@ struct SetupView: View {
         _doubles = State(initialValue: config?.doubles ?? true)
         _bestOf = State(initialValue: Int(config?.bestOf ?? 3))
         _playAllSets = State(initialValue: config?.playAllSets ?? true)
-        _deuceRule = State(initialValue: config?.deuceRule ?? DeuceRule.goldenPoint)
-        _finalSet = State(initialValue: config?.finalSetRule ?? FinalSetRule.sameAsOtherSets)
+        _deuceRule = State(initialValue: config?.deuceRule ?? DeuceRule.advantage)
+        _gamesPerSet = State(initialValue: Int(config?.gamesPerSet ?? 6))
+        // A one-set match saved with "No tiebreak" as its final set is the
+        // same thing as an advantage set, which is now chosen under "At 6-6".
+        let startedWithoutTiebreak = config.map { $0.bestOf == 1 && $0.finalSetRule == FinalSetRule.advantageSet } ?? false
+        _setTiebreak = State(initialValue: (config?.setTiebreak ?? true) && !startedWithoutTiebreak)
+        _setGamesCap = State(initialValue: Int(config?.setGamesCap ?? 0))
+        _finalSet = State(
+            initialValue: startedWithoutTiebreak
+                ? FinalSetRule.sameAsOtherSets
+                : (config?.finalSetRule ?? FinalSetRule.sameAsOtherSets)
+        )
+        tiebreakPoints = config?.tiebreakPoints ?? 7
+        matchTiebreakPoints = config?.matchTiebreakPoints ?? 10
         _firstServer = State(initialValue: config?.firstServer ?? Team.a)
         _guestsCanScore = State(initialValue: initial?.guestsCanScore ?? true)
 
@@ -70,10 +88,18 @@ struct SetupView: View {
     }
 
     private var finalSetOptions: [FinalSetRule] {
-        // A match tiebreak replaces a deciding set, so it needs more than one set.
-        bestOf == 1
-            ? [FinalSetRule.sameAsOtherSets, FinalSetRule.advantageSet]
-            : [FinalSetRule.sameAsOtherSets, FinalSetRule.advantageSet, FinalSetRule.matchTiebreak]
+        // "No tiebreak" in the final set alone means nothing once no set has one.
+        setTiebreak
+            ? [FinalSetRule.sameAsOtherSets, FinalSetRule.advantageSet, FinalSetRule.matchTiebreak]
+            : [FinalSetRule.sameAsOtherSets, FinalSetRule.matchTiebreak]
+    }
+
+    /// Games that win a set: a short set, the standard one, and the two usual pro sets.
+    private static let setLengths = [4, 6, 8, 9]
+
+    /// Where an advantage set can be made to stop, counted from the set length. 0 is no limit.
+    private var capOptions: [Int] {
+        [gamesPerSet + 2, gamesPerSet + 3, gamesPerSet + 4, 0]
     }
 
     var body: some View {
@@ -110,7 +136,6 @@ struct SetupView: View {
                 sport = choice
                 // Each sport's usual habits; every one can be changed below.
                 let padel = choice == Sport.padel
-                deuceRule = padel ? DeuceRule.goldenPoint : DeuceRule.advantage
                 doubles = padel
                 playAllSets = padel
             }
@@ -142,10 +167,12 @@ struct SetupView: View {
             title: "Sets",
             options: [1, 3, 5],
             selected: bestOf,
+            caption: FormatHelp.shared.sets(bestOf: Int32(bestOf)),
             label: { $0 == 1 ? "1 set" : "Best of \($0)" },
             onSelect: { choice in
                 bestOf = choice
-                if choice == 1 && finalSet == FinalSetRule.matchTiebreak {
+                // A one-set match has no final set to play differently.
+                if choice == 1 {
                     finalSet = FinalSetRule.sameAsOtherSets
                 }
             }
@@ -158,19 +185,67 @@ struct SetupView: View {
             ) { playAllSets = $0 }
         }
         OptionGroup(
+            title: "Set length",
+            options: SetupView.setLengths,
+            selected: gamesPerSet,
+            caption: FormatHelp.shared.setLength(games: Int32(gamesPerSet)),
+            label: { "\($0) games" },
+            onSelect: { choice in
+                gamesPerSet = choice
+                // The cap is counted from the set length, so it moves with it.
+                if setGamesCap != 0 {
+                    setGamesCap = choice + 2
+                }
+            }
+        )
+        OptionGroup(
             title: "At deuce",
             options: [DeuceRule.advantage, DeuceRule.goldenPoint, DeuceRule.starPoint],
             selected: deuceRule,
+            caption: FormatHelp.shared.deuce(rule: deuceRule),
             label: { Labels.deuceRule($0) },
             onSelect: { deuceRule = $0 }
         )
         OptionGroup(
-            title: "Final set",
-            options: finalSetOptions,
-            selected: finalSet,
-            label: { Labels.finalSet($0) },
-            onSelect: { finalSet = $0 }
+            title: FormatHelp.shared.gamesAllTitle(games: Int32(gamesPerSet)),
+            options: [true, false],
+            selected: setTiebreak,
+            caption: FormatHelp.shared.gamesAll(
+                games: Int32(gamesPerSet),
+                tiebreak: setTiebreak,
+                tiebreakPoints: tiebreakPoints
+            ),
+            label: { $0 ? "Tiebreak" : "Advantage set" },
+            onSelect: { choice in
+                if choice == setTiebreak { return }
+                setTiebreak = choice
+                // Most groups that skip the tiebreak still want the set to end.
+                setGamesCap = choice ? 0 : gamesPerSet + 2
+                if !choice && finalSet == FinalSetRule.advantageSet {
+                    finalSet = FinalSetRule.sameAsOtherSets
+                }
+            }
         )
+        if !setTiebreak {
+            OptionGroup(
+                title: FormatHelp.shared.capTitle(),
+                options: capOptions,
+                selected: setGamesCap,
+                caption: FormatHelp.shared.cap(games: Int32(gamesPerSet), cap: Int32(setGamesCap)),
+                label: { FormatHelp.shared.capLabel(cap: Int32($0)) },
+                onSelect: { setGamesCap = $0 }
+            )
+        }
+        if bestOf > 1 {
+            OptionGroup(
+                title: "Final set",
+                options: finalSetOptions,
+                selected: finalSet,
+                caption: FormatHelp.shared.finalSet(rule: finalSet, matchTiebreakPoints: matchTiebreakPoints),
+                label: { Labels.finalSet($0) },
+                onSelect: { finalSet = $0 }
+            )
+        }
     }
 
     @ViewBuilder private var switches: some View {
@@ -192,13 +267,15 @@ struct SetupView: View {
     }
 
     private func start() {
-        // The core refuses a match tiebreak in a one-set match.
-        let oneSet = bestOf == 1
-        let finalRule = oneSet && finalSet == FinalSetRule.matchTiebreak ? FinalSetRule.sameAsOtherSets : finalSet
+        // A one-set match has no final set; the core refuses a match tiebreak in one.
+        let finalRule = bestOf == 1 ? FinalSetRule.sameAsOtherSets : finalSet
         let config = Sessions.shared.config(
             sport: sport,
             bestOf: Int32(bestOf),
+            gamesPerSet: Int32(gamesPerSet),
             deuceRule: deuceRule,
+            setTiebreak: setTiebreak,
+            setGamesCap: Int32(setGamesCap),
             finalSetRule: finalRule,
             firstServer: firstServer,
             playAllSets: playAllSets && bestOf > 1,

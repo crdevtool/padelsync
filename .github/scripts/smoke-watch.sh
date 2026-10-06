@@ -20,13 +20,15 @@ wait_for "Team A" && shot score-start
 texts
 tap_many "Team A" 3
 tap_many "Team B" 3
-shot golden-point
+shot deuce
 texts
+# A match started from the watch plays advantage: one point is not the game.
 tap_many "Team B" 1
-shot game-to-b
+shot advantage-b
 tap "UNDO"
 shot after-undo
-tap_many "Team A" 21
+# Advantage, the game, then five games to love.
+tap_many "Team A" 22
 shot set-in-progress
 texts
 # Two sets to love decides the match, but all three sets are played.

@@ -40,7 +40,10 @@ fun <T> OptionGroup(
     selected: T,
     label: (T) -> String,
     onSelect: (T) -> Unit,
+    caption: String? = null,
 ) {
+    // Four choices share the width of three, so their labels are set smaller.
+    val labelSize = if (options.size > 3) 13.sp else 15.sp
     Column(Modifier.padding(vertical = 10.dp)) {
         Text(title, fontSize = 15.sp, color = Palette.Muted, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(8.dp))
@@ -59,7 +62,7 @@ fun <T> OptionGroup(
                 ) {
                     Text(
                         label(option),
-                        fontSize = 15.sp,
+                        fontSize = labelSize,
                         fontWeight = FontWeight.Bold,
                         color = if (isSelected) Palette.OnAccent else Palette.OnBackground,
                         maxLines = 1,
@@ -67,6 +70,16 @@ fun <T> OptionGroup(
                     )
                 }
             }
+        }
+        // What the selected choice means, in one line.
+        if (caption != null) {
+            Text(
+                caption,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                color = Palette.Muted,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
     }
 }

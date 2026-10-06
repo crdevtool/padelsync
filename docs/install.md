@@ -9,6 +9,15 @@
 All commands below are typed in PowerShell, opened in the folder that holds
 these files.
 
+**Test builds made with `build_debug.bat` install beside the Play Store
+version.** They are called **PadelSync Test** and carry their own app ID,
+`com.crdevtool.padelsync.test`, so nothing has to be uninstalled and the
+Play Store version keeps its matches and settings. A device then has two
+icons, PadelSync (from the store) and PadelSync Test (the build being tried).
+The two can share a court with each other. Remove the test build when done:
+long-press its icon and choose Uninstall, or `adb uninstall
+com.crdevtool.padelsync.test`.
+
 ## 1. Make `adb` available
 
 `adb` is the tool that installs apps from a computer. It comes with Android
@@ -142,6 +151,7 @@ with **New match** stays on that phone; it can be opened to others later from
 | Feature | Where |
 | --- | --- |
 | Player names, singles or doubles | Setup screen. Names are optional and can be corrected mid-match from **Menu > Players**. The last names used are remembered. |
+| Match format | Setup screen: sets (1, best of 3 or 5), set length (4, 6, 8 or 9 games), what happens at deuce (advantage, golden point, star point), and at 6-6 a tiebreak or an **advantage set**, which can be stopped at a number of games (**First to 8**: 7-7 is settled by one last game). One line under each choice says what it means. The form starts from the last match set up, so a group chooses its format once. |
 | Play all sets | Setup screen, **Play all 3 sets**: on by default for padel. At two sets to love the app announces the winners and carries on with the third set. |
 | Court scoreboard | Team A plays the top half, team B the bottom. Tap a half to score for it. |
 | Serve side and server | The ball marker sits on the side the server stands on and names the player (`ANA · RIGHT SIDE`); the box the serve must land in is lit. If the app has the wrong player of a pair serving, use **Menu > Swap server**. |
@@ -158,10 +168,17 @@ Also new:
 | Taking over as host | If the host's device dies or leaves, after 20 seconds the other devices offer **Host this court**. One player confirms; the rest follow by themselves under the same code. An Apple Watch cannot host and says to ask a player with a phone. |
 | Location notice | Android 11 and older, and Wear OS 3: "Join a court" explains that Location must be switched on, and that the app does not use it. |
 
-On the watch: short names (`A+L`), a serve line on the serving team's half
+On the watch: short names (`A+L`), games and sets as large numbers under
+small **GAMES** and **SETS** captions, a serve line on the serving team's half
 that names the server and the side (`LEO · RIGHT`, or `PLAYER 2 · LEFT` when
 no names were given), the set score on the middle strip, a winner screen, and
 **Voice** and **Others can score** switches in the menu.
+
+On a Wear OS watch, swiping to the right goes back one screen: from the menu
+to the score, from the code entry to the list of courts. On the scoreboard
+during a match the swipe does nothing, so that a stray one cannot close the
+app in the middle of a game; leaving is under **MENU**. On the first screen
+it closes the app, as on any watch app.
 
 The voice speaks English. It needs a text-to-speech voice on the device,
 which nearly every Android phone has; many watches do not, and the watch

@@ -236,11 +236,15 @@ private fun Half(
     }
 }
 
-/** A team's short name, its games over its sets, and its points. */
+/** A team's short name, its games, its sets and its points, each a number that reads at a glance. */
 @Composable
 private fun ScoreRow(label: String, color: Color, points: String, games: Int, sets: Int, compact: Boolean) {
     // A three-letter name needs the room that a single letter leaves spare.
-    val gap = if (label.length > 1) 6.dp else 10.dp
+    val gap = when {
+        compact -> 5.dp
+        label.length > 1 -> 7.dp
+        else -> 10.dp
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
@@ -249,15 +253,14 @@ private fun ScoreRow(label: String, color: Color, points: String, games: Int, se
         Text(
             label,
             color = color,
-            fontSize = if (label.length > 1) 16.sp else 22.sp,
+            fontSize = if (label.length > 1) 16.sp else 23.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1,
         )
         Spacer(Modifier.width(gap))
-        Column(horizontalAlignment = Alignment.End) {
-            Text("G $games", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text("S $sets", color = WearPalette.Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        }
+        Count("GAMES", games, Color.White, compact)
+        Spacer(Modifier.width(gap - 2.dp))
+        Count("SETS", sets, WearPalette.Muted, compact)
         Spacer(Modifier.width(gap))
         Text(
             points,
@@ -266,6 +269,23 @@ private fun ScoreRow(label: String, color: Color, points: String, games: Int, se
             fontSize = if (compact) 40.sp else 46.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1,
+        )
+    }
+}
+
+/** One count of the score, with a small word over it saying which. */
+@Composable
+private fun Count(caption: String, value: Int, color: Color, compact: Boolean) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(caption, color = WearPalette.Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(
+            value.toString(),
+            color = color,
+            fontSize = if (compact) 22.sp else 27.sp,
+            fontWeight = FontWeight.Black,
+            maxLines = 1,
+            // The digits carry empty space above them; close it up.
+            modifier = Modifier.offset(y = (-4).dp),
         )
     }
 }

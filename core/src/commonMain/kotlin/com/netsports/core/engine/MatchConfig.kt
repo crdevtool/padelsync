@@ -31,6 +31,13 @@ data class MatchConfig(
     val playAllSets: Boolean = false,
     /** Two players a side. Only affects which player is shown as serving. */
     val doubles: Boolean = false,
+    /**
+     * In sets played without a tiebreak ([setTiebreak] off), the number of
+     * games that wins a set outright, whatever the margin: with 8, a set that
+     * reaches 7-7 is settled by one last game. `0` means no limit, the
+     * classic advantage set, which goes on until a team is two games ahead.
+     */
+    val setGamesCap: Int = 0,
 ) {
     init {
         require(bestOf == 1 || bestOf == 3 || bestOf == 5) { "bestOf must be 1, 3 or 5, was $bestOf" }
@@ -42,6 +49,10 @@ data class MatchConfig(
         require(!(finalSetRule == FinalSetRule.MATCH_TIEBREAK && bestOf == 1)) {
             "a match tiebreak needs a best-of-3 or best-of-5 match"
         }
+        require(setGamesCap == 0 || setGamesCap in (gamesPerSet + 1)..MAX_TARGET) {
+            "setGamesCap must be 0 or in ${gamesPerSet + 1}..$MAX_TARGET, was $setGamesCap"
+        }
+        require(setGamesCap == 0 || !setTiebreak) { "a cap on games needs sets without a tiebreak" }
     }
 
     val setsToWin: Int
@@ -50,9 +61,8 @@ data class MatchConfig(
     companion object {
         const val MAX_TARGET = 99
 
-        /** Common club padel format: best of 3, golden point, tiebreak at 6-6. */
-        fun padel(): MatchConfig =
-            MatchConfig(sport = Sport.PADEL, deuceRule = DeuceRule.GOLDEN_POINT, doubles = true)
+        /** Club padel: doubles, best of 3, advantage, tiebreak at 6-6. */
+        fun padel(): MatchConfig = MatchConfig(sport = Sport.PADEL, doubles = true)
 
         /** Standard tennis format: best of 3, advantage, tiebreak at 6-6. */
         fun tennis(): MatchConfig = MatchConfig(sport = Sport.TENNIS)

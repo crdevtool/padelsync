@@ -128,7 +128,10 @@ object ScoringEngine {
         val lost = if (team == Team.A) gamesB else gamesA
 
         val setWon = when (state.gameKind) {
-            GameKind.STANDARD -> won >= config.gamesPerSet && won - lost >= 2
+            GameKind.STANDARD ->
+                (won >= config.gamesPerSet && won - lost >= 2) ||
+                    // A capped advantage set: reaching the cap wins it, even by one game.
+                    (config.setGamesCap != 0 && won >= config.setGamesCap)
             // Winning either kind of tiebreak always wins the set.
             GameKind.TIEBREAK, GameKind.MATCH_TIEBREAK -> true
         }

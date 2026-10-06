@@ -46,11 +46,21 @@ final class WalkthroughTests: XCTestCase {
         shot("setup-defaults")
         choose("Tennis")
         choose("Best of 5")
+        // Short sets played on without a tiebreak, stopped at seven games.
+        choose("4 games")
+        choose("Advantage set")
+        choose("First to 7")
+        shot("setup-advantage-set")
         choose("Match tiebreak")
         choose("Team B")
         shot("setup-changed")
+        // The match below is scripted for golden point and a tiebreak set,
+        // which are no longer what the form starts with.
         choose("Padel")
         choose("1 set")
+        choose("6 games")
+        choose("Golden point")
+        choose("Tiebreak")
         choose("Team A")
         shot("setup-one-set-padel")
         app.buttons["Start match"].tap()

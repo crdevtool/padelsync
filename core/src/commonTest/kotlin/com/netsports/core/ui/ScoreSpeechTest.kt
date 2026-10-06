@@ -12,7 +12,8 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class ScoreSpeechTest {
-    private val padel = MatchConfig.padel()
+    /** Padel as most of these tests want it: with the golden point. */
+    private val padel = MatchConfig.padel().copy(deuceRule = DeuceRule.GOLDEN_POINT)
     private val tennis = MatchConfig.tennis()
     private val roster = Roster(listOf("Ana", "Leo"), listOf("Mia", "Sam"))
     private val all = SpeechSettings()

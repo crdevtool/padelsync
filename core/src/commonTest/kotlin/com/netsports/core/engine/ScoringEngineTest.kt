@@ -9,7 +9,8 @@ import kotlin.test.assertTrue
 
 class ScoringEngineTest {
     private val tennis = MatchConfig.tennis()
-    private val padel = MatchConfig.padel()
+    /** Padel as most of these tests want it: with the golden point. */
+    private val padel = MatchConfig.padel().copy(deuceRule = DeuceRule.GOLDEN_POINT)
 
     // --- Standard game ---------------------------------------------------
 
@@ -190,6 +191,68 @@ class ScoringEngineTest {
         assertTrue(state.completedSets.isEmpty(), "7-6")
         state = winGame(state, Team.A)
         assertEquals(listOf(SetScore(8, 6)), state.completedSets)
+    }
+
+    @Test
+    fun aCappedAdvantageSetEndsWhenATeamReachesTheCap() {
+        val config = tennis.copy(setTiebreak = false, setGamesCap = 8)
+        var state = reachGamesAll(ScoringEngine.start(config))
+        assertEquals(GameKind.STANDARD, state.gameKind, "no tiebreak at 6-6")
+
+        state = winGame(state, Team.A)
+        assertTrue(state.completedSets.isEmpty(), "7-6 is not enough")
+        state = winGame(state, Team.B)
+        assertTrue(state.completedSets.isEmpty(), "7-7")
+        assertEquals(GameKind.STANDARD, state.gameKind, "no tiebreak at 7-7 either")
+
+        // One last game decides it, so a game point is a set point for both.
+        state = play(state, "AAABB")
+        assertEquals(PointStake.SET_POINT, ScoringEngine.stakeFor(state, Team.A))
+        assertEquals(PointStake.NONE, ScoringEngine.stakeFor(state, Team.B))
+        state = play(state, "A")
+        assertEquals(listOf(SetScore(8, 7)), state.completedSets)
+        assertEquals(0, state.gamesA)
+    }
+
+    @Test
+    fun aCappedAdvantageSetIsStillWonByTwoClearGamesBelowTheCap() {
+        val config = tennis.copy(setTiebreak = false, setGamesCap = 8)
+        // 7-5: over before the cap matters.
+        var state = winGames(ScoringEngine.start(config), Team.A, 5)
+        state = winGames(state, Team.B, 5)
+        state = winGame(state, Team.A)
+        assertTrue(state.completedSets.isEmpty(), "6-5 is not enough")
+        state = winGame(state, Team.A)
+        assertEquals(listOf(SetScore(7, 5)), state.completedSets)
+
+        // 8-6: two clear games and the cap at once.
+        state = reachGamesAll(ScoringEngine.start(config))
+        state = winGames(state, Team.B, 2)
+        assertEquals(listOf(SetScore(6, 8)), state.completedSets)
+    }
+
+    @Test
+    fun aHigherCapAndShortSetsWorkTheSameWay() {
+        // Capped at 10: 8-8 and 9-9 are played on, 10-9 ends it.
+        var state = reachGamesAll(ScoringEngine.start(tennis.copy(setTiebreak = false, setGamesCap = 10)), games = 9)
+        assertTrue(state.completedSets.isEmpty(), "9-9")
+        state = winGame(state, Team.B)
+        assertEquals(listOf(SetScore(9, 10)), state.completedSets)
+
+        // Sets to four games, capped at six.
+        val short = padel.copy(gamesPerSet = 4, setTiebreak = false, setGamesCap = 6)
+        state = reachGamesAll(ScoringEngine.start(short), games = 5)
+        assertTrue(state.completedSets.isEmpty(), "5-5")
+        state = winGame(state, Team.A)
+        assertEquals(listOf(SetScore(6, 5)), state.completedSets)
+    }
+
+    @Test
+    fun aCapMustBeAboveTheSetLengthAndNeedsSetsWithoutATiebreak() {
+        assertFailsWith<IllegalArgumentException> { tennis.copy(setTiebreak = false, setGamesCap = 6) }
+        assertFailsWith<IllegalArgumentException> { tennis.copy(setTiebreak = false, setGamesCap = 100) }
+        assertFailsWith<IllegalArgumentException> { tennis.copy(setGamesCap = 8) }
+        assertEquals(7, tennis.copy(setTiebreak = false, setGamesCap = 7).setGamesCap)
     }
 
     @Test
@@ -406,8 +469,10 @@ class ScoringEngineTest {
 
     @Test
     fun presets() {
-        assertEquals(Sport.PADEL, padel.sport)
-        assertEquals(DeuceRule.GOLDEN_POINT, padel.deuceRule)
+        assertEquals(Sport.PADEL, MatchConfig.padel().sport)
+        assertTrue(MatchConfig.padel().doubles)
+        // Both sports start from advantage; golden point is a choice.
+        assertEquals(DeuceRule.ADVANTAGE, MatchConfig.padel().deuceRule)
         assertEquals(DeuceRule.ADVANTAGE, tennis.deuceRule)
         assertEquals(2, tennis.setsToWin)
         assertEquals(3, tennis.copy(bestOf = 5).setsToWin)

@@ -78,9 +78,32 @@ class SessionsTest {
     }
 
     @Test
+    fun everySetupChoiceCanBeSet() {
+        val house = Sessions.config(
+            Sport.PADEL, 3, 6, DeuceRule.ADVANTAGE, false, 8, FinalSetRule.SAME_AS_OTHER_SETS, Team.B, true, true,
+        )
+        assertEquals(
+            MatchConfig.padel().copy(setTiebreak = false, setGamesCap = 8, firstServer = Team.B, playAllSets = true),
+            house,
+        )
+        // A cap left over in the form is ignored once tiebreaks are chosen.
+        val short = Sessions.config(
+            Sport.TENNIS, 3, 4, DeuceRule.GOLDEN_POINT, true, 6, FinalSetRule.MATCH_TIEBREAK, Team.A, false, false,
+        )
+        assertEquals(
+            MatchConfig.tennis().copy(
+                gamesPerSet = 4,
+                deuceRule = DeuceRule.GOLDEN_POINT,
+                finalSetRule = FinalSetRule.MATCH_TIEBREAK,
+            ),
+            short,
+        )
+    }
+
+    @Test
     fun theSocialPadelOptionsCanBeSet() {
         val config = Sessions.config(Sport.PADEL, 3, DeuceRule.GOLDEN_POINT, FinalSetRule.SAME_AS_OTHER_SETS, Team.A, true, true)
-        assertEquals(MatchConfig.padel().copy(playAllSets = true), config)
+        assertEquals(MatchConfig.padel().copy(deuceRule = DeuceRule.GOLDEN_POINT, playAllSets = true), config)
         val singles = Sessions.config(Sport.TENNIS, 3, DeuceRule.ADVANTAGE, FinalSetRule.SAME_AS_OTHER_SETS, Team.A, false, false)
         assertEquals(MatchConfig.tennis(), singles)
     }

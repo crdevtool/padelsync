@@ -21,6 +21,8 @@ android {
         // must differ; PlayRelease keeps them apart.
         versionCode = PlayRelease.versionCode(project, FormFactor.WATCH)
         versionName = PlayRelease.versionName(project)
+        // The name under the icon; see PlayRelease.sideBySide.
+        manifestPlaceholders["appLabel"] = PlayRelease.appLabel(project)
     }
 
     signingConfigs {
@@ -45,6 +47,9 @@ android {
     buildTypes {
         debug {
             signingConfig = signingConfigs.getByName("debug")
+            // A separate app ID lets a test build sit beside the Play Store
+            // version on the same device; see PlayRelease.sideBySide.
+            if (PlayRelease.sideBySide(project)) applicationIdSuffix = ".test"
         }
         release {
             // Shrunk and optimised, as store builds should be. The build

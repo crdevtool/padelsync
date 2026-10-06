@@ -102,11 +102,20 @@ All integers are big-endian. The first byte is the message type.
 | Points | (count + 7) / 8 | One bit per point, least significant bit first; 1 = team B |
 
 Format, one byte each: sport (0 padel, 1 tennis), best of (1, 3, 5), games
-per set, deuce rule (0 advantage, 1 golden point, 2 star point), set tiebreak
-(0 or 1), tiebreak points, final set rule (0 same as other sets, 1 advantage
-set, 2 match tiebreak), match tiebreak points, first server (0 team A,
-1 team B), play all sets (0 or 1: keep playing after the match is decided),
-doubles (0 or 1).
+per set, deuce rule (0 advantage, 1 golden point, 2 star point), how a set
+that reaches games-all is settled (see below), tiebreak points, final set
+rule (0 same as other sets, 1 advantage set, 2 match tiebreak), match
+tiebreak points, first server (0 team A, 1 team B), play all sets (0 or 1:
+keep playing after the match is decided), doubles (0 or 1).
+
+The games-all byte: 1 means a tiebreak; 0 means the set is played on until a
+team is two games ahead; any larger value means it is played on until a team
+reaches that many games, which must be more than the games per set. The
+value 1 is free to mean "tiebreak" because a cap of one game cannot exist.
+Before the cap was added this byte was only ever 0 or 1, so every format an
+older version knows is sent exactly as before, and matches it saved still
+load. An older version that is sent a cap refuses the message as an invalid
+format, and so cannot follow a court that uses one.
 
 Players: for team A and then team B, a count (0 to 2) followed by that many
 names, each a length byte (1 to 20) and UTF-8 text. A team's first-listed

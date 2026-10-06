@@ -202,13 +202,16 @@ function Copy-Result([string]$from, [string]$name) {
 # --- Test builds --------------------------------------------------------------
 if (-not $Release) {
     Write-Host "Building the test builds (debug APKs)..."
-    if (-not (Invoke-Gradle @(":mobile:assembleDebug", ":wear:assembleDebug"))) {
+    # Built as "PadelSync Test" with its own app ID, so it installs beside
+    # the Play Store version instead of being refused over its signing key.
+    if (-not (Invoke-Gradle @(":mobile:assembleDebug", ":wear:assembleDebug", "-Ppadelsync.sideBySide=true"))) {
         Stop-WithMessage $buildFailedMessage
     }
     Write-Host ""
     Write-Host "Done:"
     Copy-Result "mobile/build/outputs/apk/debug/mobile-debug.apk" "PadelSync-phone.apk"
     Copy-Result "wear/build/outputs/apk/debug/wear-debug.apk" "PadelSync-watch.apk"
+    Write-Host "They install as 'PadelSync Test', beside the Play Store version."
     Write-Host "Install them with adb; see docs\install.md."
     Restore-JavaHome
     exit 0

@@ -199,7 +199,10 @@ object WireCodec {
             .u8(config.bestOf)
             .u8(config.gamesPerSet)
             .u8(config.deuceRule.code)
-            .u8(if (config.setTiebreak) 1 else 0)
+            // One byte says how a set that reaches games-all is settled:
+            // 1 a tiebreak, 0 play on with no limit, anything larger play
+            // on until a team reaches that many games.
+            .u8(if (config.setTiebreak) 1 else config.setGamesCap)
             .u8(config.tiebreakPoints)
             .u8(config.finalSetRule.code)
             .u8(config.matchTiebreakPoints)
@@ -219,7 +222,11 @@ object WireCodec {
         val bestOf = reader.u8()
         val gamesPerSet = reader.u8()
         val deuceRule = deuceRuleOf(reader.u8())
-        val setTiebreak = readFlag(reader, "tiebreak")
+        val gamesAll = reader.u8()
+        val setTiebreak = gamesAll == 1
+        // A cap of 1 cannot exist (it is always above the games in a set),
+        // which is what frees the value 1 to mean "tiebreak".
+        val setGamesCap = if (gamesAll == 1) 0 else gamesAll
         val tiebreakPoints = reader.u8()
         val finalSetRule = finalSetRuleOf(reader.u8())
         val matchTiebreakPoints = reader.u8()
@@ -239,6 +246,7 @@ object WireCodec {
                 firstServer = firstServer,
                 playAllSets = playAllSets,
                 doubles = doubles,
+                setGamesCap = setGamesCap,
             )
         } catch (e: IllegalArgumentException) {
             throw ProtocolException("invalid match format: ${e.message}")

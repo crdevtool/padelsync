@@ -142,9 +142,10 @@ enum Labels {
         return "Full set"
     }
 
-    /// One line describing a format, for example `Padel · Best of 3 · Golden point`.
+    /// One line describing a format, for example `Padel · Best of 3 · Golden point`,
+    /// with anything unusual about its sets added: `· Advantage sets to 8`.
     static func format(_ config: MatchConfig) -> String {
-        "\(sport(config.sport)) · \(sets(config)) · \(deuceRule(config.deuceRule))"
+        "\(sport(config.sport)) · \(sets(config)) · \(deuceRule(config.deuceRule))\(FormatHelp.shared.extras(config: config))"
     }
 
     /// `1 set`, `Best of 3`, or `3 sets` when every set is played.

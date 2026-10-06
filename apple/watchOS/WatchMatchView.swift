@@ -150,14 +150,8 @@ private struct WatchHalf: View {
                         .font(.system(size: short ? 20 : 14, weight: .black, design: .rounded))
                         .foregroundStyle(color)
                         .lineLimit(1)
-                    VStack(alignment: .trailing, spacing: 0) {
-                        Text("G \(games)")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white)
-                        Text("S \(sets)")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(Palette.muted)
-                    }
+                    WatchCount(caption: "GAMES", value: games, color: .white, compact: compact)
+                    WatchCount(caption: "SETS", value: sets, color: Palette.muted, compact: compact)
                     Text(points)
                         .font(.system(size: compact ? 38 : 44, weight: .black, design: .rounded))
                         .minimumScaleFactor(0.5)
@@ -185,6 +179,28 @@ private struct WatchHalf: View {
 
     /// Screens narrower than this, in points, count as small.
     private static let compactBelowWidth: CGFloat = 180
+}
+
+/// One count of the score, with a small word over it saying which.
+private struct WatchCount: View {
+    let caption: String
+    let value: Int
+    let color: Color
+    let compact: Bool
+
+    var body: some View {
+        // The digits carry empty space above them; the negative spacing closes it up.
+        VStack(spacing: -2) {
+            Text(caption)
+                .font(.system(size: 7.5, weight: .bold))
+                .foregroundStyle(Palette.muted)
+            Text("\(value)")
+                .font(.system(size: compact ? 21 : 25, weight: .black, design: .rounded))
+                .foregroundStyle(color)
+        }
+        .lineLimit(1)
+        .fixedSize()
+    }
 }
 
 /// Who serves the next point and from which side, as on the iPhone: a ball,

@@ -4,6 +4,7 @@ import com.netsports.core.engine.ServeSide
 import com.netsports.core.match.MatchSnapshot
 import com.netsports.core.match.Roster
 import com.netsports.core.engine.FinalSetRule
+import com.netsports.core.engine.DeuceRule
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.ScoringEngine
 import com.netsports.core.engine.Team
@@ -19,7 +20,8 @@ import kotlin.test.assertTrue
 
 class ScoreViewTest {
     private val tennis = MatchConfig.tennis()
-    private val padel = MatchConfig.padel()
+    /** Padel as most of these tests want it: with the golden point. */
+    private val padel = MatchConfig.padel().copy(deuceRule = DeuceRule.GOLDEN_POINT)
 
     private fun view(config: MatchConfig, points: String) = ScoreView.of(play(ScoringEngine.start(config), points))
 

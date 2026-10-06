@@ -18,12 +18,19 @@ texts
 # --- Setup: every option can be changed and changed back ---------------------
 tap "New match" && wait_for "Start match"
 shot setup-default
-tap "Tennis"; tap "Best of 5"; tap "Match tiebreak"; tap "Team B"
+# In the order of the form: tapping only ever scrolls down to find things.
+tap "Tennis"; tap "Team B"; tap "Best of 5"
+# Short sets played on without a tiebreak, stopped at seven games.
+tap "4 games"; tap "Advantage set"; tap "First to 7"
+shot setup-advantage-set
+tap "Match tiebreak"
 shot setup-changed
-# Back to the top of the form: tapping only ever scrolls down to find things.
-for _ in 1 2 3; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWIPE_FROM" 200; done
+# Back to the top of the form.
+for _ in 1 2 3 4 5; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWIPE_FROM" 200; done
 sleep 1
-tap "Padel"; tap "Team A"; tap "Best of 3"; tap "Full set"
+# The match below is scripted for golden point and tiebreak sets, which are
+# no longer what the form starts with.
+tap "Padel"; tap "Team A"; tap "Best of 3"; tap "6 games"; tap "Golden point"; tap "Tiebreak"; tap "Full set"
 shot setup-padel
 tap "Start match"
 
@@ -79,7 +86,7 @@ texts
 # --- A second match with names -----------------------------------------------
 tap "Menu"; tap "New match"
 wait_for "Start match"
-for _ in 1 2 3; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWIPE_FROM" 200; done
+for _ in 1 2 3 4 5; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWIPE_FROM" 200; done
 sleep 1
 tap "Player 1"; adb shell input text "Ana"; sleep 1
 shot setup-names

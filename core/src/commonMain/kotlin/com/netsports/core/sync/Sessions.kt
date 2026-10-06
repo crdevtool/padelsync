@@ -62,6 +62,37 @@ object Sessions {
     )
 
     /**
+     * As [config], with every choice the setup screen offers.
+     *
+     * @param setTiebreak whether a set that reaches games-all is settled by a
+     * tiebreak; when false it is played on as an advantage set.
+     * @param setGamesCap games that win an advantage set outright, or 0 for no limit.
+     */
+    fun config(
+        sport: Sport,
+        bestOf: Int,
+        gamesPerSet: Int,
+        deuceRule: DeuceRule,
+        setTiebreak: Boolean,
+        setGamesCap: Int,
+        finalSetRule: FinalSetRule,
+        firstServer: Team,
+        playAllSets: Boolean,
+        doubles: Boolean,
+    ): MatchConfig = MatchConfig(
+        sport = sport,
+        bestOf = bestOf,
+        gamesPerSet = gamesPerSet,
+        deuceRule = deuceRule,
+        setTiebreak = setTiebreak,
+        finalSetRule = finalSetRule,
+        firstServer = firstServer,
+        playAllSets = playAllSets,
+        doubles = doubles,
+        setGamesCap = if (setTiebreak) 0 else setGamesCap,
+    )
+
+    /**
      * Player names from four form fields. Empty fields are dropped, so pass
      * `""` for a player that was not named or does not exist.
      */

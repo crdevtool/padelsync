@@ -115,11 +115,49 @@ class WireCodecTest {
             MatchConfig.tennis().copy(playAllSets = true),
             MatchConfig.tennis().copy(doubles = true),
             MatchConfig.padel().copy(playAllSets = true, doubles = false),
+            MatchConfig.padel().copy(setTiebreak = false, setGamesCap = 8),
+            MatchConfig.tennis().copy(gamesPerSet = 4, setTiebreak = false, setGamesCap = 5),
+            MatchConfig.tennis().copy(gamesPerSet = 9, bestOf = 1),
         )
         for (config in configs) {
             val state = Message.State(MatchSnapshot(1, 1, 0, config, emptyList()), deviceCount = 1)
             assertEquals(state, roundTrip(state))
         }
+    }
+
+    @Test
+    fun aCapOnGamesTravelsInTheByteThatSaysHowGamesAllIsSettled() {
+        // The format keeps its size, so matches saved by earlier versions
+        // still load and every format they knew is sent unchanged.
+        fun bytesFor(config: MatchConfig) =
+            WireCodec.encode(Message.State(MatchSnapshot(1, 1, 0, config, emptyList()), deviceCount = 1))
+
+        val tiebreak = bytesFor(MatchConfig.tennis())
+        val advantage = bytesFor(MatchConfig.tennis().copy(setTiebreak = false))
+        val capped = bytesFor(MatchConfig.tennis().copy(setTiebreak = false, setGamesCap = 8))
+        assertEquals(tiebreak.size, capped.size)
+        assertEquals(tiebreak.size, advantage.size)
+
+        val differing = tiebreak.indices.filter { tiebreak[it] != capped[it] }
+        assertEquals(1, differing.size)
+        val at = differing.single()
+        assertEquals(1, tiebreak[at].toInt())
+        assertEquals(0, advantage[at].toInt())
+        assertEquals(8, capped[at].toInt())
+    }
+
+    @Test
+    fun aCapThatCannotBePlayedIsRefused() {
+        val bytes = WireCodec.encode(
+            Message.State(
+                MatchSnapshot(1, 1, 0, MatchConfig.tennis().copy(setTiebreak = false, setGamesCap = 8), emptyList()),
+                deviceCount = 1,
+            ),
+        )
+        val at = bytes.indexOfLast { it.toInt() == 8 }
+        // A cap of 3 in a set to six games makes no sense.
+        bytes[at] = 3
+        assertFailsWith<ProtocolException> { WireCodec.decode(bytes) }
     }
 
     @Test

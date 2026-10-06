@@ -8,6 +8,7 @@ import com.netsports.core.engine.Sport
 import com.netsports.core.engine.Team
 import com.netsports.core.sync.JoinRejection
 import com.netsports.core.sync.TapFeedback
+import com.netsports.core.ui.FormatHelp
 import com.netsports.core.ui.Highlight
 import com.netsports.core.ui.ScoreView
 
@@ -134,9 +135,12 @@ object Labels {
         FinalSetRule.MATCH_TIEBREAK -> "Match tiebreak"
     }
 
-    /** One line describing a format, for example `Padel · Best of 3 · Golden point`. */
+    /**
+     * One line describing a format, for example `Padel · Best of 3 · Golden point`,
+     * with anything unusual about its sets added: `· Advantage sets to 8`.
+     */
     fun format(config: MatchConfig): String =
-        "${sport(config.sport)} · ${sets(config)} · ${deuceRule(config.deuceRule)}"
+        "${sport(config.sport)} · ${sets(config)} · ${deuceRule(config.deuceRule)}${FormatHelp.extras(config)}"
 
     /** `1 set`, `Best of 3`, or `3 sets` when every set is played. */
     fun sets(config: MatchConfig): String = when {

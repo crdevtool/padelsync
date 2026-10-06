@@ -55,6 +55,19 @@ object PlayRelease {
     fun versionCode(project: Project, formFactor: FormFactor): Int =
         releaseNumber(project) * 10 + formFactor.slot
 
+    /**
+     * True when a debug build should install beside the Play Store version
+     * instead of being refused over its different signing key. Asked for
+     * with `-Ppadelsync.sideBySide=true`, which the local build script does;
+     * the build server leaves it off, so its tests run the app under its
+     * real ID.
+     */
+    fun sideBySide(project: Project): Boolean =
+        project.providers.gradleProperty("padelsync.sideBySide").orNull?.trim() == "true"
+
+    /** The name a side-by-side build shows, so the two installs can be told apart. */
+    fun appLabel(project: Project): String = if (sideBySide(project)) "PadelSync Test" else "@string/app_name"
+
     private fun releaseNumber(project: Project): Int {
         val text = env(project, RELEASE_NUMBER)?.trim() ?: return 0
         val number = text.toIntOrNull()

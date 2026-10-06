@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The watch's built-in swipe to the right closes the whole app from any
+      screen. It is switched off here; the app handles the swipe itself and
+      goes back one screen instead (see BackOnSwipe in WearRoot.kt).
+    -->
+    <style name="Theme.PadelSync" parent="@android:style/Theme.DeviceDefault">
+        <item name="android:windowSwipeToDismiss">false</item>
+    </style>
+</resources>

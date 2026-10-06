@@ -77,6 +77,8 @@ struct OptionGroup<Option: Equatable>: View {
     let title: String
     let options: [Option]
     let selected: Option
+    /// What the selected choice means, in one line under the choices.
+    var caption: String?
     let label: (Option) -> String
     let onSelect: (Option) -> Void
 
@@ -106,6 +108,12 @@ struct OptionGroup<Option: Equatable>: View {
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
+            }
+            if let caption = caption {
+                Text(caption)
+                    .font(.footnote)
+                    .foregroundStyle(Palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

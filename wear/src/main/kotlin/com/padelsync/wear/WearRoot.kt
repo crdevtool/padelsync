@@ -1,5 +1,7 @@
 package com.padelsync.wear
 
+import android.app.Activity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +14,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.wear.compose.foundation.BasicSwipeToDismissBox
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.sync.ClientStatus
 import com.padelsync.kit.CourtController
@@ -38,6 +42,7 @@ fun WearRoot(controller: CourtController) {
     var screen by remember { mutableStateOf(WearScreen.HOME) }
     var chosen by remember { mutableStateOf<NearbyCourt?>(null) }
     val gate = rememberBluetoothGate()
+    val activity = LocalContext.current as? Activity
 
     // The host came back while the take-over question was open: withdraw it,
     // or it would pop up by itself the next time the host is lost.
@@ -57,97 +62,161 @@ fun WearRoot(controller: CourtController) {
     ) {
         val score = ui.score
         when {
-            ui.mode == CourtMode.GUEST && ui.guestStatus == ClientStatus.REJECTED -> MessageScreen(
-                title = "Could not join",
-                body = Labels.rejection(ui.rejection),
-                button = "Back",
-                onClick = {
+            ui.mode == CourtMode.GUEST && ui.guestStatus == ClientStatus.REJECTED -> {
+                val back = {
                     controller.leave()
                     screen = WearScreen.HOME
-                },
-            )
+                }
+                BackOnSwipe(onBack = back) {
+                    MessageScreen(
+                        title = "Could not join",
+                        body = Labels.rejection(ui.rejection),
+                        button = "Back",
+                        onClick = back,
+                    )
+                }
+            }
 
             // Asked before taking over as host: only one player should.
-            ui.mode == CourtMode.GUEST && ui.canTakeOver && screen == WearScreen.TAKE_OVER -> MessageScreen(
-                title = Labels.TAKE_OVER_BUTTON_SHORT + "?",
-                body = Labels.TAKE_OVER_BODY,
-                button = "Cancel",
-                onClick = { screen = WearScreen.HOME },
-                primaryButton = Labels.TAKE_OVER_CONFIRM,
-                onPrimaryClick = {
-                    screen = WearScreen.HOME
-                    gate { controller.takeOverAsHost() }
-                },
-            )
+            ui.mode == CourtMode.GUEST && ui.canTakeOver && screen == WearScreen.TAKE_OVER ->
+                BackOnSwipe(onBack = { screen = WearScreen.HOME }) {
+                    MessageScreen(
+                        title = Labels.TAKE_OVER_BUTTON_SHORT + "?",
+                        body = Labels.TAKE_OVER_BODY,
+                        button = "Cancel",
+                        onClick = { screen = WearScreen.HOME },
+                        primaryButton = Labels.TAKE_OVER_CONFIRM,
+                        onPrimaryClick = {
+                            screen = WearScreen.HOME
+                            gate { controller.takeOverAsHost() }
+                        },
+                    )
+                }
 
-            ui.mode == CourtMode.GUEST && ui.guestStatus == ClientStatus.ENDED -> MessageScreen(
-                title = Labels.COURT_CLOSED_TITLE,
-                body = Labels.COURT_CLOSED_BODY,
-                button = "Back",
-                onClick = {
+            ui.mode == CourtMode.GUEST && ui.guestStatus == ClientStatus.ENDED -> {
+                val back = {
                     controller.leave()
                     screen = WearScreen.HOME
-                },
-                primaryButton = Labels.TAKE_OVER_BUTTON_SHORT.takeIf { ui.canTakeOver },
-                onPrimaryClick = { screen = WearScreen.TAKE_OVER },
-            )
+                }
+                BackOnSwipe(onBack = back) {
+                    MessageScreen(
+                        title = Labels.COURT_CLOSED_TITLE,
+                        body = Labels.COURT_CLOSED_BODY,
+                        button = "Back",
+                        onClick = back,
+                        primaryButton = Labels.TAKE_OVER_BUTTON_SHORT.takeIf { ui.canTakeOver },
+                        onPrimaryClick = { screen = WearScreen.TAKE_OVER },
+                    )
+                }
+            }
 
-            ui.mode != CourtMode.IDLE && score == null -> MessageScreen(
-                title = "Connecting…",
-                body = "Stay near the host.",
-                button = "Cancel",
-                onClick = {
+            ui.mode != CourtMode.IDLE && score == null -> {
+                val back = {
                     controller.leave()
                     screen = WearScreen.HOME
-                },
-            )
+                }
+                BackOnSwipe(onBack = back) {
+                    MessageScreen(
+                        title = "Connecting…",
+                        body = "Stay near the host.",
+                        button = "Cancel",
+                        onClick = back,
+                    )
+                }
+            }
 
-            ui.mode != CourtMode.IDLE && screen == WearScreen.MENU -> MenuScreen(
-                ui = ui,
-                controller = controller,
-                onTakeOver = { screen = WearScreen.TAKE_OVER },
-                onClose = { screen = WearScreen.HOME },
-            )
+            ui.mode != CourtMode.IDLE && screen == WearScreen.MENU ->
+                BackOnSwipe(onBack = { screen = WearScreen.HOME }) {
+                    MenuScreen(
+                        ui = ui,
+                        controller = controller,
+                        onTakeOver = { screen = WearScreen.TAKE_OVER },
+                        onClose = { screen = WearScreen.HOME },
+                    )
+                }
 
-            ui.mode != CourtMode.IDLE && score != null -> ScoreScreen(
-                ui = ui,
-                score = score,
-                controller = controller,
-                resultDismissed = resultDismissed,
-                onDismissResult = { resultDismissed = true },
-                onMenu = { screen = WearScreen.MENU },
-            )
+            ui.mode != CourtMode.IDLE && score != null -> {
+                // During a match a swipe does nothing: a stray one while
+                // tapping in a point must not take the scoreboard away.
+                // Leaving goes through the menu. Once the match is over the
+                // swipe puts the result away, like its "Scoreboard" button.
+                val showingResult = score.winner != null && !resultDismissed
+                BackOnSwipe(onBack = { if (showingResult) resultDismissed = true }, swipe = showingResult) {
+                    ScoreScreen(
+                        ui = ui,
+                        score = score,
+                        controller = controller,
+                        resultDismissed = resultDismissed,
+                        onDismissResult = { resultDismissed = true },
+                        onMenu = { screen = WearScreen.MENU },
+                    )
+                }
+            }
 
-            screen == WearScreen.JOIN -> JoinScreen(
-                controller = controller,
-                error = ui.error,
-                onChoose = {
-                    chosen = it
-                    screen = WearScreen.CODE
-                },
-                onBack = { screen = WearScreen.HOME },
-            )
+            screen == WearScreen.JOIN -> BackOnSwipe(onBack = { screen = WearScreen.HOME }) {
+                JoinScreen(
+                    controller = controller,
+                    error = ui.error,
+                    onChoose = {
+                        chosen = it
+                        screen = WearScreen.CODE
+                    },
+                    onBack = { screen = WearScreen.HOME },
+                )
+            }
 
-            screen == WearScreen.CODE -> CodeScreen(
-                onBack = { screen = WearScreen.JOIN },
-                onDone = { code ->
-                    val court = chosen
-                    screen = WearScreen.HOME
-                    if (court != null) controller.join(court, code)
-                },
-            )
+            screen == WearScreen.CODE -> BackOnSwipe(onBack = { screen = WearScreen.JOIN }) {
+                CodeScreen(
+                    onBack = { screen = WearScreen.JOIN },
+                    onDone = { code ->
+                        val court = chosen
+                        screen = WearScreen.HOME
+                        if (court != null) controller.join(court, code)
+                    },
+                )
+            }
 
-            else -> HomeScreen(
-                hasSavedMatch = ui.hasSavedMatch,
-                // Social padel is usually played to the last set whatever the score.
-                onPadel = { controller.startMatch(MatchConfig.padel().copy(playAllSets = true)) },
-                onTennis = { controller.startMatch(MatchConfig.tennis()) },
-                onJoin = { screen = WearScreen.JOIN },
-                onResume = {
-                    // A court that was open when the app closed opens again.
-                    if (controller.resumeSavedMatch()) gate { controller.openCourt() }
-                },
+            // The first screen: here, and only here, a swipe closes the app.
+            else -> BackOnSwipe(onBack = { activity?.finish() }) {
+                HomeScreen(
+                    hasSavedMatch = ui.hasSavedMatch,
+                    // Social padel is usually played to the last set whatever the score.
+                    onPadel = { controller.startMatch(MatchConfig.padel().copy(playAllSets = true)) },
+                    onTennis = { controller.startMatch(MatchConfig.tennis()) },
+                    onJoin = { screen = WearScreen.JOIN },
+                    onResume = {
+                        // A court that was open when the app closed opens again.
+                        if (controller.resumeSavedMatch()) gate { controller.openCourt() }
+                    },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Makes the watch's two ways of going back, the swipe to the right and the
+ * back button, step back one screen with [onBack] instead of closing the app.
+ *
+ * The system's own swipe, which closes the whole app from any screen, is
+ * switched off in the app's theme; this takes its place.
+ *
+ * @param swipe false to ignore the swipe on this screen. The back button
+ * still calls [onBack].
+ */
+@Composable
+private fun BackOnSwipe(onBack: () -> Unit, swipe: Boolean = true, content: @Composable () -> Unit) {
+    BackHandler(onBack = onBack)
+    BasicSwipeToDismissBox(onDismissed = onBack, userSwipeEnabled = swipe) { isBackground ->
+        // What shows behind the screen as it slides away.
+        if (isBackground) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
             )
+        } else {
+            content()
         }
     }
 }
