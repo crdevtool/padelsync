@@ -5,6 +5,7 @@ line whenever a build is uploaded.
 
 | Store | Version | Build | Built (UTC) | Commit | Built by | Where the file is |
 | --- | --- | --- | --- | --- | --- | --- |
+| Google Play | 1.0 | 61 (phone), 62 (watch) | 6 Oct 2026, 21:12 | `d4ba458` | Play release workflow, [run 6](https://github.com/crdevtool/padelsync/actions/runs/37531686535) | On the run's page until 5 Nov 2026; in Play Console once uploaded. First build with the quick setup, advantage sets, Americano and the other new formats. Tested by [CI run 42](https://github.com/crdevtool/padelsync/actions/runs/37528360420). |
 | TestFlight | 1.0 | 6 | 5 Oct 2026, 12:21 | `ad4362b` | Apple release workflow, [run 6](https://github.com/crdevtool/padelsync/actions/runs/37307840237) | At Apple only: App Store Connect > TestFlight. Same app code as `626baac`; first build with the serve line on the watch. |
 | Google Play | 1.0 | 51 (phone), 52 (watch) | 5 Oct 2026, 11:57 | `626baac` | Play release workflow, [run 5](https://github.com/crdevtool/padelsync/actions/runs/37305889517) | On the run's page until 4 Nov 2026; in Play Console once uploaded. First build with the serve line on the watch. |
 | TestFlight | 1.0 | 5 | 4 Oct 2026, 12:22 | `16b1734` | Apple release workflow, [run 5](https://github.com/crdevtool/padelsync/actions/runs/37201436169) | At Apple only: App Store Connect > TestFlight. GitHub keeps no copy. |
@@ -14,6 +15,13 @@ line whenever a build is uploaded.
 The app's code is the same in the three builds of 4 October: between those
 commits only the version label and the build scripts changed. From `626baac`
 on, both watch apps name the server and the side on the serving team's half.
+
+From `d4ba458` on, a match can use formats that earlier builds do not know:
+an advantage set with a limit, sets to 4, 8 or 9 games, Fast4, a final-set
+tiebreak to 10, and Americano. A device on an earlier build cannot follow a
+court that uses one of them, so everyone on such a court needs this build or
+a later one. The formats the earlier builds know still work between old and
+new.
 
 ## Sending out an update: the routine
 
