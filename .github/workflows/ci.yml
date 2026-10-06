@@ -84,13 +84,32 @@ jobs:
         run: |
           set -o pipefail
           ./gradlew :mobile:assembleDebug :wear:assembleDebug --stacktrace 2>&1 | tee build.log
+      - name: Keep APKs for the emulator tests
+        run: |
+          cp mobile/build/outputs/apk/debug/mobile-debug.apk PadelSync-phone.apk
+          cp wear/build/outputs/apk/debug/wear-debug.apk PadelSync-watch.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: PadelSync-*.apk
+          retention-days: 7
+      # The build offered for trying on real devices is the same code under
+      # its own app ID and the name "PadelSync Test", so that it installs
+      # beside the Play Store version instead of being refused over its
+      # signing key. The emulator tests keep the build with the real ID.
+      - name: Build the test build that installs beside the store version
+        run: |
+          set -o pipefail
+          ./gradlew :mobile:assembleDebug :wear:assembleDebug -Ppadelsync.sideBySide=true --stacktrace 2>&1 | tee -a build.log
+          mkdir -p test-build
+          cp mobile/build/outputs/apk/debug/mobile-debug.apk test-build/PadelSync-phone.apk
+          cp wear/build/outputs/apk/debug/wear-debug.apk test-build/PadelSync-watch.apk
       - name: Publish test build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cp mobile/build/outputs/apk/debug/mobile-debug.apk PadelSync-phone.apk
-          cp wear/build/outputs/apk/debug/wear-debug.apk PadelSync-watch.apk
-          notes="Test build from commit ${GITHUB_SHA:0:7}, $(date -u '+%Y-%m-%d %H:%M UTC'). PadelSync-phone.apk is for Android phones, PadelSync-watch.apk is for Wear OS watches."
+          cd test-build
+          notes="Test build from commit ${GITHUB_SHA:0:7}, $(date -u '+%Y-%m-%d %H:%M UTC'). It installs as PadelSync Test, beside the Play Store version. PadelSync-phone.apk is for Android phones, PadelSync-watch.apk is for Wear OS watches."
           # GitHub's release API fails now and then, more so when another job
           # is writing to the same release; a second try has always worked.
           publish() {
@@ -107,12 +126,6 @@ jobs:
             sleep 15
           done
           exit 1
-      - name: Keep APKs for the emulator tests
-        uses: actions/upload-artifact@v4
-        with:
-          name: apks
-          path: PadelSync-*.apk
-          retention-days: 7
       # The Google Play build, start to finish, with a throwaway key made in
       # this job in place of the real upload key: signed bundles for both
       # apps, checked for what Play asks of an upload. See release-play.yml
