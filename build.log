@@ -1,0 +1,71 @@
+[smoke] guest device: watch
+[smoke] starting a second emulator
+Loading package information...                                                  Loading local repository...                                                     [                                       ] 3% Loading local repository...        [                                       ] 3% Fetch remote repository...         [=                                      ] 3% Fetch remote repository...         [=                                      ] 4% Fetch remote repository...         [=                                      ] 5% Fetch remote repository...         [==                                     ] 5% Fetch remote repository...         [==                                     ] 6% Fetch remote repository...         [==                                     ] 7% Fetch remote repository...         [==                                     ] 7% Computing updates...               [===                                    ] 8% Computing updates...               [===                                    ] 10% Computing updates...              [===                                    ] 10% Installing Wear OS 4 Intel x86_64 [===                                    ] 10% Downloading x86_64-33_r04.zip...  [====                                   ] 10% Downloading x86_64-33_r04.zip...  [====                                   ] 11% Downloading x86_64-33_r04.zip...  [====                                   ] 12% Downloading x86_64-33_r04.zip...  [=====                                  ] 13% Downloading x86_64-33_r04.zip...  [=====                                  ] 14% Downloading x86_64-33_r04.zip...  [=====                                  ] 15% Downloading x86_64-33_r04.zip...  [======                                 ] 15% Downloading x86_64-33_r04.zip...  [======                                 ] 16% Downloading x86_64-33_r04.zip...  [======                                 ] 17% Downloading x86_64-33_r04.zip...  [=======                                ] 18% Downloading x86_64-33_r04.zip...  [=======                                ] 19% Downloading x86_64-33_r04.zip...  [=======                                ] 20% Downloading x86_64-33_r04.zip...  [========                               ] 20% Downloading x86_64-33_r04.zip...  [========                               ] 21% Downloading x86_64-33_r04.zip...  [========                               ] 22% Downloading x86_64-33_r04.zip...  [=========                              ] 23% Downloading x86_64-33_r04.zip...  [=========                              ] 24% Downloading x86_64-33_r04.zip...  [=========                              ] 25% Downloading x86_64-33_r04.zip...  [==========                             ] 25% Downloading x86_64-33_r04.zip...  [==========                             ] 26% Downloading x86_64-33_r04.zip...  [==========                             ] 27% Downloading x86_64-33_r04.zip...  [===========                            ] 28% Downloading x86_64-33_r04.zip...  [===========                            ] 29% Downloading x86_64-33_r04.zip...  [===========                            ] 30% Downloading x86_64-33_r04.zip...  [============                           ] 30% Downloading x86_64-33_r04.zip...  [============                           ] 31% Downloading x86_64-33_r04.zip...  [============                           ] 32% Downloading x86_64-33_r04.zip...  [============                           ] 33% Downloading x86_64-33_r04.zip...  [============                           ] 33% Unzipping...                      [============                           ] 33% Unzipping... x86_64/NOTICE.txt    [=============                          ] 33% Unzipping... x86_64/NOTICE.txt    [=============                          ] 33% Unzipping... x86_64/VerifiedBootPa[=============                          ] 33% Unzipping... x86_64/advancedFeatur[=============                          ] 33% Unzipping... x86_64/build.prop    [=============                          ] 33% Unzipping... x86_64/devices.xml   [=============                          ] 33% Unzipping... x86_64/encryptionkey.[=============                          ] 33% Unzipping... x86_64/kernel-ranchu [=============                          ] 33% Unzipping... x86_64/ramdisk.img   [=============                          ] 33% Unzipping... x86_64/source.propert[=============                          ] 33% Unzipping... x86_64/system.img    [=============                          ] 34% Unzipping... x86_64/system.img    [=============                          ] 35% Unzipping... x86_64/system.img    [==============                         ] 35% Unzipping... x86_64/system.img    [==============                         ] 36% Unzipping... x86_64/system.img    [==============                         ] 37% Unzipping... x86_64/system.img    [===============                        ] 38% Unzipping... x86_64/system.img    [===============                        ] 39% Unzipping... x86_64/system.img    [===============                        ] 40% Unzipping... x86_64/system.img    [================                       ] 40% Unzipping... x86_64/system.img    [================                       ] 41% Unzipping... x86_64/system.img    [================                       ] 42% Unzipping... x86_64/system.img    [=================                      ] 43% Unzipping... x86_64/system.img    [=================                      ] 44% Unzipping... x86_64/system.img    [=================                      ] 45% Unzipping... x86_64/system.img    [==================                     ] 45% Unzipping... x86_64/system.img    [==================                     ] 46% Unzipping... x86_64/system.img    [==================                     ] 47% Unzipping... x86_64/system.img    [===================                    ] 48% Unzipping... x86_64/system.img    [===================                    ] 49% Unzipping... x86_64/system.img    [===================                    ] 50% Unzipping... x86_64/system.img    [====================                   ] 50% Unzipping... x86_64/system.img    [====================                   ] 51% Unzipping... x86_64/system.img    [====================                   ] 52% Unzipping... x86_64/system.img    [=====================                  ] 53% Unzipping... x86_64/system.img    [=====================                  ] 54% Unzipping... x86_64/system.img    [=====================                  ] 54% Unzipping... x86_64/userdata.img  [=====================                  ] 54% Unzipping... x86_64/vendor.img    [=====================                  ] 55% Unzipping... x86_64/vendor.img    [=====================                  ] 55% Unzipping... x86_64/data/local.pro[=====================                  ] 55% Unzipping... x86_64/data/misc/apns[=====================                  ] 55% Unzipping... x86_64/data/misc/emul[=====================                  ] 55% Unzipping... x86_64/data/misc/gcec[=====================                  ] 55% Unzipping... x86_64/data/misc/mode[=====================                  ] 55% Unzipping... x86_64/skins/WearLarg[=====================                  ] 55% Unzipping... x86_64/skins/WearRect[=====================                  ] 55% Unzipping... x86_64/skins/WearSmal[=====================                  ] 55% Unzipping... x86_64/skins/WearSqua[=======================================] 100% Unzipping... x86_64/skins/WearSqu
+
+Loading local repository...                                                     [=========                              ] 25% Loading local repository...       [=========                              ] 25% Fetch remote repository...        [=======================================] 100% Fetch remote repository...       
+Auto-selecting single ABI x86_64
+[smoke] second emulator booted
+Performing Streamed Install
+Success
+Performing Streamed Install
+Success
+[smoke] system 'not responding' dialogs switched off on emulator-5554
+[smoke] emulator-5554 bluetooth: 1
+[smoke] system 'not responding' dialogs switched off on emulator-5556
+[smoke] emulator-5556 bluetooth: 1
+[smoke] --- host: start a match and open the court
+Starting: Intent { cmp=com.crdevtool.padelsync/com.padelsync.app.MainActivity }
+[smoke] PASS: host opened the court
+[smoke] join code: 8938
+[smoke] screenshot 1: host-court-open
+[smoke] --- guest: find the court and join
+[smoke] guest sees: Join a court | Android E67 | Back
+[smoke] screenshot 2: guest-joined
+[smoke] PASS: host shows two devices in the session
+[smoke] --- a point scored on the host reaches the guest
+[smoke] PASS: guest shows 30 after two host taps
+[smoke] --- a point scored on the guest reaches the host
+[smoke] PASS: guest shows its own tap
+[smoke] PASS: host shows the guest's tap
+[smoke] --- undo from the guest
+[smoke] PASS: host shows the guest's undo
+[smoke] --- both tap the same point at the same moment
+[smoke] PASS: host counted the simultaneous taps once
+[smoke] screenshot 3: host-after-race
+[smoke] PASS: guest shows the same score
+[smoke] screenshot 4: guest-after-race
+[smoke] --- the guest scores the same rally a second after the host
+[smoke] PASS: host counted the rally once
+[smoke] PASS: guest shows one game, not a second point
+[smoke] screenshot 5: guest-same-rally
+[smoke] --- guest leaves, then joins again
+[smoke] PASS: host notices the guest leaving
+[smoke] guest sees: Join a court | Android E67 | Back
+[smoke] PASS: guest is back in the match after rejoining
+[smoke] PASS: host shows the guest again
+[smoke] --- the host's app is closed and reopened; the guest finds the court again by scanning
+[smoke] PASS: guest notices that the host has gone
+[smoke] screenshot 6: guest-host-gone
+[smoke] PASS: the resumed match reopened its court by itself
+[smoke] PASS: the court reopened under the same join code
+[smoke] PASS: the guest found the court again by scanning, with nothing typed
+[smoke] screenshot 7: host-guest-back
+[smoke] PASS: guest shows the match again
+[smoke] PASS: a point from the guest reaches the reopened court
+[smoke] screenshot 8: guest-back-after-scan
+[smoke] --- host stops sharing
+[smoke] PASS: host carries on alone
+[smoke] PASS: guest is told the court closed
+[smoke] screenshot 9: guest-court-closed
+[smoke] --- the guest takes over as host, and the old host joins it
+[smoke] screenshot 10: guest-take-over-question
+[smoke] PASS: the watch hosts the court under the join code the guests already know
+[smoke] screenshot 11: guest-now-host
+[smoke] old host sees: Back | Join a court | Android E67 | Very close
+[smoke] PASS: the old host shows the match as the new host carried it on
+[smoke] screenshot 12: old-host-as-guest
+[smoke] PASS: the new host shows the old host as its guest
+[smoke] screenshot 13: guest-hosting-two-devices
+[smoke] no crashes
+[smoke] no crashes
+[smoke] RESULT: all checks passed
