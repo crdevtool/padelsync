@@ -1,18 +1,25 @@
 import PadelSyncCore
 import SwiftUI
 
-/// Lets the player choose who is playing and the match format.
+/// Sets a match up in one short screen: the format as a card that says it in
+/// plain words, the players, who serves first, and Start. The choices that
+/// make up the format are a second screen behind the card's Change button, so
+/// that starting a match in the usual format takes no scrolling and no
+/// setting can be passed over unseen.
 ///
 /// `hosting` says whether the match will be shared with other devices, which
-/// adds the choice of who may score. `initial` is the last match set up on
-/// this device, to start from; it is read once, and the form owns the values
-/// from then on.
+/// adds the choice of who may score. `initial` is the players of the last
+/// match set up on this device and the format to start from; it is read once,
+/// and the form owns the values from then on. `onKeepFormat` is called with
+/// the format when a match is started with "Keep as my format" on: new
+/// matches then start from it.
 struct SetupView: View {
     private let title: String
     private let startLabel: String
     private let hosting: Bool
     private let voiceOn: Bool
     private let onVoiceChange: (Bool) -> Void
+    private let onKeepFormat: (MatchConfig) -> Void
     private let onStart: (MatchSetup) -> Void
     private let onBack: () -> Void
     @State private var sport: Sport
@@ -34,6 +41,10 @@ struct SetupView: View {
     @State private var a2: String
     @State private var b1: String
     @State private var b2: String
+    /// Whether the format's own screen is showing.
+    @State private var editingFormat = false
+    /// Whether the format is to be remembered as the player's own once the match starts.
+    @State private var keepFormat = true
 
     init(
         title: String,
@@ -42,6 +53,7 @@ struct SetupView: View {
         initial: MatchSetup?,
         voiceOn: Bool,
         onVoiceChange: @escaping (Bool) -> Void,
+        onKeepFormat: @escaping (MatchConfig) -> Void,
         onStart: @escaping (MatchSetup) -> Void,
         onBack: @escaping () -> Void
     ) {
@@ -50,6 +62,7 @@ struct SetupView: View {
         self.hosting = hosting
         self.voiceOn = voiceOn
         self.onVoiceChange = onVoiceChange
+        self.onKeepFormat = onKeepFormat
         self.onStart = onStart
         self.onBack = onBack
 
@@ -146,6 +159,42 @@ struct SetupView: View {
     }
 
     var body: some View {
+        if editingFormat {
+            // Back returns to the match, not to the home screen.
+            screen(
+                title: "Format",
+                onBack: { editingFormat = false },
+                action: "Done",
+                onAction: { editingFormat = false }
+            ) {
+                kind
+                SwitchRow(
+                    title: "Keep as my format",
+                    caption: keepFormat
+                        ? "New matches start from this format"
+                        : "For this match only; the next one starts from your usual format",
+                    isOn: keepFormat
+                ) { keepFormat = $0 }
+            }
+        } else {
+            screen(title: title, onBack: onBack, action: startLabel, onAction: start) {
+                FormatCard(config: config, kept: keepFormat) { editingFormat = true }
+                names
+                firstServe
+                switches
+            }
+        }
+    }
+
+    /// The shape both setup screens share: a title with Back before it, the
+    /// content in a scrolling column, and one big button below it.
+    private func screen<Content: View>(
+        title: String,
+        onBack: @escaping () -> Void,
+        action: String,
+        onAction: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
         VStack(spacing: 0) {
             ScreenHeader(title: title, onBack: onBack)
                 .padding(.horizontal, 20)
@@ -153,22 +202,21 @@ struct SetupView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    players
-                    format
-                    switches
+                    content()
                 }
                 .padding(20)
             }
             .scrollDismissesKeyboard(.interactively)
 
             // Outside the scrolling area, so it is always within reach.
-            BigButton(title: startLabel, filled: true, action: start)
+            BigButton(title: action, filled: true, action: onAction)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
         }
     }
 
-    @ViewBuilder private var players: some View {
+    /// The choices that make up the format.
+    @ViewBuilder private var kind: some View {
         OptionGroup(
             title: "Sport",
             options: [Sport.padel, Sport.tennis],
@@ -202,22 +250,6 @@ struct SetupView: View {
             label: { $0 ? "Doubles" : "Singles" },
             onSelect: { doubles = $0 }
         )
-        VStack(alignment: .leading, spacing: 6) {
-            PlayerFields(doubles: doubles, a1: $a1, a2: $a2, b1: $b1, b2: $b2)
-            Text("Names are optional. In doubles, player 1 serves first for their team.")
-                .font(.footnote)
-                .foregroundStyle(Palette.muted)
-        }
-    }
-
-    @ViewBuilder private var format: some View {
-        OptionGroup(
-            title: "First to serve",
-            options: [Team.a, Team.b],
-            selected: firstServer,
-            label: { roster.teamName(team: $0) },
-            onSelect: { firstServer = $0 }
-        )
         if pointsMatch {
             OptionGroup(
                 title: "Match length",
@@ -230,6 +262,25 @@ struct SetupView: View {
         } else {
             sets
         }
+    }
+
+    private var names: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            PlayerFields(doubles: doubles, a1: $a1, a2: $a2, b1: $b1, b2: $b2)
+            Text("Names are optional. In doubles, player 1 serves first for their team.")
+                .font(.footnote)
+                .foregroundStyle(Palette.muted)
+        }
+    }
+
+    private var firstServe: some View {
+        OptionGroup(
+            title: "First to serve",
+            options: [Team.a, Team.b],
+            selected: firstServer,
+            label: { roster.teamName(team: $0) },
+            onSelect: { firstServer = $0 }
+        )
     }
 
     @ViewBuilder private var sets: some View {
@@ -348,7 +399,9 @@ struct SetupView: View {
     }
 
     private func start() {
-        onStart(MatchSetup(config: config, roster: roster, guestsCanScore: guestsCanScore))
+        let chosen = config
+        if keepFormat { onKeepFormat(chosen) }
+        onStart(MatchSetup(config: chosen, roster: roster, guestsCanScore: guestsCanScore))
     }
 
     /// The match the form describes.
@@ -376,5 +429,48 @@ struct SetupView: View {
             playAllSets: playAllSets && bestOf > 1,
             doubles: doubles
         )
+    }
+}
+
+/// The format in plain words, one rule to a line, with the way to change it.
+private struct FormatCard: View {
+    let config: MatchConfig
+    /// Whether this format will be remembered as the player's own.
+    let kept: Bool
+    let onChange: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(kept ? "MY FORMAT" : "THIS MATCH ONLY")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Palette.accent)
+                    Text("\(Labels.sport(config.sport)) · \(config.doubles ? "Doubles" : "Singles")")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.white)
+                }
+                Spacer(minLength: 8)
+                Button(action: onChange) {
+                    Text("Change")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 40)
+                        .overlay(Capsule().stroke(Palette.muted, lineWidth: 1))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(FormatHelp.shared.summary(config: config), id: \.self) { line in
+                Text(line)
+                    .font(.subheadline)
+                    .foregroundStyle(Palette.muted)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 18).fill(Palette.surface))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Palette.accent, lineWidth: 1.5))
     }
 }

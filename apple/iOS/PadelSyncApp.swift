@@ -94,6 +94,7 @@ struct RootView: View {
             initial: store.lastSetup,
             voiceOn: store.speech.enabled,
             onVoiceChange: { store.setSpeech(store.speech.with(enabled: $0)) },
+            onKeepFormat: { store.keepFormat($0) },
             onStart: { chosen in
                 if replacingMatch {
                     store.startNewMatch(chosen)

@@ -241,9 +241,21 @@ class CourtController private constructor(
 
     // --- Hosting -----------------------------------------------------------
 
-    /** The match last set up on this device, to pre-fill the setup screen. */
+    /**
+     * What the setup screen starts from: the players of the last match set
+     * up on this device, in the format the player keeps as their own (see
+     * [keepFormat]), or in the last match's format if none was kept. `null`
+     * on first use.
+     */
     val lastSetup: MatchSetup?
-        get() = settings.lastSetup()
+        get() {
+            val last = settings.lastSetup()
+            val mine = settings.myFormat() ?: return last
+            return last?.copy(config = mine) ?: MatchSetup(mine)
+        }
+
+    /** Makes [config] the format every new match is set up in, until another is kept. */
+    fun keepFormat(config: MatchConfig) = settings.saveMyFormat(config)
 
     /** Starts a new match on this device with default options. Nothing is shared until [openCourt]. */
     fun startMatch(config: MatchConfig) = startMatch(MatchSetup(config))

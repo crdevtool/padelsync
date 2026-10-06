@@ -227,9 +227,23 @@ final class CourtStore: ObservableObject {
 
     // MARK: Hosting
 
-    /// The match last set up on this device, to pre-fill the setup screen.
+    /// What the setup screen starts from: the players of the last match set
+    /// up on this device, in the format the player keeps as their own (see
+    /// `keepFormat`), or in the last match's format if none was kept. Nil on
+    /// first use.
     var lastSetup: MatchSetup? {
-        settings.lastSetup()
+        let last = settings.lastSetup()
+        guard let mine = settings.myFormat() else { return last }
+        return MatchSetup(
+            config: mine,
+            roster: last?.roster ?? Roster.noNames,
+            guestsCanScore: last?.guestsCanScore ?? true
+        )
+    }
+
+    /// Makes `config` the format every new match is set up in, until another is kept.
+    func keepFormat(_ config: MatchConfig) {
+        settings.saveMyFormat(config)
     }
 
     /// Starts a new match on this device with default options. Nothing is shared until `openCourt()`.

@@ -3,6 +3,9 @@ package com.netsports.core.ui
 import com.netsports.core.engine.DeuceRule
 import com.netsports.core.engine.FinalSetRule
 import com.netsports.core.engine.MatchConfig
+import com.netsports.core.engine.Sport
+import com.netsports.core.engine.Team
+import com.netsports.core.sync.Sessions
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -80,5 +83,53 @@ class FormatHelpTest {
             " · Sets to 4 · Advantage sets to 6",
             FormatHelp.extras(MatchConfig.tennis().copy(gamesPerSet = 4, setTiebreak = false, setGamesCap = 6)),
         )
+    }
+
+    @Test
+    fun aFormatIsSummedUpOneRuleToALine() {
+        assertEquals(
+            listOf("Best of 3, every set played", "Advantage at deuce", "At 6-6: advantage set, no limit"),
+            FormatHelp.summary(Sessions.clubPadel()),
+        )
+        assertEquals(
+            listOf("Best of 3", "Golden point at deuce", "At 6-6: tiebreak", "Final set: match tiebreak to 10"),
+            FormatHelp.summary(
+                MatchConfig.padel().copy(
+                    deuceRule = DeuceRule.GOLDEN_POINT,
+                    finalSetRule = FinalSetRule.MATCH_TIEBREAK,
+                ),
+            ),
+        )
+        assertEquals(
+            listOf("1 set", "Sets to 4 games", "Star point at deuce", "At 3-3: Fast4 tiebreak"),
+            FormatHelp.summary(
+                Sessions.config(
+                    Sport.TENNIS, 1, 4, DeuceRule.STAR_POINT, true, 0, true,
+                    FinalSetRule.SAME_AS_OTHER_SETS, Team.A, false, false,
+                ),
+            ),
+        )
+        assertEquals(
+            listOf("Best of 5", "Advantage at deuce", "At 6-6: advantage set, first to 8"),
+            FormatHelp.summary(
+                Sessions.config(
+                    Sport.TENNIS, 5, 6, DeuceRule.ADVANTAGE, false, 8, false,
+                    FinalSetRule.SAME_AS_OTHER_SETS, Team.A, false, false,
+                ),
+            ),
+        )
+        assertEquals(
+            listOf("Best of 3", "Advantage at deuce", "At 6-6: tiebreak", "Final set: tiebreak to 10"),
+            FormatHelp.summary(MatchConfig.tennis().copy(finalSetRule = FinalSetRule.LONG_TIEBREAK)),
+        )
+    }
+
+    @Test
+    fun aPointsMatchIsSummedUpWithoutSets() {
+        assertEquals(
+            listOf("Americano to 24 points", "Every rally is one point", "The serve changes every 4 points"),
+            FormatHelp.summary(Sessions.pointsConfig(Sport.PADEL, 24, Team.A, true)),
+        )
+        assertEquals("Americano, timed", FormatHelp.summary(Sessions.pointsConfig(Sport.PADEL, 0, Team.A, true)).first())
     }
 }

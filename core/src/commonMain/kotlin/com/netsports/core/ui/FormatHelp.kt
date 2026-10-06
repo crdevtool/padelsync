@@ -101,6 +101,50 @@ object FormatHelp {
     fun pointsLine(config: MatchConfig): String = "Americano · ${matchLengthLabel(config.pointsTotal)}"
 
     /**
+     * [config] in plain words, one rule to a line, for the card on the setup
+     * screen that shows a format without its form: what a player checks
+     * before starting. The sport and the number of players are left to the
+     * card's heading.
+     */
+    fun summary(config: MatchConfig): List<String> {
+        if (config.pointsMatch) {
+            return listOf(
+                if (config.pointsTotal == 0) "Americano, timed" else "Americano to ${config.pointsTotal} points",
+                "Every rally is one point",
+                "The serve changes every ${MatchState.POINTS_PER_SERVICE} points",
+            )
+        }
+        val games = config.gamesPerSet
+        val lines = mutableListOf<String>()
+        lines += when {
+            config.bestOf == 1 -> "1 set"
+            config.playAllSets -> "Best of ${config.bestOf}, every set played"
+            else -> "Best of ${config.bestOf}"
+        }
+        if (games != STANDARD_SET) lines += "Sets to $games games"
+        lines += when (config.deuceRule) {
+            DeuceRule.ADVANTAGE -> "Advantage at deuce"
+            DeuceRule.GOLDEN_POINT -> "Golden point at deuce"
+            DeuceRule.STAR_POINT -> "Star point at deuce"
+        }
+        lines += when {
+            config.isFast4Tiebreak -> "At ${games - 1}-${games - 1}: Fast4 tiebreak"
+            config.setTiebreak -> "At $games-$games: tiebreak"
+            config.setGamesCap == 0 -> "At $games-$games: advantage set, no limit"
+            else -> "At $games-$games: advantage set, first to ${config.setGamesCap}"
+        }
+        if (config.bestOf > 1) {
+            when (config.finalSetRule) {
+                FinalSetRule.SAME_AS_OTHER_SETS -> Unit
+                FinalSetRule.ADVANTAGE_SET -> lines += "Final set: no tiebreak"
+                FinalSetRule.MATCH_TIEBREAK -> lines += "Final set: match tiebreak to ${config.matchTiebreakPoints}"
+                FinalSetRule.LONG_TIEBREAK -> lines += "Final set: tiebreak to ${config.matchTiebreakPoints}"
+            }
+        }
+        return lines
+    }
+
+    /**
      * What sets [config] apart from the usual format, to add to a one-line
      * description of it: ` · Sets to 4 · Advantage sets to 8`. Empty for a
      * match of six-game sets with tiebreaks.

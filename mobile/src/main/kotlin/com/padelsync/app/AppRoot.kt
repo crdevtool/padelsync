@@ -65,6 +65,7 @@ fun AppRoot(controller: CourtController) {
                     initial = initial,
                     voiceOn = ui.speech.enabled,
                     onVoiceChange = { controller.setSpeech(controller.speech.copy(enabled = it)) },
+                    onKeepFormat = { controller.keepFormat(it) },
                     onStart = { setup ->
                         if (replacingMatch) {
                             controller.startNewMatch(setup)

@@ -60,24 +60,41 @@ internal class SettingsStore(context: Context) {
 
     /** The last match set up on this device, or `null` on first use. */
     fun lastSetup(): MatchSetup? {
-        val encoded = prefs.getString(KEY_SETUP, null) ?: return null
-        val bytes = try {
-            Base64.decode(encoded, Base64.NO_WRAP)
-        } catch (_: IllegalArgumentException) {
-            return null
-        }
-        // Stored as an empty match, which reuses the versioned wire format.
-        val snapshot = HostSession.restoreSnapshot(bytes) ?: return null
+        val snapshot = decoded(prefs.getString(KEY_SETUP, null)) ?: return null
         return MatchSetup(snapshot.config, snapshot.roster, prefs.getBoolean(KEY_GUESTS_SCORE, true))
     }
 
     fun saveSetup(setup: MatchSetup) {
-        val snapshot = MatchSnapshot(1, 1, 0, setup.config, emptyList(), roster = setup.roster)
-        val encoded = Base64.encodeToString(WireCodec.encode(Message.State(snapshot, 1)), Base64.NO_WRAP)
         prefs.edit()
-            .putString(KEY_SETUP, encoded)
+            .putString(KEY_SETUP, encoded(setup.config, setup.roster))
             .putBoolean(KEY_GUESTS_SCORE, setup.guestsCanScore)
             .apply()
+    }
+
+    /**
+     * The format the player keeps as their own, or `null` if none was kept.
+     * Unlike [lastSetup] it is not replaced by a match played once in
+     * another format, or by a court joined as a guest.
+     */
+    fun myFormat(): MatchConfig? = decoded(prefs.getString(KEY_MY_FORMAT, null))?.config
+
+    fun saveMyFormat(config: MatchConfig) {
+        prefs.edit().putString(KEY_MY_FORMAT, encoded(config, Roster.EMPTY)).apply()
+    }
+
+    // Stored as an empty match, which reuses the versioned wire format.
+    private fun encoded(config: MatchConfig, roster: Roster): String {
+        val snapshot = MatchSnapshot(1, 1, 0, config, emptyList(), roster = roster)
+        return Base64.encodeToString(WireCodec.encode(Message.State(snapshot, 1)), Base64.NO_WRAP)
+    }
+
+    private fun decoded(encoded: String?): MatchSnapshot? {
+        val bytes = try {
+            Base64.decode(encoded ?: return null, Base64.NO_WRAP)
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        return HostSession.restoreSnapshot(bytes)
     }
 
     private companion object {
@@ -90,6 +107,7 @@ internal class SettingsStore(context: Context) {
         const val KEY_VOICE_ENDS = "voice_change_ends"
         const val KEY_VOICE_REMINDER = "voice_reminder_minutes"
         const val KEY_SETUP = "last_setup"
+        const val KEY_MY_FORMAT = "my_format"
         const val KEY_GUESTS_SCORE = "guests_can_score"
     }
 }

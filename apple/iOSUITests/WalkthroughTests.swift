@@ -43,24 +43,44 @@ final class WalkthroughTests: XCTestCase {
         // Match setup
         app.buttons["New match"].tap()
         XCTAssertTrue(app.buttons["Start match"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.staticTexts["At 6-6: advantage set, no limit"].exists,
+            "the format card should say the format in words"
+        )
         shot("setup-defaults")
+        // The format's own screen, behind the card.
+        choose("Change")
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5), "the format screen did not open")
+        shot("format-defaults")
         choose("Tennis")
         choose("Best of 5")
         // Short sets played on without a tiebreak, stopped at seven games.
         choose("4 games")
         choose("Advantage set")
         choose("First to 7")
-        shot("setup-advantage-set")
+        shot("format-advantage-set")
         choose("Match tiebreak")
+        shot("format-changed")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Start match"].waitForExistence(timeout: 5), "Done should return to the match")
         choose("Team B")
+        XCTAssertTrue(
+            app.staticTexts["At 4-4: advantage set, first to 7"].exists,
+            "the format card should follow the changes"
+        )
         shot("setup-changed")
         // The match below is scripted for golden point and a tiebreak set,
-        // which are no longer what the form starts with.
+        // which are not what the form starts with.
+        choose("Change")
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
         choose("Padel")
         choose("1 set")
         choose("6 games")
         choose("Golden point")
         choose("Tiebreak")
+        shot("format-one-set-padel")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Start match"].waitForExistence(timeout: 5))
         choose("Team A")
         shot("setup-one-set-padel")
         app.buttons["Start match"].tap()
@@ -158,8 +178,20 @@ final class WalkthroughTests: XCTestCase {
         // Americano: a match of points, which can end level.
         choose("New match")
         XCTAssertTrue(app.buttons["Start match"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.staticTexts["Golden point at deuce"].exists,
+            "a new match should start from the format that was kept"
+        )
+        choose("Change")
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
         choose("Americano")
         choose("16 points")
+        shot("format-americano")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Americano to 16 points"].waitForExistence(timeout: 5),
+            "the card should describe an Americano match"
+        )
         shot("setup-americano")
         app.buttons["Start match"].tap()
         XCTAssertTrue(teamA.waitForExistence(timeout: 30), "the Americano scoreboard did not appear")

@@ -58,19 +58,35 @@ final class SettingsStore {
     }
 
     func saveSetup(_ setup: MatchSetup) {
-        // Stored as an empty match, which reuses the versioned wire format.
-        // A throwaway host session is the way to that format from Swift; the
-        // device id, code (-1 is the core's "no code") and clock do not matter.
-        let empty = Sessions.shared.host(
-            config: setup.config,
-            roster: setup.roster,
+        defaults.set(encoded(setup.config, setup.roster), forKey: Keys.setup)
+        defaults.set(setup.guestsCanScore, forKey: Keys.guestsScore)
+    }
+
+    /// The format the player keeps as their own, or nil if none was kept.
+    /// Unlike `lastSetup()` it is not replaced by a match played once in
+    /// another format, or by a court joined as a guest.
+    func myFormat() -> MatchConfig? {
+        guard let saved = defaults.data(forKey: Keys.myFormat) else { return nil }
+        return HostSession.companion.restoreSnapshot(saved: saved.toKotlinByteArray())?.config
+    }
+
+    func saveMyFormat(_ config: MatchConfig) {
+        defaults.set(encoded(config, Roster.noNames), forKey: Keys.myFormat)
+    }
+
+    /// A format and its players as an empty match, which reuses the versioned
+    /// wire format. A throwaway host session is the way to that format from
+    /// Swift; the device id, code (-1 is the core's "no code") and clock do
+    /// not matter.
+    private func encoded(_ config: MatchConfig, _ roster: Roster) -> Data {
+        Sessions.shared.host(
+            config: config,
+            roster: roster,
             hostDeviceId: 1,
             joinCode: -1,
-            guestsCanScore: setup.guestsCanScore,
+            guestsCanScore: true,
             nowMillis: 0
-        )
-        defaults.set(empty.savedState().toData(), forKey: Keys.setup)
-        defaults.set(setup.guestsCanScore, forKey: Keys.guestsScore)
+        ).savedState().toData()
     }
 
     /// `UserDefaults.bool` cannot tell "off" from "never set".
@@ -88,6 +104,7 @@ final class SettingsStore {
         static let voiceEnds = "voice_change_ends"
         static let voiceReminder = "voice_reminder_minutes"
         static let setup = "last_setup"
+        static let myFormat = "my_format"
         static let guestsScore = "guests_can_score"
     }
 }

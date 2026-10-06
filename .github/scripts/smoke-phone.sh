@@ -15,22 +15,33 @@ adb shell am start -n "$PHONE_ACTIVITY"
 wait_for "New match" 60 && shot home
 texts
 
-# --- Setup: every option can be changed and changed back ---------------------
+# --- Setup: one short screen, with the format behind "Change" ----------------
 tap "New match" && wait_for "Start match"
 shot setup-default
-# In the order of the form: tapping only ever scrolls down to find things.
-tap "Tennis"; tap "Team B"; tap "Best of 5"
+texts
+expect "At 6-6: advantage set, no limit" "the format card says the format in words"
+# Every option of the format can be changed and changed back. In the order of
+# the form: tapping only ever scrolls down to find things.
+tap "Change" && wait_for "Done"
+shot format-default
+tap "Tennis"; tap "Best of 5"
 # Short sets played on without a tiebreak, stopped at seven games.
 tap "4 games"; tap "Advantage set"; tap "First to 7"
-shot setup-advantage-set
+shot format-advantage-set
 tap "Match tiebreak"
+shot format-changed
+tap "Done" && wait_for "Start match"
+tap "Team B"
+expect "At 4-4: advantage set, first to 7" "the card follows the changes"
 shot setup-changed
-# Back to the top of the form.
-for _ in 1 2 3 4 5; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWIPE_FROM" 200; done
-sleep 1
+texts
 # The match below is scripted for golden point and tiebreak sets, which are
-# no longer what the form starts with.
-tap "Padel"; tap "Team A"; tap "Best of 3"; tap "6 games"; tap "Golden point"; tap "Tiebreak"; tap "Full set"
+# not what the form starts with. The format screen opens at its top again.
+tap "Change" && wait_for "Done"
+tap "Padel"; tap "Best of 3"; tap "6 games"; tap "Golden point"; tap "Tiebreak"; tap "Full set"
+shot format-padel
+tap "Done" && wait_for "Start match"
+tap "Team A"
 shot setup-padel
 tap "Start match"
 
@@ -86,8 +97,7 @@ texts
 # --- A second match with names -----------------------------------------------
 tap "Menu"; tap "New match"
 wait_for "Start match"
-for _ in 1 2 3 4 5; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWIPE_FROM" 200; done
-sleep 1
+expect "Golden point at deuce" "a new match starts from the format that was kept"
 tap "Player 1"; adb shell input text "Ana"; sleep 1
 shot setup-names
 tap "Start match"
@@ -100,9 +110,11 @@ texts
 # --- Americano: a match of points, which can end level -----------------------
 tap "Menu"; tap "New match"
 wait_for "Start match"
-for _ in 1 2 3 4 5; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWIPE_FROM" 200; done
-sleep 1
+tap "Change" && wait_for "Done"
 tap "Americano"; tap "16 points"
+shot format-americano
+tap "Done" && wait_for "Start match"
+expect "Americano to 16 points" "the card describes an Americano match"
 shot setup-americano
 texts
 tap "Start match"
@@ -125,7 +137,9 @@ texts
 # --- A timed match: no last point, it is ended from the menu -----------------
 tap "New match"
 wait_for "Start match"
+tap "Change" && wait_for "Done"
 tap "Timed"
+tap "Done" && wait_for "Start match"
 shot setup-timed
 tap "Start match"
 expect "POINT 1" "a timed match counts its points"
