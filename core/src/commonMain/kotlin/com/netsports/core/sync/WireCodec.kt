@@ -46,7 +46,17 @@ object WireCodec {
     private const val FLAG_CAN_SCORE = 0x01
     private const val FLAG_SERVE_FLIP_A = 0x02
     private const val FLAG_SERVE_FLIP_B = 0x04
-    private const val KNOWN_FLAGS = FLAG_CAN_SCORE or FLAG_SERVE_FLIP_A or FLAG_SERVE_FLIP_B
+    private const val FLAG_FINISHED = 0x08
+    private const val KNOWN_FLAGS = FLAG_CAN_SCORE or FLAG_SERVE_FLIP_A or FLAG_SERVE_FLIP_B or FLAG_FINISHED
+
+    /** In the "best of" byte: this is a points match, and the next byte is its total. */
+    private const val POINTS_MATCH = 0
+
+    /** Bits of the byte that used to say only whether every set is played. */
+    private const val SETS_PLAY_ALL = 0x01
+    private const val SETS_EARLY_TIEBREAK = 0x02
+    private const val SETS_SUDDEN_DEATH_TIEBREAK = 0x04
+    private const val KNOWN_SET_BITS = SETS_PLAY_ALL or SETS_EARLY_TIEBREAK or SETS_SUDDEN_DEATH_TIEBREAK
 
     fun encode(message: Message): ByteArray {
         val out = ByteWriter()
@@ -80,7 +90,8 @@ object WireCodec {
                     .u8(
                         (if (message.canScore) FLAG_CAN_SCORE else 0) or
                             (if (snapshot.serveFlipA) FLAG_SERVE_FLIP_A else 0) or
-                            (if (snapshot.serveFlipB) FLAG_SERVE_FLIP_B else 0),
+                            (if (snapshot.serveFlipB) FLAG_SERVE_FLIP_B else 0) or
+                            (if (snapshot.finished) FLAG_FINISHED else 0),
                     )
                 writeConfig(out, snapshot.config)
                 writeRoster(out, snapshot.roster)
@@ -185,6 +196,7 @@ object WireCodec {
                 roster = roster,
                 serveFlipA = flags and FLAG_SERVE_FLIP_A != 0,
                 serveFlipB = flags and FLAG_SERVE_FLIP_B != 0,
+                finished = flags and FLAG_FINISHED != 0,
             )
         } catch (e: IllegalArgumentException) {
             throw ProtocolException("impossible match state: ${e.message}")
@@ -194,10 +206,17 @@ object WireCodec {
 
     // --- Match format: 11 bytes ------------------------------------------
 
+    // The layout dates from when a match was always sets of games. What came
+    // later is carried in values those bytes never had before, so that the
+    // format keeps its size: matches saved by earlier versions still load,
+    // and every format they knew is sent exactly as it was.
+
     private fun writeConfig(out: ByteWriter, config: MatchConfig) {
         out.u8(config.sport.code)
-            .u8(config.bestOf)
-            .u8(config.gamesPerSet)
+            // A points match puts 0 where "best of" is never 0, and its total
+            // of points where the games per set would be.
+            .u8(if (config.pointsMatch) POINTS_MATCH else config.bestOf)
+            .u8(if (config.pointsMatch) config.pointsTotal else config.gamesPerSet)
             .u8(config.deuceRule.code)
             // One byte says how a set that reaches games-all is settled:
             // 1 a tiebreak, 0 play on with no limit, anything larger play
@@ -207,7 +226,11 @@ object WireCodec {
             .u8(config.finalSetRule.code)
             .u8(config.matchTiebreakPoints)
             .u8(config.firstServer.code)
-            .u8(if (config.playAllSets) 1 else 0)
+            .u8(
+                (if (config.playAllSets) SETS_PLAY_ALL else 0) or
+                    (if (config.earlyTiebreak) SETS_EARLY_TIEBREAK else 0) or
+                    (if (config.tiebreakSuddenDeath) SETS_SUDDEN_DEATH_TIEBREAK else 0),
+            )
             .u8(if (config.doubles) 1 else 0)
     }
 
@@ -219,8 +242,9 @@ object WireCodec {
 
     private fun readConfig(reader: ByteReader): MatchConfig {
         val sport = sportOf(reader.u8())
-        val bestOf = reader.u8()
-        val gamesPerSet = reader.u8()
+        val bestOfByte = reader.u8()
+        val gamesByte = reader.u8()
+        val pointsMatch = bestOfByte == POINTS_MATCH
         val deuceRule = deuceRuleOf(reader.u8())
         val gamesAll = reader.u8()
         val setTiebreak = gamesAll == 1
@@ -231,22 +255,30 @@ object WireCodec {
         val finalSetRule = finalSetRuleOf(reader.u8())
         val matchTiebreakPoints = reader.u8()
         val firstServer = teamOf(reader.u8())
-        val playAllSets = readFlag(reader, "play-all-sets")
+        val setBits = reader.u8()
+        if (setBits and KNOWN_SET_BITS.inv() != 0) throw ProtocolException("unknown set options: $setBits")
         val doubles = readFlag(reader, "doubles")
+        val defaults = MatchConfig(sport)
         return try {
             MatchConfig(
                 sport = sport,
-                bestOf = bestOf,
-                gamesPerSet = gamesPerSet,
+                // The settings for sets are unused in a points match and are
+                // not sent, so they take their usual values.
+                bestOf = if (pointsMatch) defaults.bestOf else bestOfByte,
+                gamesPerSet = if (pointsMatch) defaults.gamesPerSet else gamesByte,
                 deuceRule = deuceRule,
                 setTiebreak = setTiebreak,
                 tiebreakPoints = tiebreakPoints,
                 finalSetRule = finalSetRule,
                 matchTiebreakPoints = matchTiebreakPoints,
                 firstServer = firstServer,
-                playAllSets = playAllSets,
+                playAllSets = setBits and SETS_PLAY_ALL != 0,
                 doubles = doubles,
                 setGamesCap = setGamesCap,
+                pointsMatch = pointsMatch,
+                pointsTotal = if (pointsMatch) gamesByte else 0,
+                earlyTiebreak = setBits and SETS_EARLY_TIEBREAK != 0,
+                tiebreakSuddenDeath = setBits and SETS_SUDDEN_DEATH_TIEBREAK != 0,
             )
         } catch (e: IllegalArgumentException) {
             throw ProtocolException("invalid match format: ${e.message}")
@@ -320,6 +352,7 @@ object WireCodec {
             Action.UNDO -> 2
             Action.SWAP_SERVER_A -> 3
             Action.SWAP_SERVER_B -> 4
+            Action.FINISH -> 5
         }
 
     private fun actionOf(code: Int): Action = when (code) {
@@ -328,6 +361,7 @@ object WireCodec {
         2 -> Action.UNDO
         3 -> Action.SWAP_SERVER_A
         4 -> Action.SWAP_SERVER_B
+        5 -> Action.FINISH
         else -> throw ProtocolException("unknown action: $code")
     }
 
@@ -398,12 +432,14 @@ object WireCodec {
             FinalSetRule.SAME_AS_OTHER_SETS -> 0
             FinalSetRule.ADVANTAGE_SET -> 1
             FinalSetRule.MATCH_TIEBREAK -> 2
+            FinalSetRule.LONG_TIEBREAK -> 3
         }
 
     private fun finalSetRuleOf(code: Int): FinalSetRule = when (code) {
         0 -> FinalSetRule.SAME_AS_OTHER_SETS
         1 -> FinalSetRule.ADVANTAGE_SET
         2 -> FinalSetRule.MATCH_TIEBREAK
+        3 -> FinalSetRule.LONG_TIEBREAK
         else -> throw ProtocolException("unknown final set rule: $code")
     }
 

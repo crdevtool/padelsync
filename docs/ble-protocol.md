@@ -84,7 +84,7 @@ All integers are big-endian. The first byte is the message type.
 | Command id | 8 | Random and non-zero; identifies retransmissions |
 | Epoch | 2 | Hosting epoch the guest is synced to |
 | Base version | 4 | Version of the match the guest was looking at |
-| Action | 1 | 0 point for team A, 1 point for team B, 2 undo, 3 swap team A's server, 4 swap team B's server |
+| Action | 1 | 0 point for team A, 1 point for team B, 2 undo, 3 swap team A's server, 4 swap team B's server, 5 finish the match (a timed match only) |
 
 ### `0x10 STATE` (host to guest)
 
@@ -95,27 +95,48 @@ All integers are big-endian. The first byte is the message type.
 | Version | 4 | Commands accepted so far: points, undos and server swaps |
 | Last command id | 8 | The command that produced this version, or 0 |
 | Device count | 1 | Devices in the session, host included |
-| Flags | 1 | Bit 0: the receiving device may change the score. Bit 1: team A's serving order is swapped. Bit 2: team B's is. Other bits must be 0. |
+| Flags | 1 | Bit 0: the receiving device may change the score. Bit 1: team A's serving order is swapped. Bit 2: team B's is. Bit 3: the match was finished by hand (a timed match). Other bits must be 0. |
 | Format | 11 | See below |
 | Players | 2 or more | See below |
 | Point count | 2 | At most 4096 |
 | Points | (count + 7) / 8 | One bit per point, least significant bit first; 1 = team B |
 
-Format, one byte each: sport (0 padel, 1 tennis), best of (1, 3, 5), games
-per set, deuce rule (0 advantage, 1 golden point, 2 star point), how a set
-that reaches games-all is settled (see below), tiebreak points, final set
-rule (0 same as other sets, 1 advantage set, 2 match tiebreak), match
-tiebreak points, first server (0 team A, 1 team B), play all sets (0 or 1:
-keep playing after the match is decided), doubles (0 or 1).
+Format, one byte each: sport (0 padel, 1 tennis), best of (1, 3, 5; 0 for a
+points match, see below), games per set, deuce rule (0 advantage, 1 golden
+point, 2 star point), how a set that reaches games-all is settled (see
+below), tiebreak points, final set rule (0 same as other sets, 1 advantage
+set, 2 match tiebreak, 3 a full set whose tiebreak is played to the match
+tiebreak points), match tiebreak points, first server (0 team A, 1 team B),
+set options (see below), doubles (0 or 1).
+
+The format is 11 bytes and has been since the first version. Everything
+added later is carried in values those bytes never held before, so every
+format an older version knows is sent exactly as it always was, and matches
+it saved still load. An older version that is sent one of the newer values
+refuses the message as an invalid format, and so cannot follow a court that
+uses one: every device on a court must have a version that knows its format.
+
+A points match (Americano): the best-of byte is 0, which no match of sets
+can have, and the games-per-set byte holds the total of points instead: 2 to
+99, or 0 for a timed match with no set end. The other set fields are sent at
+their usual values and ignored. A points match is replayed as one long run of
+points: the serve changes every 4 points, the match ends when the total is
+reached, and it may end level. A timed match ends when the finished flag is
+set; the points stay as they are, and an undo clears the flag again without
+removing a point.
+
+The set options byte: bit 0, play all sets (keep playing after the match is
+decided); bit 1, the tiebreak comes one game early (at 3-3 in a set to four
+games); bit 2, a tiebreak is won by the first team to reach its points, with
+no two-point margin. Bits 1 and 2 together, with tiebreak points of 5, are a
+Fast4 set. Other bits must be 0. Before these were added the byte was only
+ever 0 or 1.
 
 The games-all byte: 1 means a tiebreak; 0 means the set is played on until a
 team is two games ahead; any larger value means it is played on until a team
 reaches that many games, which must be more than the games per set. The
 value 1 is free to mean "tiebreak" because a cap of one game cannot exist.
-Before the cap was added this byte was only ever 0 or 1, so every format an
-older version knows is sent exactly as before, and matches it saved still
-load. An older version that is sent a cap refuses the message as an invalid
-format, and so cannot follow a court that uses one.
+Before the cap was added this byte was only ever 0 or 1.
 
 Players: for team A and then team B, a count (0 to 2) followed by that many
 names, each a length byte (1 to 20) and UTF-8 text. A team's first-listed
@@ -126,8 +147,10 @@ them.
 The permission flag is the one field that can differ between two guests'
 copies of the same state: the host sets it per device.
 
-A receiver rebuilds the score by replaying the points. A state whose points
-cannot be replayed (for example, points after the match is won) is rejected.
+A receiver rebuilds the score by replaying the points, and then ends the
+match there if the finished flag is set. A state whose points cannot be
+replayed (for example, points after the match is won) is rejected, and so is
+a finished flag on a match that cannot be finished by hand.
 
 ### `0x11 COMMAND_RESULT` (host to guest)
 

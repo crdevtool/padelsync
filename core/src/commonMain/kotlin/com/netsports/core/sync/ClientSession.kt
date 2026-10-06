@@ -1,5 +1,6 @@
 package com.netsports.core.sync
 
+import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.MatchState
 import com.netsports.core.engine.ScoringEngine
 import com.netsports.core.engine.Team
@@ -151,7 +152,7 @@ class ClientSession(
         get() {
             val snapshot = confirmed ?: return null
             if (pending.isEmpty()) return snapshot.state
-            return ScoringEngine.replay(snapshot.config, projectedPoints(snapshot))
+            return projected(snapshot).state(snapshot.config)
         }
 
     /**
@@ -298,13 +299,16 @@ class ClientSession(
         if (status == ClientStatus.REJECTED || status == ClientStatus.ENDED) return emptyList()
         if (!canScore) return listOf(ClientEffect.Feedback(NO_COMMAND, TapFeedback.NOT_ALLOWED))
 
-        val points = projectedPoints(snapshot)
+        val projection = projected(snapshot)
+        val points = projection.points
+        val over = projection.state(snapshot.config).isComplete
         val valid = when (action) {
             Action.UNDO -> points.isNotEmpty()
-            Action.POINT_A, Action.POINT_B ->
-                points.size < MatchSnapshot.MAX_POINTS && !ScoringEngine.replay(snapshot.config, points).isComplete
+            Action.POINT_A, Action.POINT_B -> points.size < MatchSnapshot.MAX_POINTS && !over
             // Only doubles has a serving order to swap.
             Action.SWAP_SERVER_A, Action.SWAP_SERVER_B -> snapshot.config.doubles
+            // Only a match with no set end is ended by hand, once something has been played.
+            Action.FINISH -> snapshot.config.isOpenEnded && points.isNotEmpty() && !over
         }
         if (!valid) return emptyList()
 
@@ -438,20 +442,34 @@ class ClientSession(
         return effects
     }
 
-    /** The host's points with this device's unresolved taps applied. */
-    private fun projectedPoints(snapshot: MatchSnapshot): List<Team> {
-        if (pending.isEmpty()) return snapshot.points
+    /** The match as this device shows it: the points that count and whether it was ended by hand. */
+    private class Projection(val points: List<Team>, val finished: Boolean) {
+        fun state(config: MatchConfig): MatchState {
+            val played = ScoringEngine.replay(config, points)
+            return if (finished) ScoringEngine.finish(played) else played
+        }
+    }
+
+    /** The host's match with this device's unresolved taps applied, as the host would apply them. */
+    private fun projected(snapshot: MatchSnapshot): Projection {
+        if (pending.isEmpty()) return Projection(snapshot.points, snapshot.finished)
         val points = snapshot.points.toMutableList()
+        var finished = snapshot.finished
         for (command in pending) {
             when (command.action) {
-                Action.POINT_A -> points += Team.A
-                Action.POINT_B -> points += Team.B
-                Action.UNDO -> if (points.isNotEmpty()) points.removeAt(points.lastIndex)
+                Action.POINT_A -> if (!finished) points += Team.A
+                Action.POINT_B -> if (!finished) points += Team.B
+                // Undo first takes back the ending of a match ended by hand.
+                Action.UNDO -> when {
+                    finished -> finished = false
+                    points.isNotEmpty() -> points.removeAt(points.lastIndex)
+                }
                 // Swapping the server does not touch the score.
                 Action.SWAP_SERVER_A, Action.SWAP_SERVER_B -> Unit
+                Action.FINISH -> if (snapshot.config.isOpenEnded && points.isNotEmpty()) finished = true
             }
         }
-        return points
+        return Projection(points, finished)
     }
 
     private fun send(message: Message): ClientEffect.Send =

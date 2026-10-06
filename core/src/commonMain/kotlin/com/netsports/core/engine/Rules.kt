@@ -41,6 +41,12 @@ enum class FinalSetRule {
 
     /** The final set is replaced by a single match tiebreak. */
     MATCH_TIEBREAK,
+
+    /**
+     * The final set is a full set, but its tiebreak at games-all is played
+     * to the match tiebreak's length (10 points), as at the Grand Slams.
+     */
+    LONG_TIEBREAK,
 }
 
 /** The kind of game currently being played. */
@@ -53,6 +59,12 @@ enum class GameKind {
 
     /** Match tiebreak played instead of a final set. */
     MATCH_TIEBREAK,
+
+    /**
+     * A points match (Americano): one run of points from the first rally to
+     * the last, with no games or sets.
+     */
+    POINTS,
 }
 
 /**

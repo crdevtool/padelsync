@@ -219,9 +219,11 @@ private fun Scoreboard(
     val context = LocalContext.current
     val hosting = ui.mode == CourtMode.HOST
     val winner = score.winner
+    // Over with a winner, or over level: a points match can be drawn.
+    val over = score.isOver
     // A view-only device keeps its halves tappable: the tap is answered with
     // a note saying why it did not count, which is kinder than a dead screen.
-    val canTap = winner == null
+    val canTap = !over
     var sheet by remember { mutableStateOf(Sheet.NONE) }
 
     // A brief note when a tap did not count.
@@ -258,18 +260,18 @@ private fun Scoreboard(
 
     // The winners' screen comes up by itself and can be put away to look at
     // the scoreboard. A new winner (after an undo, or a new match) brings it back.
-    var celebrationDismissed by remember(winner) { mutableStateOf(false) }
+    var celebrationDismissed by remember(winner, over) { mutableStateOf(false) }
 
     // Once the match is decided the result can be opened from the menu, even
     // if the remaining sets are never played.
     val decided = winner ?: score.decidedWinner
     var resultRequested by remember(decided) { mutableStateOf(false) }
-    val showResult = (winner != null && !celebrationDismissed) || (winner == null && decided != null && resultRequested)
+    val showResult = (over && !celebrationDismissed) || (!over && decided != null && resultRequested)
 
     // What the result screen shows. Held on to while it fades out, so an
     // undo or a rematch does not rewrite it in mid-air.
     var result by remember { mutableStateOf<Result?>(null) }
-    if (showResult && decided != null) result = Result(score, decided, ui.stats, ui.durationMillis)
+    if (showResult && (decided != null || over)) result = Result(score, decided, ui.stats, ui.durationMillis)
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -281,7 +283,9 @@ private fun Scoreboard(
                 controller = controller,
                 onOpen = { sheet = it },
                 onSwapServer = { score.server?.let { tap(Action.swapServerFor(it)) } },
-                onShowResult = if (winner == null && decided != null) ({ resultRequested = true }) else null,
+                onShowResult = if (!over && decided != null) ({ resultRequested = true }) else null,
+                // A timed match has no last point: someone has to say it is over.
+                onFinish = if (score.canBeFinished && ui.canScore) ({ tap(Action.FINISH) }) else null,
                 onNewMatch = onNewMatch,
                 onLeave = onLeave,
             )
@@ -359,7 +363,7 @@ private fun Scoreboard(
                 )
             }
 
-            if (winner != null && celebrationDismissed) {
+            if (over && celebrationDismissed) {
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -382,16 +386,16 @@ private fun Scoreboard(
             val shown = result
             if (shown != null) {
                 // Rematch and undo only make sense once the last point has been played.
-                val over = shown.score.winner != null
+                val finished = shown.score.isOver
                 Celebration(
                     score = shown.score,
                     winner = shown.winner,
                     stats = shown.stats,
                     durationMillis = shown.durationMillis,
                     onShare = { share(context, Labels.shareText(shown.score, ui.config, shown.durationMillis)) },
-                    onRematch = if (hosting && over) ({ controller.rematch() }) else null,
+                    onRematch = if (hosting && finished) ({ controller.rematch() }) else null,
                     onNewMatch = if (hosting) onNewMatch else null,
-                    onUndo = if (ui.canScore && over) ({ tap(Action.UNDO) }) else null,
+                    onUndo = if (ui.canScore && finished) ({ tap(Action.UNDO) }) else null,
                     onDismiss = {
                         celebrationDismissed = true
                         resultRequested = false
@@ -426,7 +430,7 @@ private fun Scoreboard(
 }
 
 /** Everything the result screen shows, captured at the moment it opens. */
-private data class Result(val score: ScoreView, val winner: Team, val stats: MatchStats?, val durationMillis: Long?)
+private data class Result(val score: ScoreView, val winner: Team?, val stats: MatchStats?, val durationMillis: Long?)
 
 private fun share(context: Context, text: String) {
     val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
@@ -449,6 +453,7 @@ private fun StatusBar(
     onOpen: (Sheet) -> Unit,
     onSwapServer: () -> Unit,
     onShowResult: (() -> Unit)?,
+    onFinish: (() -> Unit)?,
     onNewMatch: () -> Unit,
     onLeave: () -> Unit,
 ) {
@@ -508,6 +513,7 @@ private fun StatusBar(
                 }
                 item("Voice") { onOpen(Sheet.VOICE) }
                 if (onShowResult != null) item("Result so far", onShowResult)
+                if (onFinish != null) item(Labels.FINISH_MATCH, onFinish)
                 if (hosting) item("New match", onNewMatch)
                 item(if (hosting) "End match" else "Leave court", onLeave)
             }
@@ -533,6 +539,8 @@ private fun NetStrip(ui: CourtUiState, score: ScoreView, note: String?, onUndo: 
         callout.isNotEmpty() -> callout to Palette.Accent
         score.winner != null -> "${score.nameOf(score.winner ?: Team.A).uppercase()} WON" to Palette.Gold
         decided != null -> "${score.nameOf(decided).uppercase()} WON · PLAYING SET ${score.setNumber}" to Palette.Gold
+        // A points match has no sets to number; it counts its rallies.
+        score.pointsMatch -> Labels.rally(score).orEmpty() to Palette.Muted
         else -> "SET ${score.setNumber}" to Palette.Muted
     }
 
@@ -563,7 +571,7 @@ private fun NetStrip(ui: CourtUiState, score: ScoreView, note: String?, onUndo: 
             }
             val details = listOfNotNull(
                 score.setSummary.takeIf { it.isNotEmpty() },
-                if (score.winner == null) ui.startedAtMillis?.let { matchClock(it) } else null,
+                if (!score.isOver) ui.startedAtMillis?.let { matchClock(it) } else null,
             ).joinToString("   ")
             if (details.isNotEmpty()) {
                 Text(
@@ -638,7 +646,7 @@ private fun rememberMatchEvent(score: ScoreView): MatchEvent? {
 /** What was just won between [before] and [after], if anything. An undo is never an event. */
 private fun describeEvent(before: ScoreView, after: ScoreView): MatchEvent? {
     // The end of the match has a screen of its own.
-    if (after.winner != null) return null
+    if (after.isOver) return null
     if (after.completedSets.size == before.completedSets.size + 1) {
         val set = after.completedSets.last()
         val decided = after.decidedWinner

@@ -54,8 +54,25 @@ object ScoringEngine {
 
         val gameWon = when (state.gameKind) {
             GameKind.STANDARD -> standardGameWon(won, lost, config.deuceRule)
-            GameKind.TIEBREAK -> won >= config.tiebreakPoints && won - lost >= 2
+            GameKind.TIEBREAK -> {
+                val deciding = isDecidingSet(config, state.setsWonBy(Team.A), state.setsWonBy(Team.B))
+                if (deciding && config.finalSetRule == FinalSetRule.LONG_TIEBREAK) {
+                    won >= config.matchTiebreakPoints && won - lost >= 2
+                } else {
+                    won >= config.tiebreakPoints && won - lost >= if (config.tiebreakSuddenDeath) 1 else 2
+                }
+            }
             GameKind.MATCH_TIEBREAK -> won >= config.matchTiebreakPoints && won - lost >= 2
+            GameKind.POINTS -> {
+                // No games to win: the match simply runs to its last point.
+                val counted = state.copy(
+                    pointsA = pointsA,
+                    pointsB = pointsB,
+                    totalPointsPlayed = state.totalPointsPlayed + 1,
+                )
+                val over = config.pointsTotal != 0 && pointsA + pointsB >= config.pointsTotal
+                return if (over) ended(counted) else counted
+            }
         }
 
         if (!gameWon) {
@@ -67,6 +84,27 @@ object ScoringEngine {
         }
         return onGameWon(state, team, pointsA, pointsB)
     }
+
+    /**
+     * Ends a points match that has no set end (a timed match): the score as
+     * it stands is the result, and level scores are a draw.
+     *
+     * @throws IllegalArgumentException for any other kind of match.
+     */
+    fun finish(state: MatchState): MatchState {
+        require(state.config.isOpenEnded) { "Only a match with no set end can be ended by hand." }
+        return if (state.isComplete) state else ended(state)
+    }
+
+    /** [state], a points match, with its result filled in. */
+    private fun ended(state: MatchState): MatchState = state.copy(
+        winner = when {
+            state.pointsA > state.pointsB -> Team.A
+            state.pointsB > state.pointsA -> Team.B
+            else -> null
+        },
+        drawn = state.pointsA == state.pointsB,
+    )
 
     /**
      * Replays [points] from the start of a match.
@@ -134,6 +172,7 @@ object ScoringEngine {
                     (config.setGamesCap != 0 && won >= config.setGamesCap)
             // Winning either kind of tiebreak always wins the set.
             GameKind.TIEBREAK, GameKind.MATCH_TIEBREAK -> true
+            GameKind.POINTS -> error("A points match has no games.")
         }
 
         // Service alternates after every game. A tiebreak counts as one game,
@@ -199,8 +238,8 @@ object ScoringEngine {
 
     /** Decides which kind of game starts at the given set and game score. */
     private fun kindOfNextGame(config: MatchConfig, setsA: Int, setsB: Int, gamesA: Int, gamesB: Int): GameKind {
-        // The deciding set is the one where both teams are one set from victory.
-        val isDecidingSet = setsA == setsB && setsA == config.setsToWin - 1
+        if (config.pointsMatch) return GameKind.POINTS
+        val isDecidingSet = isDecidingSet(config, setsA, setsB)
 
         if (isDecidingSet && config.finalSetRule == FinalSetRule.MATCH_TIEBREAK && gamesA == 0 && gamesB == 0) {
             return GameKind.MATCH_TIEBREAK
@@ -209,10 +248,14 @@ object ScoringEngine {
         val tiebreakAllowed =
             config.setTiebreak && !(isDecidingSet && config.finalSetRule == FinalSetRule.ADVANTAGE_SET)
 
-        return if (tiebreakAllowed && gamesA == config.gamesPerSet && gamesB == config.gamesPerSet) {
+        return if (tiebreakAllowed && gamesA == config.tiebreakAt && gamesB == config.tiebreakAt) {
             GameKind.TIEBREAK
         } else {
             GameKind.STANDARD
         }
     }
+
+    /** The deciding set is the one where both teams are one set from victory. */
+    private fun isDecidingSet(config: MatchConfig, setsA: Int, setsB: Int): Boolean =
+        setsA == setsB && setsA == config.setsToWin - 1
 }

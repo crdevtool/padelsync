@@ -155,6 +155,34 @@ final class WalkthroughTests: XCTestCase {
         shot("history")
         app.buttons["Back"].tap()
 
+        // Americano: a match of points, which can end level.
+        choose("New match")
+        XCTAssertTrue(app.buttons["Start match"].waitForExistence(timeout: 10))
+        choose("Americano")
+        choose("16 points")
+        shot("setup-americano")
+        app.buttons["Start match"].tap()
+        XCTAssertTrue(teamA.waitForExistence(timeout: 30), "the Americano scoreboard did not appear")
+        XCTAssertTrue(
+            app.staticTexts["POINT 1 OF 16"].waitForExistence(timeout: 10),
+            "an Americano match should count its points"
+        )
+        shot("americano-start")
+        tap(teamA, times: 8)
+        tap(teamB, times: 8)
+        XCTAssertTrue(app.staticTexts["It's a draw!"].waitForExistence(timeout: 5), "eight points each is a draw")
+        shot("americano-draw")
+        choose("Undo last point")
+        tap(teamA, times: 1)
+        XCTAssertTrue(app.staticTexts["Team A win!"].waitForExistence(timeout: 5), "nine points to seven wins")
+        shot("americano-won")
+        choose("Scoreboard")
+        openMenu()
+        app.buttons["End match"].firstMatch.tap()
+        let confirmAmericano = app.buttons.matching(NSPredicate(format: "label == %@", "End match"))
+        confirmAmericano.element(boundBy: confirmAmericano.count - 1).tap()
+        XCTAssertTrue(app.buttons["Match history"].waitForExistence(timeout: 10), "did not return to the home screen")
+
         // Hosting asks who may score.
         choose("Host a match")
         XCTAssertTrue(app.buttons["Start and open the court"].waitForExistence(timeout: 5))

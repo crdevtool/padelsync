@@ -40,12 +40,18 @@ class MatchLog private constructor(
     private val lastCommandId: Long,
     private val serveFlipA: Boolean,
     private val serveFlipB: Boolean,
-    /** Current score, derived from [points]. */
+    /** When a match with no set end was ended by hand, or `null` if it has not been. */
+    private val finishedAtMillis: Long?,
+    /** Current score, derived from [points] and from whether the match was ended by hand. */
     val state: MatchState,
 ) {
-    /** When the match was won, or `null` while it is in progress. */
+    /** When the match ended, or `null` while it is in progress. */
     val completedAtMillis: Long?
-        get() = if (state.isComplete) points.last().atMillis else null
+        get() = when {
+            !state.isComplete -> null
+            finishedAtMillis != null -> finishedAtMillis
+            else -> points.last().atMillis
+        }
 
     /** Playing time of a finished match, or `null` while it is in progress. */
     val durationMillis: Long?
@@ -62,6 +68,7 @@ class MatchLog private constructor(
         roster = roster,
         serveFlipA = serveFlipA,
         serveFlipB = serveFlipB,
+        finished = finishedAtMillis != null,
     )
 
     /**
@@ -81,6 +88,7 @@ class MatchLog private constructor(
         lastCommandId = lastCommandId,
         serveFlipA = serveFlipA,
         serveFlipB = serveFlipB,
+        finishedAtMillis = finishedAtMillis,
         state = state,
     )
 
@@ -107,6 +115,7 @@ class MatchLog private constructor(
             lastCommandId = 0,
             serveFlipA = serveFlipA,
             serveFlipB = serveFlipB,
+            finishedAtMillis = finishedAtMillis,
             state = state,
         )
     }
@@ -142,6 +151,15 @@ class MatchLog private constructor(
             }
 
             Action.UNDO -> {
+                // The last thing done to a match ended by hand was ending it,
+                // so that is what undo takes back: play carries on.
+                if (finishedAtMillis != null) {
+                    return accepted(
+                        command,
+                        finishedAtMillis = null,
+                        state = ScoringEngine.replay(config, points.map { it.team }),
+                    )
+                }
                 if (points.isEmpty()) return ApplyResult(this, CommandOutcome.NOTHING_TO_UNDO)
                 // Undo is allowed after match point too, to recover from a
                 // mis-tap. Replaying from the start is the simplest way to
@@ -153,6 +171,14 @@ class MatchLog private constructor(
 
             Action.SWAP_SERVER_A -> accepted(command, serveFlipA = !serveFlipA)
             Action.SWAP_SERVER_B -> accepted(command, serveFlipB = !serveFlipB)
+
+            Action.FINISH -> when {
+                state.isComplete -> ApplyResult(this, CommandOutcome.MATCH_COMPLETE)
+                // Only a match with no set end is ended by hand, and not
+                // before anything has been played.
+                !config.isOpenEnded || points.isEmpty() -> ApplyResult(this, CommandOutcome.NOT_ALLOWED)
+                else -> accepted(command, finishedAtMillis = atMillis, state = ScoringEngine.finish(state))
+            }
         }
     }
 
@@ -181,6 +207,7 @@ class MatchLog private constructor(
         state: MatchState = this.state,
         serveFlipA: Boolean = this.serveFlipA,
         serveFlipB: Boolean = this.serveFlipB,
+        finishedAtMillis: Long? = this.finishedAtMillis,
     ) = ApplyResult(
         MatchLog(
             matchId = matchId,
@@ -194,6 +221,7 @@ class MatchLog private constructor(
             lastCommandId = command.commandId,
             serveFlipA = serveFlipA,
             serveFlipB = serveFlipB,
+            finishedAtMillis = finishedAtMillis,
             state = state,
         ),
         CommandOutcome.ACCEPTED,
@@ -228,6 +256,7 @@ class MatchLog private constructor(
             lastCommandId = 0,
             serveFlipA = false,
             serveFlipB = false,
+            finishedAtMillis = null,
             state = ScoringEngine.start(config),
         )
 
@@ -260,6 +289,8 @@ class MatchLog private constructor(
                 lastCommandId = 0,
                 serveFlipA = snapshot.serveFlipA,
                 serveFlipB = snapshot.serveFlipB,
+                // When it was ended is not known to a replica either.
+                finishedAtMillis = if (snapshot.finished) nowMillis else null,
                 state = snapshot.state,
             )
         }

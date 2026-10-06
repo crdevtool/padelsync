@@ -95,9 +95,11 @@ struct OptionGroup<Option: Equatable>: View {
                     } label: {
                         Text(label(option))
                             .font(.subheadline.weight(.bold))
-                            .lineLimit(1)
+                            // Four choices in a row are narrow: their labels may wrap.
+                            .lineLimit(options.count > 3 ? 2 : 1)
+                            .multilineTextAlignment(.center)
                             .minimumScaleFactor(0.7)
-                            .padding(.horizontal, 6)
+                            .padding(.horizontal, options.count > 3 ? 4 : 6)
                             .frame(maxWidth: .infinity, minHeight: 56)
                             .foregroundStyle(isSelected ? Palette.onAccent : Color.white)
                             .background(

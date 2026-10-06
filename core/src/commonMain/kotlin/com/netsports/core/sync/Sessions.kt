@@ -20,6 +20,9 @@ object Sessions {
     /** Value meaning "no join code" wherever a join code is a plain `Int`. */
     const val NO_CODE = -1
 
+    /** A Fast4 tiebreak is the first to this many points. */
+    const val FAST4_TIEBREAK_POINTS = 5
+
     private val ids = RandomIdSource()
 
     /** A takeover raises the epoch by 1 to this many. */
@@ -67,6 +70,9 @@ object Sessions {
      * @param setTiebreak whether a set that reaches games-all is settled by a
      * tiebreak; when false it is played on as an advantage set.
      * @param setGamesCap games that win an advantage set outright, or 0 for no limit.
+     * @param fast4Tiebreak settle sets the Fast4 way: a tiebreak one game
+     * early, to [FAST4_TIEBREAK_POINTS] points, with no two-point margin.
+     * Ignored unless [setTiebreak] is on.
      */
     fun config(
         sport: Sport,
@@ -75,21 +81,47 @@ object Sessions {
         deuceRule: DeuceRule,
         setTiebreak: Boolean,
         setGamesCap: Int,
+        fast4Tiebreak: Boolean,
         finalSetRule: FinalSetRule,
         firstServer: Team,
         playAllSets: Boolean,
         doubles: Boolean,
-    ): MatchConfig = MatchConfig(
+    ): MatchConfig {
+        val fast4 = setTiebreak && fast4Tiebreak
+        return MatchConfig(
+            sport = sport,
+            bestOf = bestOf,
+            gamesPerSet = gamesPerSet,
+            deuceRule = deuceRule,
+            setTiebreak = setTiebreak,
+            tiebreakPoints = if (fast4) FAST4_TIEBREAK_POINTS else MatchConfig(sport).tiebreakPoints,
+            finalSetRule = finalSetRule,
+            firstServer = firstServer,
+            playAllSets = playAllSets,
+            doubles = doubles,
+            setGamesCap = if (setTiebreak) 0 else setGamesCap,
+            earlyTiebreak = fast4,
+            tiebreakSuddenDeath = fast4,
+        )
+    }
+
+    /**
+     * A points match, as in Americano.
+     *
+     * The settings for sets are unused in a points match and are left at
+     * their usual values, which is also how such a match arrives on another
+     * device: build every points match through here, so that the same match
+     * is the same value everywhere.
+     *
+     * @param pointsTotal points played in all, or 0 for a timed match that
+     * is ended by hand.
+     */
+    fun pointsConfig(sport: Sport, pointsTotal: Int, firstServer: Team, doubles: Boolean): MatchConfig = MatchConfig(
         sport = sport,
-        bestOf = bestOf,
-        gamesPerSet = gamesPerSet,
-        deuceRule = deuceRule,
-        setTiebreak = setTiebreak,
-        finalSetRule = finalSetRule,
         firstServer = firstServer,
-        playAllSets = playAllSets,
         doubles = doubles,
-        setGamesCap = if (setTiebreak) 0 else setGamesCap,
+        pointsMatch = true,
+        pointsTotal = pointsTotal,
     )
 
     /**

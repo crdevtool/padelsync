@@ -32,15 +32,17 @@ struct WatchMatchView: View {
         if !store.canScore { return "VIEW ONLY" }
         // Decided, with sets still to play.
         if let decided = score.decidedWinner { return "\(Labels.shortName(score, decided)) WON" }
-        return score.setSummary
+        // A points match counts its rallies where a match of sets shows its sets.
+        return score.rallyLine ?? score.setSummary
     }
 
     var body: some View {
         Group {
-            if let winner = score.winner, !resultDismissed {
+            // Over with a winner, or over level: a points match can be drawn.
+            if score.isOver && !resultDismissed {
                 WatchWinnerView(
                     score: score,
-                    winner: winner,
+                    winner: score.winner,
                     // Only a match on this watch alone can be replayed from it.
                     canRematch: store.mode == .host,
                     canUndo: store.canScore,
@@ -50,9 +52,12 @@ struct WatchMatchView: View {
                 scoreboard
             }
         }
-        .onChange(of: score.winner) { _, winner in
+        .onChange(of: score.winner) { _, _ in
             resultDismissed = false
-            if winner != nil { WKInterfaceDevice.current().play(.success) }
+        }
+        .onChange(of: score.isOver) { _, over in
+            resultDismissed = false
+            if over { WKInterfaceDevice.current().play(.success) }
         }
         // `onChange` does not run for the value the screen starts with, so
         // these cannot replay just because the screen was rebuilt.
@@ -71,7 +76,7 @@ struct WatchMatchView: View {
     }
 
     private var scoreboard: some View {
-        let finished = score.winner != nil
+        let finished = score.isOver
         return VStack(spacing: 2) {
             WatchHalf(team: Team.a, score: score, enabled: !finished) { tap(Action.pointA) }
 
@@ -136,6 +141,8 @@ private struct WatchHalf: View {
         // points, to leave room for the serve line.
         let compact = WKInterfaceDevice.current().screenBounds.width < WatchHalf.compactBelowWidth
         let serve = score.serveLine(team: team, compact: compact)
+        let counts = score.pointsMatch ? "" : " Games \(games). Sets \(sets)."
+        let spoken = "\(name). Points \(points).\(counts)"
 
         Button(action: action) {
             // The serve line goes towards the edge of the screen: above Team
@@ -150,10 +157,13 @@ private struct WatchHalf: View {
                         .font(.system(size: short ? 20 : 14, weight: .black, design: .rounded))
                         .foregroundStyle(color)
                         .lineLimit(1)
-                    WatchCount(caption: "GAMES", value: games, color: .white, compact: compact)
-                    WatchCount(caption: "SETS", value: sets, color: Palette.muted, compact: compact)
+                    // A points match has no games or sets, which leaves the room to the points.
+                    if !score.pointsMatch {
+                        WatchCount(caption: "GAMES", value: games, color: .white, compact: compact)
+                        WatchCount(caption: "SETS", value: sets, color: Palette.muted, compact: compact)
+                    }
                     Text(points)
-                        .font(.system(size: compact ? 38 : 44, weight: .black, design: .rounded))
+                        .font(.system(size: pointsSize(compact: compact), weight: .black, design: .rounded))
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                         .foregroundStyle(.white)
@@ -170,15 +180,19 @@ private struct WatchHalf: View {
         // Not `.disabled`: that would grey out the final score.
         .allowsHitTesting(enabled)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            "\(name). Points \(points). Games \(games). Sets \(sets)." + (serving ? " Serving." : "")
-        )
+        .accessibilityLabel(spoken + (serving ? " Serving." : ""))
         .accessibilityHint("Adds a point for \(name)")
         .accessibilityAddTraits(.isButton)
     }
 
     /// Screens narrower than this, in points, count as small.
     private static let compactBelowWidth: CGFloat = 180
+
+    /// The size of the points: larger in a points match, where they stand alone.
+    private func pointsSize(compact: Bool) -> CGFloat {
+        if score.pointsMatch { return compact ? 48 : 56 }
+        return compact ? 38 : 44
+    }
 }
 
 /// One count of the score, with a small word over it saying which.
@@ -231,10 +245,11 @@ private struct ServePill: View {
 }
 
 /// The end of a match on the watch: who won, the sets, and what to do next.
+/// `winner` is nil for a points match that ended level.
 private struct WatchWinnerView: View {
     @EnvironmentObject private var store: CourtStore
     let score: ScoreView
-    let winner: Team
+    let winner: Team?
     let canRematch: Bool
     let canUndo: Bool
     let onDismiss: () -> Void
@@ -242,11 +257,11 @@ private struct WatchWinnerView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 6) {
-                Text("🏆")
+                Text(winner == nil ? "🤝" : "🏆")
                     .font(.system(size: 34))
-                Text(Labels.winnerHeadline(score, winner))
+                Text(Labels.resultHeadline(score, winner))
                     .font(.headline.weight(.black))
-                    .foregroundStyle(winner == Team.a ? Palette.teamA : Palette.teamB)
+                    .foregroundStyle(headlineColor)
                     .multilineTextAlignment(.center)
                 Text(score.setSummary)
                     .font(.system(size: 20, weight: .black, design: .rounded))
@@ -257,10 +272,15 @@ private struct WatchWinnerView: View {
                 }
                 Button("Scoreboard", action: onDismiss)
                 if canUndo {
-                    Button("Undo last point") { store.tap(Action.undo) }
+                    Button(Labels.undoResult(score)) { store.tap(Action.undo) }
                 }
             }
         }
+    }
+
+    private var headlineColor: Color {
+        guard let winner else { return Palette.accent }
+        return winner == Team.a ? Palette.teamA : Palette.teamB
     }
 }
 
@@ -291,6 +311,14 @@ private struct WatchMenuView: View {
                         store.tap(server == Team.a ? Action.swapServerA : Action.swapServerB)
                         close()
                     }
+                }
+                // A timed match has no last point: someone has to say when it is over.
+                if let score = store.score, score.canBeFinished, store.canScore {
+                    Button(Labels.finishMatch) {
+                        store.tap(Action.finish)
+                        close()
+                    }
+                    .tint(Palette.accent)
                 }
                 Button(store.speech.enabled ? "Voice: on" : "Voice: off") {
                     store.setSpeech(store.speech.with(enabled: !store.speech.enabled))

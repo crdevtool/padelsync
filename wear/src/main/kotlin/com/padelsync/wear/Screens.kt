@@ -107,21 +107,29 @@ fun MessageScreen(
     }
 }
 
-/** The end of a match on the watch: who won, the sets, and what to do next. */
+/**
+ * The end of a match on the watch: who won, the score, and what to do next.
+ *
+ * @param winner the team that won, or `null` for a match that ended level.
+ */
 @Composable
 fun WinnerScreen(
     score: ScoreView,
-    winner: Team,
+    winner: Team?,
     onRematch: (() -> Unit)?,
     onUndo: (() -> Unit)?,
     onDismiss: () -> Unit,
 ) {
     ScalingLazyColumn(Modifier.fillMaxSize()) {
-        item { Text("🏆", fontSize = 34.sp) }
+        item { Text(if (winner == null) "🤝" else "🏆", fontSize = 34.sp) }
         item {
             Text(
-                Labels.winnerHeadline(score, winner),
-                color = if (winner == Team.A) WearPalette.TeamA else WearPalette.TeamB,
+                Labels.resultHeadline(score, winner),
+                color = when (winner) {
+                    Team.A -> WearPalette.TeamA
+                    Team.B -> WearPalette.TeamB
+                    null -> WearPalette.Accent
+                },
                 fontWeight = FontWeight.Black,
                 fontSize = 18.sp,
                 textAlign = TextAlign.Center,
@@ -133,7 +141,7 @@ fun WinnerScreen(
         }
         item { SecondaryChip("Scoreboard", onDismiss) }
         if (onUndo != null) {
-            item { SecondaryChip("Undo last point", onUndo) }
+            item { SecondaryChip(Labels.undoResult(score), onUndo) }
         }
     }
 }
@@ -287,6 +295,15 @@ fun MenuScreen(ui: CourtUiState, controller: CourtController, onTakeOver: () -> 
             item { SecondaryChip(Labels.TAKE_OVER_BUTTON_SHORT, onTakeOver) }
         }
         val score = ui.score
+        if (score != null && score.canBeFinished && ui.canScore) {
+            // A timed match has no last point: someone has to say it is over.
+            item {
+                SecondaryChip(Labels.FINISH_MATCH) {
+                    controller.tap(Action.FINISH)
+                    onClose()
+                }
+            }
+        }
         val server = score?.server
         if (score != null && score.doubles && server != null && ui.canScore) {
             // Players choose their serving order each set; this corrects the app's guess.

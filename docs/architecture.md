@@ -32,10 +32,12 @@ Everything that must behave identically everywhere lives in `core/` and is
 tested there, without any device:
 
 - `engine/` The rules of padel and tennis as a pure function:
-  `(score, point) -> score`. Covers best of 1, 3 or 5; advantage, golden
-  point and star point; tiebreak and advantage sets; a full, advantage or
-  match-tiebreak final set; and playing every set after the match is already
-  decided, as social padel usually is. It also works out who serves next (the
+  `(score, point) -> score`. Covers best of 1, 3 or 5; sets to 4, 6, 8 or 9
+  games; advantage, golden point and star point; tiebreak sets, Fast4 sets
+  and advantage sets with or without a limit; a full, advantage or
+  match-tiebreak final set, or one with a tiebreak to 10; playing every set
+  after the match is already decided, as social padel usually is; and points
+  matches (Americano), to a total of points or timed and ended by hand. It also works out who serves next (the
   team, which of its two players in doubles, and from which side) and when to
   change ends.
 - `match/` `MatchLog`, the host's authoritative record, `MatchSnapshot`, the

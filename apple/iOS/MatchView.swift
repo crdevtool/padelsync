@@ -147,9 +147,11 @@ private struct Scoreboard: View {
     private var courtShownOpen: Bool { hosting && (store.courtOpen || pretendingOpen) }
     private var winner: Team? { score.winner }
     private var decided: Team? { score.winner ?? score.decidedWinner }
+    /// Over with a winner, or over level: a points match can be drawn.
+    private var over: Bool { score.isOver }
 
     private var showResult: Bool {
-        if winner != nil { return !celebrationDismissed }
+        if over { return !celebrationDismissed }
         return decided != nil && resultRequested
     }
 
@@ -170,20 +172,21 @@ private struct Scoreboard: View {
                 takeOverOffer
             }
             court
-            if winner != nil && celebrationDismissed {
+            if over && celebrationDismissed {
                 afterMatchButtons
             }
         }
         .overlay {
             // When this goes away (an undo, a rematch) it fades out as it
             // last was, so the result is not rewritten in mid-air.
-            if showResult, let decided = decided {
+            if showResult, decided != nil || over {
                 resultScreen(decided)
                     .transition(.opacity)
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showResult)
         .onChange(of: winner) { _, _ in celebrationDismissed = false }
+        .onChange(of: over) { _, _ in celebrationDismissed = false }
         .onChange(of: decided) { _, _ in resultRequested = false }
         .onChange(of: score) { before, after in announceEvent(before: before, after: after) }
         // A gentle buzz when someone else scores, so players know the point is
@@ -265,8 +268,12 @@ private struct Scoreboard: View {
             }
         }
         Button("Voice") { openSheet = .voice }
-        if winner == nil && decided != nil {
+        if !over && decided != nil {
             Button("Result so far") { resultRequested = true }
+        }
+        // A timed match has no last point: someone has to say it is over.
+        if score.canBeFinished && store.canScore {
+            Button(Labels.finishMatch) { tap(Action.finish) }
         }
         if hosting {
             Button("New match", action: onNewMatch)
@@ -307,7 +314,7 @@ private struct Scoreboard: View {
         // A view-only device keeps its halves tappable: the tap is answered
         // with a note saying why it did not count, which is kinder than a
         // dead screen.
-        let canTap = winner == nil
+        let canTap = !over
         let stats = store.stats
         return ZStack {
             CourtBackground(
@@ -386,17 +393,18 @@ private struct Scoreboard: View {
 
     // MARK: The result
 
-    private func resultScreen(_ decided: Team) -> some View {
+    /// `decided` is nil for a match that ended level.
+    private func resultScreen(_ decided: Team?) -> some View {
         // Rematch and undo only make sense once the last point has been played.
-        let over = score.winner != nil
+        let finished = score.isOver
         var onRematch: (() -> Void)?
         var onAnotherMatch: (() -> Void)?
         var onUndo: (() -> Void)?
         if hosting {
             onAnotherMatch = onNewMatch
-            if over { onRematch = { store.rematch() } }
+            if finished { onRematch = { store.rematch() } }
         }
-        if store.canScore && over { onUndo = { tap(Action.undo) } }
+        if store.canScore && finished { onUndo = { tap(Action.undo) } }
         return CelebrationView(
             score: score,
             winner: decided,
@@ -451,7 +459,7 @@ private struct NetStrip: View {
                     .foregroundStyle(headline.color)
                     .lineLimit(2)
                     .animation(.easeInOut(duration: 0.2), value: headline.text)
-                if score.winner == nil, let startedAt = store.startedAtMillis {
+                if !score.isOver, let startedAt = store.startedAtMillis {
                     // Time since the match started on this device, ticking once a second.
                     TimelineView(.periodic(from: Date(), by: 1)) { timeline in
                         let now = Int64(timeline.date.timeIntervalSince1970 * 1000)
@@ -494,6 +502,10 @@ private struct NetStrip: View {
         if let decided = score.decidedWinner {
             return ("\(score.nameOf(team: decided).uppercased()) WON · PLAYING SET \(score.setNumber)", Palette.gold)
         }
+        // A points match has no sets to number; it counts its rallies.
+        if score.pointsMatch {
+            return (Labels.rally(score) ?? "", Palette.muted)
+        }
         return ("SET \(score.setNumber)", Palette.muted)
     }
 
@@ -524,7 +536,7 @@ private struct MatchEvent {
     /// What was just won between `before` and `after`, if anything. An undo is never an event.
     static func between(_ before: ScoreView, _ after: ScoreView, id: Int) -> MatchEvent? {
         // The end of the match has a screen of its own.
-        if after.winner != nil { return nil }
+        if after.isOver { return nil }
         if after.completedSets.count == before.completedSets.count + 1 {
             guard let lastSet = after.completedSets.last else { return nil }
             if let decided = after.decidedWinner, before.decidedWinner == nil {

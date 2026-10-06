@@ -3,6 +3,8 @@ package com.netsports.core.ui
 import com.netsports.core.engine.DeuceRule
 import com.netsports.core.engine.FinalSetRule
 import com.netsports.core.engine.MatchConfig
+import com.netsports.core.engine.MatchState
+import com.netsports.core.sync.Sessions
 
 /**
  * One line of plain words for each choice on the match setup screen, shown
@@ -13,6 +15,25 @@ import com.netsports.core.engine.MatchConfig
  * holds its choices one by one until the match is started.
  */
 object FormatHelp {
+    /** Under "Scoring": a match of sets, or a points match. */
+    fun scoring(pointsMatch: Boolean): String = if (pointsMatch) {
+        "Americano: every rally is one point and there are no games or sets."
+    } else {
+        "Sets: points make games and games make sets, as in a normal match."
+    }
+
+    /** A choice under "Match length" in a points match: `24 points`, or `Timed` for 0. */
+    fun matchLengthLabel(pointsTotal: Int): String = if (pointsTotal == 0) "Timed" else "$pointsTotal points"
+
+    /** Under "Match length". [pointsTotal] is 0 for a timed match. */
+    fun matchLength(pointsTotal: Int): String = if (pointsTotal == 0) {
+        "Timed: play until the court time is up, then choose Finish match in the menu. The score at that moment counts."
+    } else {
+        val half = pointsTotal / 2
+        "The match is $pointsTotal points in all, so a result looks like ${half + 2}-${pointsTotal - half - 2}. " +
+            "The serve changes every ${MatchState.POINTS_PER_SERVICE} points."
+    }
+
     /** Under "Sets". */
     fun sets(bestOf: Int): String = when (bestOf) {
         1 -> "One set decides the match."
@@ -43,6 +64,13 @@ object FormatHelp {
         "Advantage set: no tiebreak. At $games-$games you keep playing games."
     }
 
+    /** Under [gamesAllTitle], for the Fast4 way of settling a set to [games] games. */
+    fun fast4(games: Int): String {
+        val points = Sessions.FAST4_TIEBREAK_POINTS
+        return "Fast4: a tiebreak already at ${games - 1}-${games - 1}, first to $points points. " +
+            "At ${points - 1}-${points - 1} in it, the next point wins."
+    }
+
     /** The heading of the choice of where an advantage set stops. */
     fun capTitle(): String = "Advantage set limit"
 
@@ -62,7 +90,15 @@ object FormatHelp {
         FinalSetRule.ADVANTAGE_SET -> "No tiebreak: the last set must be won by two clear games."
         FinalSetRule.MATCH_TIEBREAK ->
             "Match tiebreak: instead of a last set, a tiebreak to $matchTiebreakPoints points."
+        FinalSetRule.LONG_TIEBREAK ->
+            "Tiebreak to $matchTiebreakPoints: a full last set, but its tiebreak is played to $matchTiebreakPoints points."
     }
+
+    /**
+     * How a points match is described in one line, after the sport:
+     * `Americano · 24 points`.
+     */
+    fun pointsLine(config: MatchConfig): String = "Americano · ${matchLengthLabel(config.pointsTotal)}"
 
     /**
      * What sets [config] apart from the usual format, to add to a one-line
@@ -75,6 +111,7 @@ object FormatHelp {
         if (!config.setTiebreak) {
             parts += if (config.setGamesCap == 0) "Advantage sets" else "Advantage sets to ${config.setGamesCap}"
         }
+        if (config.isFast4Tiebreak) parts += "Fast4 tiebreak"
         return parts.joinToString("") { " · $it" }
     }
 

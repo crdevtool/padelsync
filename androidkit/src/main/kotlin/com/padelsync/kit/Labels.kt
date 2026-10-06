@@ -31,6 +31,7 @@ object Labels {
             Highlight.SET_POINT -> "SET POINT$who"
             Highlight.MATCH_POINT -> "MATCH POINT$who"
             Highlight.MATCH_WON -> score.winner?.let { "${score.nameOf(it).uppercase()} ${wins(score, it).uppercase()}" }
+            Highlight.MATCH_DRAWN -> "DRAW"
         }
     }
 
@@ -64,6 +65,7 @@ object Labels {
             Highlight.SET_POINT -> "SP$who"
             Highlight.MATCH_POINT -> "MP$who"
             Highlight.MATCH_WON -> score.winner?.let { "${shortName(score, it)} ${wins(score, it).uppercase()}" }
+            Highlight.MATCH_DRAWN -> "DRAW"
         }
     }
 
@@ -72,6 +74,33 @@ object Labels {
 
     /** The line over the trophy: `Ana & Leo win!` */
     fun winnerHeadline(score: ScoreView, team: Team): String = "${score.nameOf(team)} ${wins(score, team)}!"
+
+    /** The line over a finished match: [winnerHeadline], or [DRAW_HEADLINE] when nobody won. */
+    fun resultHeadline(score: ScoreView, winner: Team?): String =
+        if (winner == null) DRAW_HEADLINE else winnerHeadline(score, winner)
+
+    const val DRAW_HEADLINE = "It's a draw!"
+
+    /** Ends a timed match from the menu; the score at that moment is the result. */
+    const val FINISH_MATCH = "Finish match"
+
+    /**
+     * The button on a result screen that takes the result back. A match that
+     * was ended by hand loses no point when it is reopened, so it says so.
+     */
+    fun undoResult(score: ScoreView): String =
+        if (score.pointsMatch && score.pointsTotal == 0) "Carry on playing" else "Undo last point"
+
+    /**
+     * Where a points match has got to, for a phone: `POINT 9 OF 24`, or
+     * `POINT 9` when the match has no set end. `null` for a match of sets,
+     * and once the match is over.
+     */
+    fun rally(score: ScoreView): String? = when {
+        !score.pointsMatch || score.isOver -> null
+        score.pointsTotal == 0 -> "POINT ${score.pointsPlayed + 1}"
+        else -> "POINT ${score.pointsPlayed + 1} OF ${score.pointsTotal}"
+    }
 
     /** Which side the server stands on, from the server's own point of view. */
     fun serveSide(side: ServeSide): String = if (side == ServeSide.RIGHT) "right side" else "left side"
@@ -104,13 +133,13 @@ object Labels {
      */
     fun shareText(score: ScoreView, config: MatchConfig?, durationMillis: Long?): String {
         val winner = score.winner ?: score.decidedWinner
-        val headline = if (winner == null) {
-            "${score.nameA} vs ${score.nameB}"
-        } else {
-            "${score.nameOf(winner)} beat ${score.nameOf(winner.opponent)}"
+        val headline = when {
+            winner != null -> "${score.nameOf(winner)} beat ${score.nameOf(winner.opponent)}"
+            score.drawn -> "${score.nameA} drew with ${score.nameB}"
+            else -> "${score.nameA} vs ${score.nameB}"
         }
         val details = listOfNotNull(
-            config?.let { sport(it.sport) },
+            config?.let { if (it.pointsMatch) "${sport(it.sport)} Americano" else sport(it.sport) },
             durationMillis?.takeIf { it >= 60_000 }?.let { duration(it) },
         ).joinToString(", ")
         return buildString {
@@ -133,14 +162,18 @@ object Labels {
         FinalSetRule.SAME_AS_OTHER_SETS -> "Full set"
         FinalSetRule.ADVANTAGE_SET -> "No tiebreak"
         FinalSetRule.MATCH_TIEBREAK -> "Match tiebreak"
+        FinalSetRule.LONG_TIEBREAK -> "Tiebreak to 10"
     }
 
     /**
      * One line describing a format, for example `Padel · Best of 3 · Golden point`,
      * with anything unusual about its sets added: `· Advantage sets to 8`.
      */
-    fun format(config: MatchConfig): String =
+    fun format(config: MatchConfig): String = if (config.pointsMatch) {
+        "${sport(config.sport)} · ${FormatHelp.pointsLine(config)}"
+    } else {
         "${sport(config.sport)} · ${sets(config)} · ${deuceRule(config.deuceRule)}${FormatHelp.extras(config)}"
+    }
 
     /** `1 set`, `Best of 3`, or `3 sets` when every set is played. */
     fun sets(config: MatchConfig): String = when {

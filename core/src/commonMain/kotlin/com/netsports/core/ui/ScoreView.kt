@@ -16,6 +16,9 @@ enum class Highlight {
     TIEBREAK,
     DEUCE,
 
+    /** A points match that ended with the scores level. */
+    MATCH_DRAWN,
+
     /** Golden point or star point: the next point wins the game for either team. */
     DECIDING_POINT,
     GAME_POINT,
@@ -59,6 +62,13 @@ data class ServeLine(val who: String, val side: String) {
  * @property decidedWinner the team that has won enough sets to win the match.
  * Differs from [winner] only while the remaining sets are still being played.
  * @property changeEnds true at the moments players swap ends.
+ * @property drawn true for a finished points match with level scores, which
+ * has no [winner].
+ * @property pointsMatch true for a points match (Americano): there are no
+ * games or sets to show, only [pointsA] and [pointsB].
+ * @property pointsTotal points played in all in a points match, or 0 if it
+ * has no set end (a timed match) or is not a points match.
+ * @property pointsPlayed points played so far in the whole match.
  */
 data class ScoreView(
     val pointsA: String,
@@ -85,7 +95,31 @@ data class ScoreView(
     val serveSide: ServeSide? = null,
     val decidedWinner: Team? = null,
     val changeEnds: Boolean = false,
+    val drawn: Boolean = false,
+    val pointsMatch: Boolean = false,
+    val pointsTotal: Int = 0,
+    val pointsPlayed: Int = 0,
 ) {
+    /** The match is over: it has a [winner], or it was [drawn]. */
+    val isOver: Boolean
+        get() = winner != null || drawn
+
+    /** A points match with no set end, which is over only when someone ends it. */
+    val canBeFinished: Boolean
+        get() = pointsMatch && pointsTotal == 0 && pointsPlayed > 0 && !isOver
+
+    /**
+     * Where a points match has got to, short enough for a watch: `23 OF 24`
+     * for the point about to be played, or `POINT 23` when the match has no
+     * set end. `null` for a match of sets, and once the match is over.
+     */
+    val rallyLine: String?
+        get() = when {
+            !pointsMatch || isOver -> null
+            pointsTotal == 0 -> "POINT ${pointsPlayed + 1}"
+            else -> "${pointsPlayed + 1} OF $pointsTotal"
+        }
+
     fun nameOf(team: Team): String = if (team == Team.A) nameA else nameB
 
     fun playersOf(team: Team): List<String> = if (team == Team.A) playersA else playersB
@@ -117,7 +151,7 @@ data class ScoreView(
 
     /** 1-based number of the set being played, or of the last set once the match is over. */
     val setNumber: Int
-        get() = if (winner != null) completedSets.size else completedSets.size + 1
+        get() = if (isOver) completedSets.size else completedSets.size + 1
 
     companion object {
         /** As long as `PLAYER 1`, the widest thing a serve line says without a name. */
@@ -164,7 +198,12 @@ data class ScoreView(
                 setsA = state.setsWonBy(Team.A),
                 setsB = state.setsWonBy(Team.B),
                 completedSets = state.completedSets,
-                setSummary = state.completedSets.joinToString(" ") { describe(it) },
+                setSummary = if (state.config.pointsMatch) {
+                    // The result of a points match is its two totals.
+                    if (state.isComplete) "${state.pointsA}-${state.pointsB}" else ""
+                } else {
+                    state.completedSets.joinToString(" ") { describe(it) }
+                },
                 server = server,
                 highlight = highlight,
                 highlightTeam = team,
@@ -181,11 +220,16 @@ data class ScoreView(
                 serveSide = if (server == null) null else state.serveSide,
                 decidedWinner = state.decidedWinner,
                 changeEnds = state.changeEnds,
+                drawn = state.drawn,
+                pointsMatch = state.config.pointsMatch,
+                pointsTotal = state.config.pointsTotal,
+                pointsPlayed = state.totalPointsPlayed,
             )
         }
 
         private fun highlightOf(state: MatchState): Pair<Highlight, Team?> {
             state.winner?.let { return Highlight.MATCH_WON to it }
+            if (state.drawn) return Highlight.MATCH_DRAWN to null
 
             val stakeA = ScoringEngine.stakeFor(state, Team.A)
             val stakeB = ScoringEngine.stakeFor(state, Team.B)

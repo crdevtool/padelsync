@@ -151,7 +151,8 @@ with **New match** stays on that phone; it can be opened to others later from
 | Feature | Where |
 | --- | --- |
 | Player names, singles or doubles | Setup screen. Names are optional and can be corrected mid-match from **Menu > Players**. The last names used are remembered. |
-| Match format | Setup screen: sets (1, best of 3 or 5), set length (4, 6, 8 or 9 games), what happens at deuce (advantage, golden point, star point), and at 6-6 a tiebreak or an **advantage set**, which can be stopped at a number of games (**First to 8**: 7-7 is settled by one last game). One line under each choice says what it means. The form starts from the last match set up, so a group chooses its format once. |
+| Match format | Setup screen: sets (1, best of 3 or 5), set length (4, 6, 8 or 9 games), what happens at deuce (advantage, golden point, star point), and at 6-6 a tiebreak or an **advantage set**, which can be stopped at a number of games (**First to 8**: 7-7 is settled by one last game). Sets to 4 games can also be settled the **Fast4** way, and the final set can be a full set, a match tiebreak, or a set with a **tiebreak to 10**. One line under each choice says what it means. The form starts from the last match set up, so a group chooses its format once. |
+| Americano (padel) | Setup screen, **Scoring > Americano**: every rally is one point and there are no games or sets. **Match length** is 16, 24 or 32 points, or **Timed**. The serve changes every 4 points. A match can end level, which is a draw. A timed match is ended with **Menu > Finish match**; **Carry on playing** on the result screen reopens it. |
 | Play all sets | Setup screen, **Play all 3 sets**: on by default for padel. At two sets to love the app announces the winners and carries on with the third set. |
 | Court scoreboard | Team A plays the top half, team B the bottom. Tap a half to score for it. |
 | Serve side and server | The ball marker sits on the side the server stands on and names the player (`ANA · RIGHT SIDE`); the box the serve must land in is lit. If the app has the wrong player of a pair serving, use **Menu > Swap server**. |
@@ -172,7 +173,11 @@ On the watch: short names (`A+L`), games and sets as large numbers under
 small **GAMES** and **SETS** captions, a serve line on the serving team's half
 that names the server and the side (`LEO · RIGHT`, or `PLAYER 2 · LEFT` when
 no names were given), the set score on the middle strip, a winner screen, and
-**Voice** and **Others can score** switches in the menu.
+**Voice** and **Others can score** switches in the menu. In an Americano match
+the watch shows the points alone, larger, with the count of rallies on the
+strip (`9 OF 24`), and **Finish match** in the menu of a timed one. A watch
+starts padel and tennis matches of sets; an Americano match is set up on a
+phone and joined from the watch.
 
 On a Wear OS watch, swiping to the right goes back one screen: from the menu
 to the score, from the code entry to the list of courts. On the scoreboard

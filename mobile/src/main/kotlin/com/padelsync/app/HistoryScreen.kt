@@ -64,10 +64,10 @@ fun HistoryScreen(records: List<MatchRecord>, onBack: () -> Unit) {
                             .padding(16.dp),
                     ) {
                         Text(
-                            if (winner != null) {
-                                "${score.nameOf(winner)} beat ${score.nameOf(winner.opponent)}"
-                            } else {
-                                "${score.nameA} vs ${score.nameB}"
+                            when {
+                                winner != null -> "${score.nameOf(winner)} beat ${score.nameOf(winner.opponent)}"
+                                score.drawn -> "${score.nameA} drew with ${score.nameB}"
+                                else -> "${score.nameA} vs ${score.nameB}"
                             },
                             color = if (winner == Team.B) Palette.TeamB else Palette.TeamA,
                             fontSize = 18.sp,

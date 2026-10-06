@@ -30,6 +30,7 @@ import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.Sport
 import com.netsports.core.engine.Team
 import com.netsports.core.match.Roster
+import com.netsports.core.sync.Sessions
 import com.netsports.core.ui.FormatHelp
 import com.padelsync.kit.Labels
 import com.padelsync.kit.MatchSetup
@@ -67,6 +68,10 @@ fun SetupScreen(
     var finalSet by rememberSaveable {
         mutableStateOf(if (startedWithoutTiebreak) FinalSetRule.SAME_AS_OTHER_SETS else start.finalSetRule)
     }
+    var fast4 by rememberSaveable { mutableStateOf(start.isFast4Tiebreak) }
+    // Americano: a match of points, with no games or sets.
+    var pointsMatch by rememberSaveable { mutableStateOf(start.pointsMatch) }
+    var pointsTotal by rememberSaveable { mutableStateOf(if (start.pointsMatch) start.pointsTotal else DEFAULT_POINTS) }
     var firstServer by rememberSaveable { mutableStateOf(start.firstServer) }
     var guestsCanScore by rememberSaveable { mutableStateOf(initial?.guestsCanScore ?: true) }
 
@@ -106,9 +111,21 @@ fun SetupScreen(
                         // Each sport's usual habits; every one can be changed below.
                         doubles = it == Sport.PADEL
                         playAllSets = it == Sport.PADEL
+                        // Americano is a padel format.
+                        if (it != Sport.PADEL) pointsMatch = false
                     }
                 },
             )
+            if (sport == Sport.PADEL) {
+                OptionGroup(
+                    title = "Scoring",
+                    options = listOf(false, true),
+                    selected = pointsMatch,
+                    label = { if (it) "Americano" else "Sets" },
+                    onSelect = { pointsMatch = it },
+                    caption = FormatHelp.scoring(pointsMatch),
+                )
+            }
             OptionGroup(
                 title = "Players",
                 options = listOf(true, false),
@@ -143,81 +160,106 @@ fun SetupScreen(
                 label = { roster.teamName(it) },
                 onSelect = { firstServer = it },
             )
-            OptionGroup(
-                title = "Sets",
-                options = listOf(1, 3, 5),
-                selected = bestOf,
-                label = { if (it == 1) "1 set" else "Best of $it" },
-                onSelect = {
-                    bestOf = it
-                    // A one-set match has no final set to play differently.
-                    if (it == 1) finalSet = FinalSetRule.SAME_AS_OTHER_SETS
-                },
-                caption = FormatHelp.sets(bestOf),
-            )
-            if (bestOf > 1) {
-                SwitchRow(
-                    title = "Play all $bestOf sets",
-                    caption = "Keep playing after a team has already won the match",
-                    checked = playAllSets,
-                    onCheckedChange = { playAllSets = it },
-                )
-            }
-            OptionGroup(
-                title = "Set length",
-                options = SET_LENGTHS,
-                selected = gamesPerSet,
-                label = { "$it games" },
-                onSelect = {
-                    gamesPerSet = it
-                    // The cap is counted from the set length, so it moves with it.
-                    if (setGamesCap != 0) setGamesCap = it + 2
-                },
-                caption = FormatHelp.setLength(gamesPerSet),
-            )
-            OptionGroup(
-                title = "At deuce",
-                options = DeuceRule.entries,
-                selected = deuceRule,
-                label = { Labels.deuceRule(it) },
-                onSelect = { deuceRule = it },
-                caption = FormatHelp.deuce(deuceRule),
-            )
-            OptionGroup(
-                title = FormatHelp.gamesAllTitle(gamesPerSet),
-                options = listOf(true, false),
-                selected = setTiebreak,
-                label = { if (it) "Tiebreak" else "Advantage set" },
-                onSelect = {
-                    if (it != setTiebreak) {
-                        setTiebreak = it
-                        // Most groups that skip the tiebreak still want the set to end.
-                        setGamesCap = if (it) 0 else gamesPerSet + 2
-                        // "No tiebreak" in the final set alone means nothing once no set has one.
-                        if (!it && finalSet == FinalSetRule.ADVANTAGE_SET) finalSet = FinalSetRule.SAME_AS_OTHER_SETS
-                    }
-                },
-                caption = FormatHelp.gamesAll(gamesPerSet, setTiebreak, start.tiebreakPoints),
-            )
-            if (!setTiebreak) {
+            if (pointsMatch) {
                 OptionGroup(
-                    title = FormatHelp.capTitle(),
-                    options = listOf(gamesPerSet + 2, gamesPerSet + 3, gamesPerSet + 4, 0),
-                    selected = setGamesCap,
-                    label = { FormatHelp.capLabel(it) },
-                    onSelect = { setGamesCap = it },
-                    caption = FormatHelp.cap(gamesPerSet, setGamesCap),
+                    title = "Match length",
+                    options = POINTS_TOTALS,
+                    selected = pointsTotal,
+                    label = { FormatHelp.matchLengthLabel(it) },
+                    onSelect = { pointsTotal = it },
+                    caption = FormatHelp.matchLength(pointsTotal),
                 )
-            }
-            if (bestOf > 1) {
+            } else {
                 OptionGroup(
-                    title = "Final set",
-                    options = FinalSetRule.entries.filter { setTiebreak || it != FinalSetRule.ADVANTAGE_SET },
-                    selected = finalSet,
-                    label = { Labels.finalSet(it) },
-                    onSelect = { finalSet = it },
-                    caption = FormatHelp.finalSet(finalSet, start.matchTiebreakPoints),
+                    title = "Sets",
+                    options = listOf(1, 3, 5),
+                    selected = bestOf,
+                    label = { if (it == 1) "1 set" else "Best of $it" },
+                    onSelect = {
+                        bestOf = it
+                        // A one-set match has no final set to play differently.
+                        if (it == 1) finalSet = FinalSetRule.SAME_AS_OTHER_SETS
+                    },
+                    caption = FormatHelp.sets(bestOf),
                 )
+                if (bestOf > 1) {
+                    SwitchRow(
+                        title = "Play all $bestOf sets",
+                        caption = "Keep playing after a team has already won the match",
+                        checked = playAllSets,
+                        onCheckedChange = { playAllSets = it },
+                    )
+                }
+                OptionGroup(
+                    title = "Set length",
+                    options = SET_LENGTHS,
+                    selected = gamesPerSet,
+                    label = { "$it games" },
+                    onSelect = {
+                        gamesPerSet = it
+                        // The cap is counted from the set length, so it moves with it.
+                        if (setGamesCap != 0) setGamesCap = it + 2
+                        // Fast4 is played in sets to four games only.
+                        if (it != FAST4_SET_LENGTH) fast4 = false
+                    },
+                    caption = FormatHelp.setLength(gamesPerSet),
+                )
+                OptionGroup(
+                    title = "At deuce",
+                    options = DeuceRule.entries,
+                    selected = deuceRule,
+                    label = { Labels.deuceRule(it) },
+                    onSelect = { deuceRule = it },
+                    caption = FormatHelp.deuce(deuceRule),
+                )
+                val gamesAll = when {
+                    !setTiebreak -> GamesAll.ADVANTAGE_SET
+                    fast4 -> GamesAll.FAST4
+                    else -> GamesAll.TIEBREAK
+                }
+                OptionGroup(
+                    title = FormatHelp.gamesAllTitle(gamesPerSet),
+                    options = GamesAll.entries.filter { it != GamesAll.FAST4 || gamesPerSet == FAST4_SET_LENGTH },
+                    selected = gamesAll,
+                    label = { it.label },
+                    onSelect = {
+                        if (it != gamesAll) {
+                            setTiebreak = it != GamesAll.ADVANTAGE_SET
+                            fast4 = it == GamesAll.FAST4
+                            // Most groups that skip the tiebreak still want the set to end.
+                            setGamesCap = if (setTiebreak) 0 else gamesPerSet + 2
+                            // Some ways of playing the final set need an ordinary tiebreak in the others.
+                            if (finalSet !in finalSetChoices(setTiebreak, fast4)) {
+                                finalSet = FinalSetRule.SAME_AS_OTHER_SETS
+                            }
+                        }
+                    },
+                    caption = if (gamesAll == GamesAll.FAST4) {
+                        FormatHelp.fast4(gamesPerSet)
+                    } else {
+                        FormatHelp.gamesAll(gamesPerSet, setTiebreak, MatchConfig(sport).tiebreakPoints)
+                    },
+                )
+                if (!setTiebreak) {
+                    OptionGroup(
+                        title = FormatHelp.capTitle(),
+                        options = listOf(gamesPerSet + 2, gamesPerSet + 3, gamesPerSet + 4, 0),
+                        selected = setGamesCap,
+                        label = { FormatHelp.capLabel(it) },
+                        onSelect = { setGamesCap = it },
+                        caption = FormatHelp.cap(gamesPerSet, setGamesCap),
+                    )
+                }
+                if (bestOf > 1) {
+                    OptionGroup(
+                        title = "Final set",
+                        options = finalSetChoices(setTiebreak, fast4),
+                        selected = finalSet,
+                        label = { Labels.finalSet(it) },
+                        onSelect = { finalSet = it },
+                        caption = FormatHelp.finalSet(finalSet, MatchConfig(sport).matchTiebreakPoints),
+                    )
+                }
             }
 
             Spacer(Modifier.height(6.dp))
@@ -247,18 +289,23 @@ fun SetupScreen(
             onClick = {
                 onStart(
                     MatchSetup(
-                        config = MatchConfig(
-                            sport = sport,
-                            bestOf = bestOf,
-                            gamesPerSet = gamesPerSet,
-                            deuceRule = deuceRule,
-                            setTiebreak = setTiebreak,
-                            finalSetRule = finalSet,
-                            firstServer = firstServer,
-                            playAllSets = playAllSets && bestOf > 1,
-                            doubles = doubles,
-                            setGamesCap = if (setTiebreak) 0 else setGamesCap,
-                        ),
+                        config = if (pointsMatch) {
+                            Sessions.pointsConfig(sport, pointsTotal, firstServer, doubles)
+                        } else {
+                            Sessions.config(
+                                sport = sport,
+                                bestOf = bestOf,
+                                gamesPerSet = gamesPerSet,
+                                deuceRule = deuceRule,
+                                setTiebreak = setTiebreak,
+                                setGamesCap = setGamesCap,
+                                fast4Tiebreak = fast4,
+                                finalSetRule = finalSet,
+                                firstServer = firstServer,
+                                playAllSets = playAllSets && bestOf > 1,
+                                doubles = doubles,
+                            )
+                        },
                         roster = roster,
                         guestsCanScore = guestsCanScore,
                     ),
@@ -276,3 +323,30 @@ fun SetupScreen(
 
 /** Games that win a set: a short set, the standard one, and the two usual pro sets. */
 private val SET_LENGTHS = listOf(4, 6, 8, 9)
+
+/** Fast4 is played in sets to this many games. */
+private const val FAST4_SET_LENGTH = 4
+
+/** The usual lengths of an Americano match, and 0 for one that is timed. */
+private val POINTS_TOTALS = listOf(16, 24, 32, 0)
+private const val DEFAULT_POINTS = 24
+
+/** How a set that reaches games-all is settled. */
+private enum class GamesAll(val label: String) {
+    TIEBREAK("Tiebreak"),
+    FAST4("Fast4"),
+    ADVANTAGE_SET("Advantage set"),
+}
+
+/**
+ * The ways a final set can be played, given how the other sets are settled:
+ * "No tiebreak" and "Tiebreak to 10" only mean something when the other sets
+ * end in an ordinary tiebreak.
+ */
+private fun finalSetChoices(setTiebreak: Boolean, fast4: Boolean): List<FinalSetRule> = FinalSetRule.entries.filter {
+    when (it) {
+        FinalSetRule.SAME_AS_OTHER_SETS, FinalSetRule.MATCH_TIEBREAK -> true
+        FinalSetRule.ADVANTAGE_SET -> setTiebreak
+        FinalSetRule.LONG_TIEBREAK -> setTiebreak && !fast4
+    }
+}

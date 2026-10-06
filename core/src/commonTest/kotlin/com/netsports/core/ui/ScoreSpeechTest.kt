@@ -54,6 +54,20 @@ class ScoreSpeechTest {
     }
 
     @Test
+    fun aPointsMatchIsCalledInPlainCounts() {
+        val americano = MatchConfig(com.netsports.core.engine.Sport.PADEL, doubles = true, pointsMatch = true, pointsTotal = 6)
+        assertEquals(listOf("1 love, Team A."), say("", "A", americano))
+        assertEquals(listOf("1 all."), say("A", "B", americano))
+        assertEquals(listOf("2 1, Ana and Leo."), say("AB", "A", americano, roster))
+        // After four points the serve moves to the other team.
+        assertEquals(listOf("2 all.", "Mia to serve."), say("ABA", "B", americano, roster))
+
+        assertEquals(listOf("Match over.", "Ana and Leo win, 4 to 2."), say("ABABA", "A", americano, roster))
+        assertEquals(listOf("Match over.", "A draw, 3 all."), say("ABABA", "B", americano, roster))
+        assertEquals(listOf("Match over.", "Team B win, 6 to love."), say("BBBBB", "B", americano))
+    }
+
+    @Test
     fun deuceAdvantageAndTheDecidingPoint() {
         assertEquals(listOf("Deuce."), say("AAABB", "B", tennis))
         assertEquals(listOf("Advantage, Team B."), say("AAABBB", "B", tennis))

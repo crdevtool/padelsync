@@ -132,6 +132,7 @@ fun Confetti(modifier: Modifier = Modifier, pieces: Int = 110, endless: Boolean 
  * The end of a match: confetti, the winners, the score and a few numbers to
  * argue about afterwards.
  *
+ * @param winner the team that won, or `null` for a match that ended level.
  * @param durationMillis how long the match took, or `null` if unknown.
  * @param onRematch plays again with the same players, or `null` when this
  * device is not the host.
@@ -139,7 +140,7 @@ fun Confetti(modifier: Modifier = Modifier, pieces: Int = 110, endless: Boolean 
 @Composable
 fun Celebration(
     score: ScoreView,
-    winner: Team,
+    winner: Team?,
     stats: MatchStats?,
     durationMillis: Long?,
     onShare: () -> Unit,
@@ -153,7 +154,11 @@ fun Celebration(
     LaunchedEffect(Unit) {
         trophy.animateTo(1f, spring(dampingRatio = Spring.DampingRatioHighBouncy, stiffness = Spring.StiffnessLow))
     }
-    val winnerColor = if (winner == Team.A) Palette.TeamA else Palette.TeamB
+    val winnerColor = when (winner) {
+        Team.A -> Palette.TeamA
+        Team.B -> Palette.TeamB
+        null -> Palette.Gold
+    }
 
     Box(
         Modifier
@@ -173,17 +178,22 @@ fun Celebration(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                "🏆",
+                if (winner == null) "🤝" else "🏆",
                 fontSize = 64.sp,
                 modifier = Modifier.graphicsLayer {
                     scaleX = trophy.value
                     scaleY = trophy.value
                 },
             )
-            Text("CONGRATULATIONS", fontSize = 18.sp, fontWeight = FontWeight.Black, color = Palette.Gold)
+            Text(
+                if (winner == null) "ALL SQUARE" else "CONGRATULATIONS",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black,
+                color = Palette.Gold,
+            )
             Spacer(Modifier.height(6.dp))
             Text(
-                Labels.winnerHeadline(score, winner),
+                Labels.resultHeadline(score, winner),
                 fontSize = 36.sp,
                 lineHeight = 40.sp,
                 fontWeight = FontWeight.Black,
@@ -227,7 +237,7 @@ fun Celebration(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(onClick = onDismiss) { Text("Scoreboard", fontSize = 16.sp) }
                 if (onUndo != null) {
-                    TextButton(onClick = onUndo) { Text("Undo last point", fontSize = 16.sp) }
+                    TextButton(onClick = onUndo) { Text(Labels.undoResult(score), fontSize = 16.sp) }
                 }
             }
         }
@@ -249,8 +259,11 @@ private fun StatsTable(score: ScoreView, stats: MatchStats) {
             StatCell(score.nameB, Palette.TeamB, TextAlign.End, Modifier.weight(1f), small = true)
         }
         StatRow("Points won", stats.teamA.points, stats.teamB.points)
-        StatRow("Games won", stats.teamA.games, stats.teamB.games)
-        StatRow("Breaks of serve", stats.teamA.breaks, stats.teamB.breaks)
+        // A points match has no games, and so no breaks of serve.
+        if (!score.pointsMatch) {
+            StatRow("Games won", stats.teamA.games, stats.teamB.games)
+            StatRow("Breaks of serve", stats.teamA.breaks, stats.teamB.breaks)
+        }
         StatRow("Best run of points", stats.teamA.longestStreak, stats.teamB.longestStreak)
     }
 }

@@ -8,6 +8,8 @@ import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -80,7 +82,7 @@ class SessionsTest {
     @Test
     fun everySetupChoiceCanBeSet() {
         val house = Sessions.config(
-            Sport.PADEL, 3, 6, DeuceRule.ADVANTAGE, false, 8, FinalSetRule.SAME_AS_OTHER_SETS, Team.B, true, true,
+            Sport.PADEL, 3, 6, DeuceRule.ADVANTAGE, false, 8, false, FinalSetRule.SAME_AS_OTHER_SETS, Team.B, true, true,
         )
         assertEquals(
             MatchConfig.padel().copy(setTiebreak = false, setGamesCap = 8, firstServer = Team.B, playAllSets = true),
@@ -88,7 +90,7 @@ class SessionsTest {
         )
         // A cap left over in the form is ignored once tiebreaks are chosen.
         val short = Sessions.config(
-            Sport.TENNIS, 3, 4, DeuceRule.GOLDEN_POINT, true, 6, FinalSetRule.MATCH_TIEBREAK, Team.A, false, false,
+            Sport.TENNIS, 3, 4, DeuceRule.GOLDEN_POINT, true, 6, false, FinalSetRule.MATCH_TIEBREAK, Team.A, false, false,
         )
         assertEquals(
             MatchConfig.tennis().copy(
@@ -98,6 +100,29 @@ class SessionsTest {
             ),
             short,
         )
+    }
+
+    @Test
+    fun fast4SetsAndPointsMatchesCanBeSet() {
+        val fast4 = Sessions.config(
+            Sport.TENNIS, 3, 4, DeuceRule.GOLDEN_POINT, true, 0, true, FinalSetRule.SAME_AS_OTHER_SETS, Team.A, false, false,
+        )
+        assertTrue(fast4.isFast4Tiebreak)
+        assertEquals(3, fast4.tiebreakAt)
+        assertEquals(5, fast4.tiebreakPoints)
+        // The Fast4 tiebreak means nothing in sets that have no tiebreak.
+        val advantage = Sessions.config(
+            Sport.TENNIS, 3, 4, DeuceRule.GOLDEN_POINT, false, 6, true, FinalSetRule.SAME_AS_OTHER_SETS, Team.A, false, false,
+        )
+        assertFalse(advantage.isFast4Tiebreak)
+        assertEquals(7, advantage.tiebreakPoints)
+
+        val americano = Sessions.pointsConfig(Sport.PADEL, 24, Team.B, true)
+        assertTrue(americano.pointsMatch)
+        assertEquals(24, americano.pointsTotal)
+        assertEquals(Team.B, americano.firstServer)
+        assertFalse(americano.isOpenEnded)
+        assertTrue(Sessions.pointsConfig(Sport.PADEL, 0, Team.A, true).isOpenEnded)
     }
 
     @Test

@@ -133,9 +133,9 @@ fun TeamHalf(
             if (atTop) {
                 NameRow(name, color, streak)
                 ServeRow(team, score)
-                PointsArea(points, games, sets)
+                PointsArea(points, games, sets, countsShown = !score.pointsMatch)
             } else {
-                PointsArea(points, games, sets)
+                PointsArea(points, games, sets, countsShown = !score.pointsMatch)
                 ServeRow(team, score)
                 NameRow(name, color, streak)
             }
@@ -284,9 +284,13 @@ private fun BouncingBall() {
     }
 }
 
-/** The big number for the current game, with games and sets beside it. */
+/**
+ * The big number for the current game, with games and sets beside it.
+ *
+ * @param countsShown false in a points match, which has no games or sets.
+ */
 @Composable
-private fun ColumnScope.PointsArea(points: String, games: Int, sets: Int) {
+private fun ColumnScope.PointsArea(points: String, games: Int, sets: Int, countsShown: Boolean) {
     Box(
         Modifier
             .weight(1f)
@@ -310,13 +314,15 @@ private fun ColumnScope.PointsArea(points: String, games: Int, sets: Int) {
                 style = TextStyle(shadow = OnCourtShadow),
             )
         }
-        Column(
-            Modifier.align(Alignment.CenterEnd),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Counter("GAMES", games)
-            Counter("SETS", sets)
+        if (countsShown) {
+            Column(
+                Modifier.align(Alignment.CenterEnd),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Counter("GAMES", games)
+                Counter("SETS", sets)
+            }
         }
     }
 }

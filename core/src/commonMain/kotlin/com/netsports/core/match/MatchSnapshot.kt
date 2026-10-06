@@ -24,6 +24,8 @@ import com.netsports.core.engine.Team
  * Lets a device recognise that its own in-flight command has landed.
  * @property serveFlipA Whether team A's serving order has been swapped from
  * the default; see [MatchState.serverPlayerIndex]. Likewise [serveFlipB].
+ * @property finished Whether a match with no set end (a timed match) has been
+ * ended by hand. Always false for any other match, which ends by its score.
  * @throws IllegalArgumentException if the values are inconsistent.
  */
 data class MatchSnapshot(
@@ -36,9 +38,13 @@ data class MatchSnapshot(
     val roster: Roster = Roster.EMPTY,
     val serveFlipA: Boolean = false,
     val serveFlipB: Boolean = false,
+    val finished: Boolean = false,
 ) {
     /** Current score. Computed eagerly so an impossible snapshot fails at construction. */
-    val state: MatchState = ScoringEngine.replay(config, points)
+    val state: MatchState = ScoringEngine.replay(config, points).let { played ->
+        // Refuses, by throwing, a match that cannot be ended by hand.
+        if (finished) ScoringEngine.finish(played) else played
+    }
 
     init {
         require(epoch in 1..MAX_EPOCH) { "epoch must be in 1..$MAX_EPOCH, was $epoch" }

@@ -37,9 +37,9 @@ struct TeamHalf: View {
                     if atTop {
                         NameRow(name: name, color: color, streak: streak)
                         ServeRow(team: team, score: score)
-                        PointsArea(points: points, games: games, sets: sets)
+                        PointsArea(points: points, games: games, sets: sets, countsShown: !score.pointsMatch)
                     } else {
-                        PointsArea(points: points, games: games, sets: sets)
+                        PointsArea(points: points, games: games, sets: sets, countsShown: !score.pointsMatch)
                         ServeRow(team: team, score: score)
                         NameRow(name: name, color: color, streak: streak)
                     }
@@ -200,6 +200,8 @@ private struct PointsArea: View {
     let points: String
     let games: Int
     let sets: Int
+    /// False in a points match, which has no games or sets.
+    let countsShown: Bool
 
     var body: some View {
         ZStack {
@@ -211,11 +213,13 @@ private struct PointsArea: View {
                 .modifier(OnCourtShadow())
                 .contentTransition(.numericText())
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: points)
-            HStack {
-                Spacer(minLength: 0)
-                VStack(alignment: .trailing, spacing: 2) {
-                    Counter(label: "GAMES", value: games)
-                    Counter(label: "SETS", value: sets)
+            if countsShown {
+                HStack {
+                    Spacer(minLength: 0)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Counter(label: "GAMES", value: games)
+                        Counter(label: "SETS", value: sets)
+                    }
                 }
             }
         }

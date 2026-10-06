@@ -31,6 +31,71 @@ class MatchLogTest {
     private fun score(log: MatchLog, action: Action, count: Int): MatchLog =
         (1..count).fold(log) { next, _ -> accept(next, action) }
 
+    // --- Matches ended by hand ----------------------------------------------
+
+    private val timed = MatchConfig.padel().copy(pointsMatch = true)
+
+    @Test
+    fun aTimedMatchIsEndedByHandAndUndoTakesThatBack() {
+        var log = score(newLog(timed), Action.POINT_A, 5)
+        log = score(log, Action.POINT_B, 3)
+        assertNull(log.completedAtMillis)
+
+        log = accept(log, Action.FINISH)
+        assertTrue(log.state.isComplete)
+        assertEquals(Team.A, log.state.winner)
+        assertTrue(log.snapshot().finished)
+        // The moment it was ended, not the moment of the last point.
+        assertEquals(startedAt + sequence * 10_000, log.completedAtMillis)
+        assertEquals(log.state, log.snapshot().state)
+
+        // Nothing more is scored once it is over.
+        assertEquals(CommandOutcome.MATCH_COMPLETE, log.apply(command(log, Action.POINT_B), 7, startedAt).outcome)
+        assertEquals(CommandOutcome.MATCH_COMPLETE, log.apply(command(log, Action.FINISH), 7, startedAt).outcome)
+
+        // Undo reopens it with every point still there; a second undo removes a point.
+        log = accept(log, Action.UNDO)
+        assertFalse(log.state.isComplete)
+        assertFalse(log.snapshot().finished)
+        assertEquals(8, log.points.size)
+        log = accept(log, Action.UNDO)
+        assertEquals(7, log.points.size)
+    }
+
+    @Test
+    fun onlyAMatchWithNoSetEndCanBeEndedByHand() {
+        val sets = accept(newLog(), Action.POINT_A)
+        assertEquals(CommandOutcome.NOT_ALLOWED, sets.apply(command(sets, Action.FINISH), 7, startedAt).outcome)
+
+        val toTwentyFour = accept(newLog(timed.copy(pointsTotal = 24)), Action.POINT_A)
+        assertEquals(
+            CommandOutcome.NOT_ALLOWED,
+            toTwentyFour.apply(command(toTwentyFour, Action.FINISH), 7, startedAt).outcome,
+        )
+
+        // Not before a point has been played, either.
+        val empty = newLog(timed)
+        assertEquals(CommandOutcome.NOT_ALLOWED, empty.apply(command(empty, Action.FINISH), 7, startedAt).outcome)
+    }
+
+    @Test
+    fun aMatchEndedByHandStaysEndedWhenAnotherDeviceTakesOver() {
+        var log = score(newLog(timed), Action.POINT_B, 4)
+        log = accept(log, Action.FINISH)
+        val taken = MatchLog.takeOver(log.snapshot(), nowMillis = 5_000_000)
+        assertTrue(taken.state.isComplete)
+        assertEquals(Team.B, taken.state.winner)
+        assertTrue(taken.snapshot().finished)
+        assertEquals(5_000_000, taken.completedAtMillis)
+    }
+
+    @Test
+    fun aSnapshotCannotSayASetMatchWasEndedByHand() {
+        assertFailsWith<IllegalArgumentException> {
+            MatchSnapshot(1, 1, 1, MatchConfig.padel(), listOf(Team.A), finished = true)
+        }
+    }
+
     @Test
     fun aNewLogIsEmptyAtVersionZero() {
         val log = newLog()

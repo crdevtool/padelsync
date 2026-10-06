@@ -68,7 +68,8 @@ fun ScoreScreen(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
-    val finished = score.winner != null
+    // Over with a winner, or over level: a points match can be drawn.
+    val finished = score.isOver
 
     // Keep the score visible for the length of the match.
     DisposableEffect(Unit) {
@@ -99,10 +100,10 @@ fun ScoreScreen(
 
     // The end of the match gets a screen of its own, which can be put away.
     val winner = score.winner
-    OnChange(winner) {
-        if (winner != null) vibrate(context, longArrayOf(0, 120, 90, 120, 90, 260))
+    OnChange(finished to winner) {
+        if (finished) vibrate(context, longArrayOf(0, 120, 90, 120, 90, 260))
     }
-    if (winner != null && !resultDismissed) {
+    if (finished && !resultDismissed) {
         WinnerScreen(
             score = score,
             winner = winner,
@@ -128,6 +129,8 @@ fun ScoreScreen(
             ?: "VIEW ONLY".takeIf { !ui.canScore }
             // Decided, with sets still to play.
             ?: score.decidedWinner?.let { "${Labels.shortName(score, it)} WON" }
+            // A points match counts its rallies where a match of sets shows its sets.
+            ?: score.rallyLine
             ?: score.setSummary.ifEmpty { null }
     }
 
@@ -147,6 +150,7 @@ fun ScoreScreen(
             serving = score.server == Team.A,
             serve = score.serveLine(Team.A, compact),
             compact = compact,
+            countsShown = !score.pointsMatch,
             enabled = !finished,
             alignBottom = true,
             onClick = { tap(Action.POINT_A) },
@@ -187,6 +191,7 @@ fun ScoreScreen(
             serving = score.server == Team.B,
             serve = score.serveLine(Team.B, compact),
             compact = compact,
+            countsShown = !score.pointsMatch,
             enabled = !finished,
             alignBottom = false,
             onClick = { tap(Action.POINT_B) },
@@ -207,6 +212,7 @@ private fun Half(
     serving: Boolean,
     serve: ServeLine?,
     compact: Boolean,
+    countsShown: Boolean,
     enabled: Boolean,
     alignBottom: Boolean,
     onClick: () -> Unit,
@@ -230,15 +236,28 @@ private fun Half(
         // Team B's.
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             if (alignBottom && serve != null) ServePill(serve, Modifier.offset(y = SERVE_OVERLAP))
-            ScoreRow(label, color, points, games, sets, compact)
+            ScoreRow(label, color, points, games, sets, compact, countsShown)
             if (!alignBottom && serve != null) ServePill(serve, Modifier.offset(y = -SERVE_OVERLAP))
         }
     }
 }
 
-/** A team's short name, its games, its sets and its points, each a number that reads at a glance. */
+/**
+ * A team's short name, its games, its sets and its points, each a number
+ * that reads at a glance.
+ *
+ * @param countsShown false in a points match, which has no games or sets.
+ */
 @Composable
-private fun ScoreRow(label: String, color: Color, points: String, games: Int, sets: Int, compact: Boolean) {
+private fun ScoreRow(
+    label: String,
+    color: Color,
+    points: String,
+    games: Int,
+    sets: Int,
+    compact: Boolean,
+    countsShown: Boolean,
+) {
     // A three-letter name needs the room that a single letter leaves spare.
     val gap = when {
         compact -> 5.dp
@@ -258,15 +277,22 @@ private fun ScoreRow(label: String, color: Color, points: String, games: Int, se
             maxLines = 1,
         )
         Spacer(Modifier.width(gap))
-        Count("GAMES", games, Color.White, compact)
-        Spacer(Modifier.width(gap - 2.dp))
-        Count("SETS", sets, WearPalette.Muted, compact)
-        Spacer(Modifier.width(gap))
+        if (countsShown) {
+            Count("GAMES", games, Color.White, compact)
+            Spacer(Modifier.width(gap - 2.dp))
+            Count("SETS", sets, WearPalette.Muted, compact)
+            Spacer(Modifier.width(gap))
+        }
         Text(
             points,
             color = Color.White,
-            // Slightly smaller on a small watch, to leave room for the serve line.
-            fontSize = if (compact) 40.sp else 46.sp,
+            // Slightly smaller on a small watch, to leave room for the serve
+            // line; larger in a points match, where it is the only number.
+            fontSize = when {
+                !countsShown -> if (compact) 48.sp else 56.sp
+                compact -> 40.sp
+                else -> 46.sp
+            },
             fontWeight = FontWeight.Black,
             maxLines = 1,
         )

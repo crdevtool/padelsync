@@ -1,5 +1,6 @@
 package com.netsports.core.ui
 
+import com.netsports.core.engine.Sport
 import com.netsports.core.engine.ServeSide
 import com.netsports.core.match.MatchSnapshot
 import com.netsports.core.match.Roster
@@ -247,6 +248,71 @@ class ScoreViewTest {
         val done = ScoreView.of(winSet(winSet(ScoringEngine.start(padel), Team.A), Team.A), roster)
         assertNull(done.serveLine(Team.A))
         assertNull(done.serveLine(Team.B))
+    }
+
+    // --- Points matches -----------------------------------------------------
+
+    private val americano = MatchConfig(Sport.PADEL, doubles = true, pointsMatch = true, pointsTotal = 24)
+
+    @Test
+    fun aPointsMatchShowsPlainCountsAndWhereItHasGotTo() {
+        val view = ScoreView.of(play(ScoringEngine.start(americano), "AAAAABBB"), roster)
+        assertTrue(view.pointsMatch)
+        assertEquals(24, view.pointsTotal)
+        assertEquals(8, view.pointsPlayed)
+        assertEquals("5", view.pointsA)
+        assertEquals("3", view.pointsB)
+        assertEquals("9 OF 24", view.rallyLine)
+        assertEquals("", view.setSummary)
+        assertFalse(view.isTiebreak)
+        assertEquals(Highlight.NONE, view.highlight)
+        assertFalse(view.isOver)
+        assertFalse(view.canBeFinished)
+        // Ana served four, Mia four; Leo is next.
+        assertEquals(ServeLine("LEO", "RIGHT"), view.serveLine(Team.A))
+
+        // A match of sets says none of this.
+        val sets = view(padel, "AB")
+        assertFalse(sets.pointsMatch)
+        assertNull(sets.rallyLine)
+        assertFalse(sets.canBeFinished)
+    }
+
+    @Test
+    fun aFinishedPointsMatchHasAResultLineAndPerhapsNoWinner() {
+        val won = ScoreView.of(play(ScoringEngine.start(americano), "A".repeat(14) + "B".repeat(10)), roster)
+        assertEquals(Team.A, won.winner)
+        assertTrue(won.isOver)
+        assertFalse(won.drawn)
+        assertEquals("14-10", won.setSummary)
+        assertEquals(Highlight.MATCH_WON, won.highlight)
+        assertNull(won.rallyLine)
+        assertNull(won.server)
+
+        val level = ScoreView.of(play(ScoringEngine.start(americano), "AB".repeat(12)), roster)
+        assertNull(level.winner)
+        assertTrue(level.drawn)
+        assertTrue(level.isOver)
+        assertEquals("12-12", level.setSummary)
+        assertEquals(Highlight.MATCH_DRAWN, level.highlight)
+        assertNull(level.highlightTeam)
+        assertNull(level.server)
+    }
+
+    @Test
+    fun aTimedMatchCanBeFinishedOnceAPointHasBeenPlayed() {
+        val timed = americano.copy(pointsTotal = 0)
+        assertFalse(ScoreView.of(ScoringEngine.start(timed)).canBeFinished)
+
+        val playing = ScoreView.of(MatchSnapshot(1, 1, 3, timed, listOf(Team.A, Team.A, Team.B)))
+        assertTrue(playing.canBeFinished)
+        assertEquals("POINT 4", playing.rallyLine)
+
+        val ended = ScoreView.of(MatchSnapshot(1, 1, 4, timed, listOf(Team.A, Team.A, Team.B), finished = true))
+        assertFalse(ended.canBeFinished)
+        assertTrue(ended.isOver)
+        assertEquals(Team.A, ended.winner)
+        assertEquals("2-1", ended.setSummary)
     }
 
     @Test

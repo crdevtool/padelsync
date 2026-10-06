@@ -26,6 +26,41 @@ class CourtSessionTest {
         }
     }
 
+    // --- Matches ended by hand ----------------------------------------------
+
+    @Test
+    fun aGuestEndsATimedMatchAndEveryDeviceSeesTheResult() {
+        val court = Court(config = Sessions.pointsConfig(com.netsports.core.engine.Sport.PADEL, 0, Team.A, true))
+        val watch = court.join("watch")
+        val phone = court.join("phone")
+        repeat(3) { court.hostTap(Action.POINT_A) }
+        court.hostTap(Action.POINT_B)
+        court.settle()
+
+        court.tap("watch", Action.FINISH)
+        // It shows on the watch at once, before the host has answered.
+        assertTrue(watch.displayState?.isComplete == true)
+        court.settle()
+        assertAllInSync(court)
+        assertTrue(court.host.state.isComplete)
+        assertEquals(Team.A, phone.displayState?.winner)
+        assertTrue(phone.confirmed?.finished == true)
+
+        // A point after the end goes nowhere.
+        court.tap("phone", Action.POINT_B)
+        court.settle()
+        assertEquals(4, court.host.snapshot().points.size)
+
+        // Undo reopens the match with the score as it was.
+        court.tap("phone", Action.UNDO)
+        assertFalse(phone.displayState?.isComplete == true)
+        assertEquals(4, phone.displayState?.totalPointsPlayed)
+        court.settle()
+        assertAllInSync(court)
+        assertFalse(court.host.state.isComplete)
+        assertEquals(4, court.host.snapshot().points.size)
+    }
+
     // --- Joining -----------------------------------------------------------
 
     @Test

@@ -53,7 +53,8 @@ fun WearRoot(controller: CourtController) {
     // Kept here rather than on the score screen, which is rebuilt on every
     // return from the menu: a result put away stays put away.
     val winner = ui.score?.winner
-    var resultDismissed by remember(winner) { mutableStateOf(false) }
+    val over = ui.score?.isOver == true
+    var resultDismissed by remember(winner, over) { mutableStateOf(false) }
 
     Box(
         Modifier
@@ -140,7 +141,7 @@ fun WearRoot(controller: CourtController) {
                 // tapping in a point must not take the scoreboard away.
                 // Leaving goes through the menu. Once the match is over the
                 // swipe puts the result away, like its "Scoreboard" button.
-                val showingResult = score.winner != null && !resultDismissed
+                val showingResult = score.isOver && !resultDismissed
                 BackOnSwipe(onBack = { if (showingResult) resultDismissed = true }, swipe = showingResult) {
                     ScoreScreen(
                         ui = ui,

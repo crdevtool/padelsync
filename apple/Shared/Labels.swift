@@ -28,6 +28,7 @@ enum Labels {
         if highlight == Highlight.matchWon, let winner = score.winner {
             return "\(score.nameOf(team: winner).uppercased()) \(wins(score, winner).uppercased())"
         }
+        if highlight == Highlight.matchDrawn { return "DRAW" }
         return nil
     }
 
@@ -62,6 +63,7 @@ enum Labels {
         if highlight == Highlight.matchWon, let winner = score.winner {
             return "\(shortName(score, winner)) \(wins(score, winner).uppercased())"
         }
+        if highlight == Highlight.matchDrawn { return "DRAW" }
         return nil
     }
 
@@ -73,6 +75,32 @@ enum Labels {
     /// The line over the trophy: `Ana & Leo win!`
     static func winnerHeadline(_ score: ScoreView, _ team: Team) -> String {
         "\(score.nameOf(team: team)) \(wins(score, team))!"
+    }
+
+    /// The line over a finished match: `winnerHeadline`, or `drawHeadline` when nobody won.
+    static func resultHeadline(_ score: ScoreView, _ winner: Team?) -> String {
+        guard let winner else { return drawHeadline }
+        return winnerHeadline(score, winner)
+    }
+
+    static let drawHeadline = "It's a draw!"
+
+    /// Ends a timed match from the menu; the score at that moment is the result.
+    static let finishMatch = "Finish match"
+
+    /// The button on a result screen that takes the result back. A match that
+    /// was ended by hand loses no point when it is reopened, so it says so.
+    static func undoResult(_ score: ScoreView) -> String {
+        score.pointsMatch && score.pointsTotal == 0 ? "Carry on playing" : "Undo last point"
+    }
+
+    /// Where a points match has got to, for a phone: `POINT 9 OF 24`, or
+    /// `POINT 9` when the match has no set end. Nil for a match of sets, and
+    /// once the match is over.
+    static func rally(_ score: ScoreView) -> String? {
+        if !score.pointsMatch || score.isOver { return nil }
+        let next = score.pointsPlayed + 1
+        return score.pointsTotal == 0 ? "POINT \(next)" : "POINT \(next) OF \(score.pointsTotal)"
     }
 
     /// Which side the server stands on, from the server's own point of view.
@@ -115,11 +143,15 @@ enum Labels {
         var text: String
         if let winner = score.winner ?? score.decidedWinner {
             text = "\(score.nameOf(team: winner)) beat \(score.nameOf(team: winner.opponent))"
+        } else if score.drawn {
+            text = "\(score.nameA) drew with \(score.nameB)"
         } else {
             text = "\(score.nameA) vs \(score.nameB)"
         }
         var details: [String] = []
-        if let config { details.append(sport(config.sport)) }
+        if let config {
+            details.append(config.pointsMatch ? "\(sport(config.sport)) Americano" : sport(config.sport))
+        }
         if let durationMillis, durationMillis >= 60_000 { details.append(duration(durationMillis)) }
         if !score.setSummary.isEmpty { text += " \(score.setSummary)" }
         if !details.isEmpty { text += " (\(details.joined(separator: ", ")))" }
@@ -139,13 +171,17 @@ enum Labels {
     static func finalSet(_ rule: FinalSetRule) -> String {
         if rule == FinalSetRule.advantageSet { return "No tiebreak" }
         if rule == FinalSetRule.matchTiebreak { return "Match tiebreak" }
+        if rule == FinalSetRule.longTiebreak { return "Tiebreak to 10" }
         return "Full set"
     }
 
     /// One line describing a format, for example `Padel · Best of 3 · Golden point`,
     /// with anything unusual about its sets added: `· Advantage sets to 8`.
     static func format(_ config: MatchConfig) -> String {
-        "\(sport(config.sport)) · \(sets(config)) · \(deuceRule(config.deuceRule))\(FormatHelp.shared.extras(config: config))"
+        if config.pointsMatch {
+            return "\(sport(config.sport)) · \(FormatHelp.shared.pointsLine(config: config))"
+        }
+        return "\(sport(config.sport)) · \(sets(config)) · \(deuceRule(config.deuceRule))\(FormatHelp.shared.extras(config: config))"
     }
 
     /// `1 set`, `Best of 3`, or `3 sets` when every set is played.

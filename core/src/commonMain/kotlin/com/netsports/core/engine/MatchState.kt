@@ -43,11 +43,14 @@ data class MatchState(
     /** Team that served (or will serve) the first point of the current game. */
     val gameFirstServer: Team,
     val totalPointsPlayed: Int,
-    /** Winner of the match, or `null` while it is in progress. */
+    /** Winner of the match, or `null` while it is in progress or if it was drawn. */
     val winner: Team? = null,
+    /** True for a finished points match in which both teams have the same score. */
+    val drawn: Boolean = false,
 ) {
+    /** The match is over: it has a [winner], or it was [drawn]. */
     val isComplete: Boolean
-        get() = winner != null
+        get() = winner != null || drawn
 
     /**
      * The team that has already won enough sets to win the match, or `null`.
@@ -56,13 +59,14 @@ data class MatchState(
      */
     val decidedWinner: Team?
         get() = when {
+            config.pointsMatch -> winner
             setsWonBy(Team.A) >= config.setsToWin -> Team.A
             setsWonBy(Team.B) >= config.setsToWin -> Team.B
             else -> null
         }
 
     val isTiebreak: Boolean
-        get() = gameKind != GameKind.STANDARD
+        get() = gameKind == GameKind.TIEBREAK || gameKind == GameKind.MATCH_TIEBREAK
 
     /** 1-based number of the set in progress (or of the last set once complete). */
     val currentSetNumber: Int
@@ -78,13 +82,19 @@ data class MatchState(
      * Team serving the next point.
      *
      * In a standard game one team serves throughout. In any tiebreak the
-     * first server serves one point, then service alternates every two points.
+     * first server serves one point, then service alternates every two
+     * points. In a points match the serve changes sides every
+     * [POINTS_PER_SERVICE] points.
      */
     val server: Team
         get() {
-            if (gameKind == GameKind.STANDARD) return gameFirstServer
             val played = pointsA + pointsB
-            return if (((played + 1) / 2) % 2 == 0) gameFirstServer else gameFirstServer.opponent
+            val turn = when (gameKind) {
+                GameKind.STANDARD -> return gameFirstServer
+                GameKind.POINTS -> played / POINTS_PER_SERVICE
+                GameKind.TIEBREAK, GameKind.MATCH_TIEBREAK -> (played + 1) / 2
+            }
+            return if (turn % 2 == 0) gameFirstServer else gameFirstServer.opponent
         }
 
     /**
@@ -106,9 +116,14 @@ data class MatchState(
     fun serverPlayerIndex(flipped: Boolean = false): Int {
         if (!config.doubles) return 0
         // Position in the set's rotation: one step per game, and in a
-        // tiebreak one step per service turn after that.
-        val turnsInTiebreak = if (gameKind == GameKind.STANDARD) 0 else (pointsA + pointsB + 1) / 2
-        val position = gamesA + gamesB + turnsInTiebreak
+        // tiebreak one step per service turn after that. A points match is
+        // one long rotation of four-point turns.
+        val turnsInGame = when (gameKind) {
+            GameKind.STANDARD -> 0
+            GameKind.POINTS -> (pointsA + pointsB) / POINTS_PER_SERVICE
+            GameKind.TIEBREAK, GameKind.MATCH_TIEBREAK -> (pointsA + pointsB + 1) / 2
+        }
+        val position = gamesA + gamesB + turnsInGame
         val index = (position / 2) % 2
         return if (flipped) 1 - index else index
     }
@@ -120,6 +135,8 @@ data class MatchState(
     val changeEnds: Boolean
         get() {
             if (isComplete) return false
+            // A points match is too short to change ends in.
+            if (gameKind == GameKind.POINTS) return false
             val pointsPlayed = pointsA + pointsB
             if (gameKind != GameKind.STANDARD) return pointsPlayed > 0 && pointsPlayed % 6 == 0
             if (pointsPlayed != 0) return false
@@ -155,7 +172,7 @@ data class MatchState(
 
     /**
      * Display label for [team]'s score in the current game: `0`, `15`, `30`,
-     * `40`, `AD`, or the raw point count during a tiebreak.
+     * `40`, `AD`, or the raw point count during a tiebreak or a points match.
      */
     fun pointLabel(team: Team): String {
         val own = pointsOf(team)
@@ -165,7 +182,10 @@ data class MatchState(
         return STANDARD_LABELS[own]
     }
 
-    private companion object {
-        val STANDARD_LABELS = listOf("0", "15", "30", "40")
+    companion object {
+        /** How many points a player serves in a row in a points match. */
+        const val POINTS_PER_SERVICE = 4
+
+        private val STANDARD_LABELS = listOf("0", "15", "30", "40")
     }
 }

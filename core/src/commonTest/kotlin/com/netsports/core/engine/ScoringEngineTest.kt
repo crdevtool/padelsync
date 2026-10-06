@@ -255,6 +255,153 @@ class ScoringEngineTest {
         assertEquals(7, tennis.copy(setTiebreak = false, setGamesCap = 7).setGamesCap)
     }
 
+    // --- Points matches (Americano) ------------------------------------------
+
+    private val americano = MatchConfig(Sport.PADEL, doubles = true, pointsMatch = true, pointsTotal = 24)
+    private val timed = americano.copy(pointsTotal = 0)
+
+    @Test
+    fun aPointsMatchCountsRalliesAndEndsAtItsTotal() {
+        var state = ScoringEngine.start(americano)
+        assertEquals(GameKind.POINTS, state.gameKind)
+        assertFalse(state.isTiebreak)
+
+        state = play(state, "A".repeat(13) + "B".repeat(10))
+        assertEquals("13", state.pointLabel(Team.A))
+        assertEquals("10", state.pointLabel(Team.B))
+        assertFalse(state.isComplete)
+        assertEquals(0, state.gamesA)
+        assertTrue(state.completedSets.isEmpty())
+
+        state = play(state, "A")
+        assertTrue(state.isComplete)
+        assertEquals(Team.A, state.winner)
+        assertEquals(Team.A, state.decidedWinner)
+        assertFalse(state.drawn)
+        assertEquals(14, state.pointsA)
+        assertFailsWith<IllegalStateException> { ScoringEngine.pointWonBy(state, Team.B) }
+    }
+
+    @Test
+    fun aPointsMatchCanEndLevel() {
+        val state = play(ScoringEngine.start(americano), "AB".repeat(12))
+        assertTrue(state.isComplete)
+        assertTrue(state.drawn)
+        assertNull(state.winner)
+        assertNull(state.decidedWinner)
+    }
+
+    @Test
+    fun inAPointsMatchTheServeMovesOnEveryFourPoints() {
+        var state = ScoringEngine.start(americano.copy(firstServer = Team.B))
+        // B's first player, A's first, B's second, A's second, then round again.
+        val expected = listOf(Team.B to 0, Team.A to 0, Team.B to 1, Team.A to 1, Team.B to 0)
+        for ((team, player) in expected) {
+            for (point in 0 until 4) {
+                assertEquals(team, state.server)
+                assertEquals(player, state.serverPlayerIndex())
+                assertEquals(if (point % 2 == 0) ServeSide.RIGHT else ServeSide.LEFT, state.serveSide)
+                assertFalse(state.changeEnds)
+                state = play(state, "A")
+            }
+        }
+    }
+
+    @Test
+    fun onlyTheLastPointOfAPointsMatchCanBeAMatchPoint() {
+        val state = play(ScoringEngine.start(americano), "A".repeat(12) + "B".repeat(11))
+        // A wins 13-11 with it; B would only draw level.
+        assertEquals(PointStake.MATCH_POINT, ScoringEngine.stakeFor(state, Team.A))
+        assertEquals(PointStake.NONE, ScoringEngine.stakeFor(state, Team.B))
+        assertEquals(PointStake.NONE, ScoringEngine.stakeFor(play(ScoringEngine.start(americano), "AAAA"), Team.A))
+    }
+
+    @Test
+    fun aTimedMatchRunsUntilItIsEndedByHand() {
+        var state = play(ScoringEngine.start(timed), "A".repeat(40) + "B".repeat(31))
+        assertFalse(state.isComplete)
+        state = ScoringEngine.finish(state)
+        assertEquals(Team.A, state.winner)
+        assertTrue(state.isComplete)
+        // Ending it twice changes nothing.
+        assertEquals(state, ScoringEngine.finish(state))
+
+        val level = ScoringEngine.finish(play(ScoringEngine.start(timed), "ABBA"))
+        assertTrue(level.drawn)
+        assertNull(level.winner)
+
+        // A match that ends by its score cannot be ended by hand.
+        assertFailsWith<IllegalArgumentException> { ScoringEngine.finish(ScoringEngine.start(americano)) }
+        assertFailsWith<IllegalArgumentException> { ScoringEngine.finish(ScoringEngine.start(tennis)) }
+    }
+
+    @Test
+    fun aPointsTotalNeedsAPointsMatch() {
+        assertFailsWith<IllegalArgumentException> { tennis.copy(pointsTotal = 24) }
+        assertFailsWith<IllegalArgumentException> { americano.copy(pointsTotal = 1) }
+        assertFailsWith<IllegalArgumentException> { americano.copy(pointsTotal = 100) }
+        assertTrue(timed.isOpenEnded)
+        assertFalse(americano.isOpenEnded)
+        assertFalse(tennis.isOpenEnded)
+    }
+
+    // --- Fast4 and the long final-set tiebreak -------------------------------
+
+    private val fast4 = tennis.copy(
+        gamesPerSet = 4,
+        deuceRule = DeuceRule.GOLDEN_POINT,
+        tiebreakPoints = 5,
+        earlyTiebreak = true,
+        tiebreakSuddenDeath = true,
+    )
+
+    @Test
+    fun fast4PlaysAShortSuddenDeathTiebreakAtThreeAll() {
+        var state = reachGamesAll(ScoringEngine.start(fast4), games = 3)
+        assertEquals(GameKind.TIEBREAK, state.gameKind, "3-3")
+
+        state = play(state, "AAAABBBB")
+        assertTrue(state.completedSets.isEmpty(), "4-4 in the tiebreak")
+        assertEquals(PointStake.SET_POINT, ScoringEngine.stakeFor(state, Team.A))
+        assertEquals(PointStake.SET_POINT, ScoringEngine.stakeFor(state, Team.B))
+        state = play(state, "B")
+        assertEquals(listOf(SetScore(3, 4, tiebreakPointsA = 4, tiebreakPointsB = 5)), state.completedSets)
+    }
+
+    @Test
+    fun fast4SetsAreStillWonOutrightBeforeThreeAll() {
+        var state = winGames(ScoringEngine.start(fast4), Team.A, 3)
+        state = winGames(state, Team.B, 2)
+        state = winGame(state, Team.A)
+        assertEquals(listOf(SetScore(4, 2)), state.completedSets)
+    }
+
+    @Test
+    fun theLongTiebreakIsPlayedInTheFinalSetOnly() {
+        val config = tennis.copy(finalSetRule = FinalSetRule.LONG_TIEBREAK)
+        // First set: an ordinary tiebreak to seven.
+        var state = play(reachGamesAll(ScoringEngine.start(config)), "A".repeat(7))
+        assertEquals(1, state.completedSets.size)
+
+        state = winSet(state, Team.B)
+        state = reachGamesAll(state)
+        assertEquals(GameKind.TIEBREAK, state.gameKind, "6-6 in the final set")
+        state = play(state, "A".repeat(9))
+        assertFalse(state.isComplete, "9-0 is not enough in a tiebreak to ten")
+        state = play(state, "A")
+        assertEquals(Team.A, state.winner)
+        assertEquals(SetScore(7, 6, tiebreakPointsA = 10, tiebreakPointsB = 0), state.completedSets.last())
+    }
+
+    @Test
+    fun tiebreakOptionsNeedSetsThatHaveATiebreak() {
+        assertFailsWith<IllegalArgumentException> { tennis.copy(setTiebreak = false, earlyTiebreak = true) }
+        assertFailsWith<IllegalArgumentException> { tennis.copy(setTiebreak = false, tiebreakSuddenDeath = true) }
+        assertFailsWith<IllegalArgumentException> {
+            tennis.copy(setTiebreak = false, finalSetRule = FinalSetRule.LONG_TIEBREAK)
+        }
+    }
+
     @Test
     fun shortSetsUseATiebreakAtGamesAll() {
         val state = reachGamesAll(ScoringEngine.start(padel.copy(gamesPerSet = 4)), games = 4)

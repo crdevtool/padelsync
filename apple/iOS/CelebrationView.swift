@@ -112,7 +112,8 @@ struct Confetti: View {
 /// that; the button is then left out.
 struct CelebrationView: View {
     let score: ScoreView
-    let winner: Team
+    /// The team that won, or nil for a match that ended level.
+    let winner: Team?
     let stats: MatchStats?
     /// How long the match took, or nil if unknown.
     let durationMillis: Int64?
@@ -159,16 +160,16 @@ struct CelebrationView: View {
 
     private var headline: some View {
         VStack(spacing: 8) {
-            Text("🏆")
+            Text(winner == nil ? "🤝" : "🏆")
                 .font(.system(size: 64))
                 .scaleEffect(trophyScale)
                 .accessibilityHidden(true)
-            Text("CONGRATULATIONS")
+            Text(winner == nil ? "ALL SQUARE" : "CONGRATULATIONS")
                 .font(.system(size: 18, weight: .black))
                 .foregroundStyle(Palette.gold)
-            Text(Labels.winnerHeadline(score, winner))
+            Text(Labels.resultHeadline(score, winner))
                 .font(.system(size: 36, weight: .black))
-                .foregroundStyle(winner == Team.a ? Palette.teamA : Palette.teamB)
+                .foregroundStyle(headlineColor)
                 .multilineTextAlignment(.center)
             Text(score.setSummary)
                 .font(.system(size: 34, weight: .black, design: .rounded))
@@ -180,6 +181,11 @@ struct CelebrationView: View {
                     .foregroundStyle(Palette.muted)
             }
         }
+    }
+
+    private var headlineColor: Color {
+        guard let winner else { return Palette.gold }
+        return winner == Team.a ? Palette.teamA : Palette.teamB
     }
 
     private var actions: some View {
@@ -197,7 +203,7 @@ struct CelebrationView: View {
             HStack(spacing: 24) {
                 Button("Scoreboard", action: onDismiss)
                 if let onUndo = onUndo {
-                    Button("Undo last point", action: onUndo)
+                    Button(Labels.undoResult(score), action: onUndo)
                 }
             }
             .font(.callout.weight(.bold))
@@ -224,8 +230,11 @@ private struct StatsTable: View {
             .font(.system(size: 15, weight: .black))
             .lineLimit(1)
             row("Points won", Int(stats.teamA.points), Int(stats.teamB.points))
-            row("Games won", Int(stats.teamA.games), Int(stats.teamB.games))
-            row("Breaks of serve", Int(stats.teamA.breaks), Int(stats.teamB.breaks))
+            // A points match has no games, and so no breaks of serve.
+            if !score.pointsMatch {
+                row("Games won", Int(stats.teamA.games), Int(stats.teamB.games))
+                row("Breaks of serve", Int(stats.teamA.breaks), Int(stats.teamB.breaks))
+            }
             row("Best run of points", Int(stats.teamA.longestStreak), Int(stats.teamB.longestStreak))
         }
         .padding(.horizontal, 16)

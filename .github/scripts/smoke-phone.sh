@@ -97,6 +97,49 @@ tap_many "Ana" 4
 shot named-game
 texts
 
+# --- Americano: a match of points, which can end level -----------------------
+tap "Menu"; tap "New match"
+wait_for "Start match"
+for _ in 1 2 3 4 5; do adb shell input swipe "$SWIPE_X" "$SWIPE_TO" "$SWIPE_X" "$SWIPE_FROM" 200; done
+sleep 1
+tap "Americano"; tap "16 points"
+shot setup-americano
+texts
+tap "Start match"
+expect "POINT 1 OF 16" "an Americano match counts its points"
+shot americano-start
+tap_many "Ana" 8
+tap_many "Team B" 7
+shot americano-last-point
+texts
+tap_many "Team B" 1
+expect "It's a draw!" "eight points each is a draw"
+shot americano-draw
+texts
+tap "Undo last point"
+tap_many "Ana" 1
+expect "Ana wins!" "nine points to seven wins the match"
+shot americano-won
+texts
+
+# --- A timed match: no last point, it is ended from the menu -----------------
+tap "New match"
+wait_for "Start match"
+tap "Timed"
+shot setup-timed
+tap "Start match"
+expect "POINT 1" "a timed match counts its points"
+tap_many "Team B" 3
+tap_many "Ana" 2
+shot timed-playing
+tap "Menu"; tap "Finish match"
+expect "Team B win!" "finishing a timed match gives the result"
+shot timed-finished
+texts
+tap "Carry on playing"
+expect "POINT 6" "a finished timed match can be carried on"
+shot timed-reopened
+
 tap "Menu"; tap "End match"; sleep 1
 shot end-confirm
 tap "End match"

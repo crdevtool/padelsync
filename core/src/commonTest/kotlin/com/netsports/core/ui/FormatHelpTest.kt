@@ -48,6 +48,30 @@ class FormatHelpTest {
     }
 
     @Test
+    fun pointsMatchesAndTheOtherFormatsAreExplained() {
+        assertTrue(FormatHelp.scoring(pointsMatch = true).startsWith("Americano:"))
+        assertTrue(FormatHelp.scoring(pointsMatch = false).startsWith("Sets:"))
+        assertEquals("24 points", FormatHelp.matchLengthLabel(24))
+        assertEquals("Timed", FormatHelp.matchLengthLabel(0))
+        assertEquals(
+            "The match is 24 points in all, so a result looks like 14-10. The serve changes every 4 points.",
+            FormatHelp.matchLength(24),
+        )
+        assertTrue(FormatHelp.matchLength(0).startsWith("Timed:"))
+        assertEquals(
+            "Fast4: a tiebreak already at 3-3, first to 5 points. At 4-4 in it, the next point wins.",
+            FormatHelp.fast4(4),
+        )
+        assertEquals(
+            "Tiebreak to 10: a full last set, but its tiebreak is played to 10 points.",
+            FormatHelp.finalSet(FinalSetRule.LONG_TIEBREAK, 10),
+        )
+        val americano = MatchConfig.padel().copy(pointsMatch = true, pointsTotal = 32)
+        assertEquals("Americano · 32 points", FormatHelp.pointsLine(americano))
+        assertEquals("Americano · Timed", FormatHelp.pointsLine(americano.copy(pointsTotal = 0)))
+    }
+
+    @Test
     fun onlyWhatIsUnusualIsAddedToAFormatLine() {
         assertEquals("", FormatHelp.extras(MatchConfig.padel()))
         assertEquals(" · Sets to 4", FormatHelp.extras(MatchConfig.padel().copy(gamesPerSet = 4)))

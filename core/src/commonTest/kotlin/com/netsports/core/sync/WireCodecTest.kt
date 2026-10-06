@@ -118,6 +118,13 @@ class WireCodecTest {
             MatchConfig.padel().copy(setTiebreak = false, setGamesCap = 8),
             MatchConfig.tennis().copy(gamesPerSet = 4, setTiebreak = false, setGamesCap = 5),
             MatchConfig.tennis().copy(gamesPerSet = 9, bestOf = 1),
+            MatchConfig.tennis().copy(finalSetRule = FinalSetRule.LONG_TIEBREAK),
+            Sessions.config(
+                Sport.TENNIS, 5, 4, DeuceRule.GOLDEN_POINT, true, 0, true, FinalSetRule.SAME_AS_OTHER_SETS, Team.B, true, false,
+            ),
+            Sessions.pointsConfig(Sport.PADEL, 24, Team.B, true),
+            Sessions.pointsConfig(Sport.PADEL, 16, Team.A, false),
+            Sessions.pointsConfig(Sport.PADEL, 0, Team.A, true),
         )
         for (config in configs) {
             val state = Message.State(MatchSnapshot(1, 1, 0, config, emptyList()), deviceCount = 1)
@@ -144,6 +151,30 @@ class WireCodecTest {
         assertEquals(1, tiebreak[at].toInt())
         assertEquals(0, advantage[at].toInt())
         assertEquals(8, capped[at].toInt())
+    }
+
+    @Test
+    fun aMatchEndedByHandRoundTrips() {
+        val timed = Sessions.pointsConfig(Sport.PADEL, 0, Team.A, true)
+        val ended = MatchSnapshot(3, 1, 9, timed, points(8), finished = true)
+        val message = Message.State(ended, deviceCount = 2)
+        val back = roundTrip(message) as Message.State
+        assertEquals(message, back)
+        assertTrue(back.snapshot.finished)
+        assertTrue(back.snapshot.state.isComplete)
+
+        // The same flag on a match of sets is nonsense and is refused.
+        val bytes = WireCodec.encode(message)
+        val sets = WireCodec.encode(Message.State(MatchSnapshot(3, 1, 9, MatchConfig.padel(), points(8)), deviceCount = 2))
+        val flagAt = bytes.indices.first { bytes[it] != sets[it] }
+        sets[flagAt] = bytes[flagAt]
+        assertFailsWith<ProtocolException> { WireCodec.decode(sets) }
+    }
+
+    @Test
+    fun theFinishActionRoundTrips() {
+        val command = Message.Command(ScoreCommand(77, 2, 40, Action.FINISH))
+        assertEquals(command, roundTrip(command))
     }
 
     @Test
@@ -207,9 +238,11 @@ class WireCodecTest {
         assertEquals(named, (WireCodec.decode(valid) as Message.State).snapshot)
 
         // A flag bit this version does not know.
+        assertFailsWith<ProtocolException> { WireCodec.decode(valid.copyOf().also { it[FLAGS_OFFSET] = 0x10 }) }
+        // "Ended by hand" on a match of sets, which ends by its score.
         assertFailsWith<ProtocolException> { WireCodec.decode(valid.copyOf().also { it[FLAGS_OFFSET] = 0x08 }) }
-        // Play-all-sets must be 0 or 1.
-        assertFailsWith<ProtocolException> { WireCodec.decode(valid.copyOf().also { it[CONFIG_OFFSET + 9] = 2 }) }
+        // A set option this version does not know.
+        assertFailsWith<ProtocolException> { WireCodec.decode(valid.copyOf().also { it[CONFIG_OFFSET + 9] = 8 }) }
         // Three players in a team.
         assertFailsWith<ProtocolException> { WireCodec.decode(valid.copyOf().also { it[ROSTER_OFFSET] = 3 }) }
         // A name longer than the limit.

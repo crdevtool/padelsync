@@ -66,7 +66,9 @@ struct HistoryView: View {
 
     /// `Ana & Leo beat Mia & Sam`, or the two names when nobody won.
     private func headline(_ score: ScoreView, winner: Team?) -> String {
-        guard let winner else { return "\(score.nameA) vs \(score.nameB)" }
+        guard let winner else {
+            return score.drawn ? "\(score.nameA) drew with \(score.nameB)" : "\(score.nameA) vs \(score.nameB)"
+        }
         return "\(score.nameOf(team: winner)) beat \(score.nameOf(team: winner.opponent))"
     }
 

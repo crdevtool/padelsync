@@ -16,14 +16,20 @@ enum class Action {
     SWAP_SERVER_A,
 
     /** As [SWAP_SERVER_A], for team B. */
-    SWAP_SERVER_B;
+    SWAP_SERVER_B,
+
+    /**
+     * End a match that has no set end (a timed match). The score as it
+     * stands becomes the result. [UNDO] takes it back.
+     */
+    FINISH;
 
     /** The team this action scores for, or `null` if it is not a point. */
     val team: Team?
         get() = when (this) {
             POINT_A -> Team.A
             POINT_B -> Team.B
-            UNDO, SWAP_SERVER_A, SWAP_SERVER_B -> null
+            UNDO, SWAP_SERVER_A, SWAP_SERVER_B, FINISH -> null
         }
 
     val isPoint: Boolean

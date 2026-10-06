@@ -26,6 +26,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,9 +64,12 @@ fun <T> OptionGroup(
                     Text(
                         label(option),
                         fontSize = labelSize,
+                        // Two words may sit one over the other when four choices share the row.
+                        lineHeight = 16.sp,
+                        textAlign = TextAlign.Center,
                         fontWeight = FontWeight.Bold,
                         color = if (isSelected) Palette.OnAccent else Palette.OnBackground,
-                        maxLines = 1,
+                        maxLines = if (options.size > 3) 2 else 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }

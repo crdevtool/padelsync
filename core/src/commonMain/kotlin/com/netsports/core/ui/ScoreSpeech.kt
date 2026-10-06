@@ -1,6 +1,7 @@
 package com.netsports.core.ui
 
 import com.netsports.core.engine.DeuceRule
+import com.netsports.core.engine.GameKind
 import com.netsports.core.engine.MatchState
 import com.netsports.core.engine.SetScore
 import com.netsports.core.engine.Team
@@ -110,6 +111,10 @@ object ScoreSpeech {
                 // the part players lose track of.
                 if (settings.server && serverName(before) != serverName(after)) add(toServe(after))
             }
+            // In a points match the serve moves on every four points.
+            if (state.gameKind == GameKind.POINTS && settings.server && serverName(before) != serverName(after)) {
+                add(toServe(after))
+            }
         }
     }
 
@@ -151,6 +156,17 @@ object ScoreSpeech {
 
     private fun matchWon(snapshot: MatchSnapshot): List<String> {
         val state = snapshot.state
+        if (state.config.pointsMatch) {
+            // No games or sets to call: the two totals are the result.
+            val winner = state.winner
+                ?: return listOf("Match over.", "A draw, ${count(state.pointsA)} all.")
+            val high = maxOf(state.pointsA, state.pointsB)
+            val low = minOf(state.pointsA, state.pointsB)
+            return listOf(
+                "Match over.",
+                "${name(snapshot, winner)} ${verb(snapshot, winner, "win")}, $high to ${count(low)}.",
+            )
+        }
         val winner = state.winner ?: return emptyList()
         val sets = state.completedSets.joinToString(", ") { spoken(it, winner) }
         return listOf("Game, set and match, ${name(snapshot, winner)}.", "$sets.")
@@ -172,7 +188,8 @@ object ScoreSpeech {
         val state = snapshot.state
         val a = state.pointsA
         val b = state.pointsB
-        if (state.isTiebreak) {
+        // Plain counts, in a tiebreak and all through a points match.
+        if (state.isTiebreak || state.gameKind == GameKind.POINTS) {
             return when {
                 a == b -> "${count(a)} all."
                 a > b -> "$a ${count(b)}, ${name(snapshot, Team.A)}."
