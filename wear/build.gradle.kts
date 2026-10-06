@@ -28,7 +28,10 @@ android {
     // Stripping native libraries and reading their symbols needs an NDK. A
     // machine that has one says where; a machine without one still builds,
     // and its bundles simply carry no symbols.
-    PlayRelease.ndkPath()?.let { ndkPath = it }
+    PlayRelease.ndk()?.let {
+        ndkPath = it.path
+        ndkVersion = it.version
+    }
 
     signingConfigs {
         getByName("debug") {

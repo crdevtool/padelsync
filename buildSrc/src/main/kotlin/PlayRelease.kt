@@ -68,15 +68,28 @@ object PlayRelease {
     /** The name a side-by-side build shows, so the two installs can be told apart. */
     fun appLabel(project: Project): String = if (sideBySide(project)) "PadelSync Test" else "@string/app_name"
 
+    /** An Android NDK on this machine: where it is and which version it says it is. */
+    class Ndk(val path: String, val version: String)
+
     /**
-     * Where this machine keeps an Android NDK, or `null` if it has none. The
-     * build server's images come with one and name it in the environment.
-     * Without an NDK the build still works: native libraries are packaged as
-     * they come and the bundle carries no debug symbols.
+     * The NDK this machine names in its environment, or `null` if it has
+     * none. The build server's images come with one.
+     *
+     * The Android build tools look for one exact NDK version of their own
+     * choosing and ignore any other, so the version found is handed to them
+     * together with the path. Without an NDK the build still works: native
+     * libraries are packaged as they come and the bundle carries no debug
+     * symbols.
      */
-    fun ndkPath(): String? = listOf("ANDROID_NDK_LATEST_HOME", "ANDROID_NDK_HOME", "ANDROID_NDK_ROOT")
+    fun ndk(): Ndk? = listOf("ANDROID_NDK_LATEST_HOME", "ANDROID_NDK_HOME", "ANDROID_NDK_ROOT")
         .mapNotNull { System.getenv(it)?.trim()?.takeIf(String::isNotEmpty) }
-        .firstOrNull { File(it, "source.properties").isFile }
+        .firstNotNullOfOrNull { path ->
+            // source.properties holds a line such as "Pkg.Revision = 29.0.14206865".
+            File(path, "source.properties").takeIf(File::isFile)?.readLines()
+                ?.firstOrNull { it.trim().startsWith("Pkg.Revision") }
+                ?.substringAfter('=')?.trim()?.takeIf(String::isNotEmpty)
+                ?.let { Ndk(path, it) }
+        }
 
     private fun releaseNumber(project: Project): Int {
         val text = env(project, RELEASE_NUMBER)?.trim() ?: return 0
