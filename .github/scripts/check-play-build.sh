@@ -208,6 +208,19 @@ PY
 fi
 rm -rf "$work"
 
+# Google Play warns about a bundle with native code and no debug symbols. It
+# is not a reason to refuse the upload, so it is reported and not counted.
+if [ "$native" != 0 ]; then
+  symbols=$(unzip -Z1 "$aab" 2>/dev/null | grep -c '^BUNDLE-METADATA/com.android.tools.build.debugsymbols/.*\.sym$' || true)
+  if [ "$symbols" != 0 ]; then
+    echo "ok: the bundle carries $symbols native symbol tables"
+    echo "::notice::The $kind bundle carries $symbols native symbol tables."
+  else
+    echo "note: the bundle has native code and no debug symbols; Play Console will show a warning"
+    echo "::warning::The $kind bundle has native code and no debug symbols. Play Console will show a warning; the upload still works."
+  fi
+fi
+
 echo "sizes: bundle $(( $(stat -c %s "$aab") / 1024 )) KB, APK $(( $(stat -c %s "$apk") / 1024 )) KB"
 if [ "$problems" != 0 ]; then
   echo "FAILED: $problems problem(s) in the $kind app's release build"

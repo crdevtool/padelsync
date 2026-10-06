@@ -68,6 +68,16 @@ object PlayRelease {
     /** The name a side-by-side build shows, so the two installs can be told apart. */
     fun appLabel(project: Project): String = if (sideBySide(project)) "PadelSync Test" else "@string/app_name"
 
+    /**
+     * Where this machine keeps an Android NDK, or `null` if it has none. The
+     * build server's images come with one and name it in the environment.
+     * Without an NDK the build still works: native libraries are packaged as
+     * they come and the bundle carries no debug symbols.
+     */
+    fun ndkPath(): String? = listOf("ANDROID_NDK_LATEST_HOME", "ANDROID_NDK_HOME", "ANDROID_NDK_ROOT")
+        .mapNotNull { System.getenv(it)?.trim()?.takeIf(String::isNotEmpty) }
+        .firstOrNull { File(it, "source.properties").isFile }
+
     private fun releaseNumber(project: Project): Int {
         val text = env(project, RELEASE_NUMBER)?.trim() ?: return 0
         val number = text.toIntOrNull()

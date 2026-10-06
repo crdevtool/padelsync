@@ -24,6 +24,11 @@ android {
         manifestPlaceholders["appLabel"] = PlayRelease.appLabel(project)
     }
 
+    // Stripping native libraries and reading their symbols needs an NDK. A
+    // machine that has one says where; a machine without one still builds,
+    // and its bundles simply carry no symbols.
+    PlayRelease.ndkPath()?.let { ndkPath = it }
+
     signingConfigs {
         // A fixed debug key, so a newer test build installs over an older one
         // without uninstalling first. Never used for store releases.
@@ -63,6 +68,13 @@ android {
             // (see buildSrc/src/main/kotlin/PlayRelease.kt); unsigned
             // otherwise. Never with the debug key.
             signingConfig = signingConfigs.findByName("release")
+            // Puts the symbol table of the native code that comes with the
+            // Android libraries into the bundle. Google Play then reads
+            // native crash reports by function name, and stops warning that
+            // the bundle has native code without debug symbols.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
 
