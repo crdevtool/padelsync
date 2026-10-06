@@ -1,0 +1,23 @@
+[smoke] system 'not responding' dialogs switched off on emulator-5554
+[smoke] emulator runs Android API level 30
+Performing Streamed Install
+Success
+[smoke] location switched off (location_mode is now 0)
+Starting: Intent { cmp=com.crdevtool.padelsync/com.padelsync.app.MainActivity }
+[smoke] screenshot 1: home
+[screen] PadelSync | One score on every phone and watch on the court. | New match | Keep score on this phone | › | Host a match | Play with others: every phone and watch shows the score | Join a court | Follow or score a match someone nearby is hosting | Match history
+[smoke] PASS: the notice says the app does not use the player's location
+[smoke] screenshot 2: location-off
+[screen] Back | Join a court | Location is switched off | On this version of Android, Bluetooth can only find nearby courts while Location is switched on. PadelSync does not use or store your location. | Open location settings
+[smoke] screenshot 3: location-settings
+[screen] Back | Location | Search settings | Use location | RECENT LOCATION REQUESTS | No apps have requested location recently | See all | App access to location | Location is off | Wi‑Fi and Bluetooth scanning | Wi‑Fi scanning is on, Bluetooth scanning is off
+[smoke] PASS: 'Open location settings' opened another screen
+[smoke] location switched on (location_mode is now 3)
+Starting: Intent { cmp=com.crdevtool.padelsync/com.padelsync.app.MainActivity }
+Warning: Activity not started, its current task has been brought to the front
+[smoke] screenshot 4: back-in-app
+[smoke] screenshot 5: location-on
+[screen] Back | Join a court | Looking for courts nearby… | On the host's device, open the match menu and choose "Play with others".
+[smoke] PASS: searching started by itself once location was on
+[smoke] no crashes
+[smoke] RESULT: all checks passed
