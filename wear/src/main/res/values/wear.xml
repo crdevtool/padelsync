@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Announces to the phone that this watch has PadelSync. The phone app asks
+    Google Play services which connected watches have this capability, and
+    offers to open the Play Store on any watch that does not. The name must
+    match WATCH_APP_CAPABILITY in mobile/.../WatchAppInstaller.kt.
+    tools:keep stops resource shrinking from removing it in release builds.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@array/android_wear_capabilities">
+    <string-array name="android_wear_capabilities" translatable="false">
+        <item>padelsync_watch_app</item>
+    </string-array>
+</resources>

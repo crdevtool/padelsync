@@ -69,6 +69,9 @@ fun HomeScreen(
         )
         Spacer(Modifier.height(32.dp))
 
+        // Only shown when a watch without PadelSync is connected to this phone.
+        WatchAppCard(Modifier.padding(bottom = 20.dp))
+
         HomeAction(
             title = "New match",
             caption = "Keep score on this phone",

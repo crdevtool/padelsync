@@ -638,7 +638,17 @@ have to be worked out again.
   describes that old method.
 - **The phone never delivers the watch app.** A watch gets it from the Play
   Store on the watch, from whichever Wear OS track the bundle is in. Updating
-  the phone app does nothing to the watch.
+  the phone app does nothing to the watch. Wear OS gives no way to install
+  it together with the phone app. What the phone app does instead: on its
+  home screen it asks Google Play services which connected watches have the
+  app (the watch app declares the capability `padelsync_watch_app` in
+  `wear/src/main/res/values/wear.xml`), and for a watch without it offers
+  **Install on watch**, which opens PadelSync in the Play Store on that
+  watch (`WatchAppInstaller`). The player taps Install there. This needs
+  the phone and watch apps to share their app ID and signing key, which
+  they do, and a Wear OS watch paired to the phone (Galaxy Watch4 or newer
+  through Galaxy Wearable). A tester outside the Wear OS track's tester
+  list sees the page but cannot install.
 - **The opt-in must be finished.** Advanced settings > Form factors must show
   Wear OS as **Active**. It has three steps: Wear OS screenshots, a bundle on
   a testing track, and **Opt-in to Wear OS and agree to the review policy**.

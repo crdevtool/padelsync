@@ -105,6 +105,8 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.wear.compose.material)
     implementation(libs.androidx.wear.compose.foundation)
+    // Lets the phone app see that this watch has PadelSync; see res/values/wear.xml.
+    implementation(libs.play.services.wearable)
 }
 
 apply(from = rootProject.file("gradle/export-classpath.gradle.kts"))

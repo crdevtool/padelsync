@@ -181,6 +181,14 @@ strip (`9 OF 24`), and **Finish match** in the menu of a timed one. A watch
 starts padel and tennis matches of sets; an Americano match is set up on a
 phone and joined from the watch.
 
+**Getting the watch app from the Play Store.** It is installed from the
+Play Store on the watch, not from the phone. When PadelSync on the phone sees
+a connected watch without it, its home screen shows **Install on watch**,
+which opens the right page on the watch: tap Install there. Without the card,
+open the Play Store on the watch and search for PadelSync. It needs Wear OS 3
+or newer (Galaxy Watch4 or later) and the same Google account that joined the
+test.
+
 On a Wear OS watch, swiping to the right goes back one screen: from the menu
 to the score, from the code entry to the list of courts. On the scoreboard
 during a match the swipe does nothing, so that a stray one cannot close the
