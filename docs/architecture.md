@@ -678,6 +678,13 @@ have to be worked out again.
 - **Same version label on both.** The phone and watch builds of one release
   share a version name, so the label does not show whether a watch updated;
   look for what changed in the app instead.
+- **"Native code without debug symbols" is expected.** Play Console shows
+  this warning on every bundle. The only native code is
+  `libandroidx.graphics.path.so`, which comes with Compose and which Google
+  ships with its symbol table already removed, so there is nothing to
+  upload. Release builds ask for symbol tables (`debugSymbolLevel`) and use
+  the build server's NDK, which also strips the library; the release check
+  reports whether any symbols made it into the bundle. Ignore the warning.
 - **A copy installed from an APK blocks the Play version.** It is signed with
   a different key. Uninstall it from the watch (or phone) before installing
   from the Play Store.

@@ -216,8 +216,11 @@ if [ "$native" != 0 ]; then
     echo "ok: the bundle carries $symbols native symbol tables"
     echo "::notice::The $kind bundle carries $symbols native symbol tables."
   else
-    echo "note: the bundle has native code and no debug symbols; Play Console will show a warning"
-    echo "::warning::The $kind bundle has native code and no debug symbols. Play Console will show a warning; the upload still works."
+    # Expected: the only native code is libandroidx.graphics.path.so from
+    # the Android libraries, which Google ships with its symbol table already
+    # removed, so there is nothing to extract.
+    echo "note: the bundle has native code and no debug symbols; Play Console shows a warning, which is expected"
+    echo "::notice::The $kind bundle has native code without debug symbols (the Android library ships them stripped). Play Console shows a warning; the upload works."
   fi
 fi
 
