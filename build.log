@@ -1,0 +1,76 @@
+[smoke] system 'not responding' dialogs switched off on emulator-5554
+Performing Streamed Install
+Success
+Starting: Intent { cmp=com.crdevtool.padelsync/com.padelsync.app.MainActivity }
+[smoke] screenshot 1: home
+[screen] PadelSync | One score on every phone and watch on the court. | New match | Keep score on this phone | › | Host a match | Play with others: every phone and watch shows the score | Join a court | Follow or score a match someone nearby is hosting | Match history
+[smoke] screenshot 2: setup-default
+[screen] Back | New match | MY FORMAT | Padel · Doubles | Change | Best of 3, every set played | Advantage at deuce | At 6-6: advantage set, no limit | Team A players | Player 1 | Player 2 | Team B players | Names are optional. In doubles, player 1 serves first for their team. | First to serve | Team A | Team B | Call the score out loud | Points, games, who serves. Fine-tune it from the match menu. | Start match
+[smoke] PASS: the format card says the format in words
+[smoke] screenshot 3: format-default
+[smoke] screenshot 4: format-advantage-set
+[smoke] screenshot 5: format-changed
+[smoke] PASS: the card follows the changes
+[smoke] screenshot 6: setup-changed
+[screen] Back | New match | MY FORMAT | Tennis · Singles | Change | Best of 5 | Sets to 4 games | Advantage at deuce | At 4-4: advantage set, first to 7 | Final set: match tiebreak to 10 | Team A players | Player | Team B players | Names are optional. In doubles, player 1 serves first for their team. | First to serve | Team A | Team B | Call the score out loud | Points, games, who serves. Fine-tune it from the match menu. | Start match
+[smoke] screenshot 7: format-padel
+[smoke] screenshot 8: setup-padel
+[smoke] screenshot 9: score-start
+[screen] This device only | Menu | Team A. Points 0. Games 0. Sets 0. Serving. | TEAM A | PLAYER 1 |  · RIGHT SIDE | 0 | GAMES | SETS | SET 1 | 0:04   7:14 | Undo | Team B. Points 0. Games 0. Sets 0. | TEAM B
+[smoke] screenshot 10: golden-point
+[screen] This device only | Menu | Team A. Points 40. Games 0. Sets 0. Serving. | TEAM A | PLAYER 1 |  · RIGHT SIDE | 40 | 0 | GAMES | SETS | GOLDEN POINT | 0:15   7:15 | Undo | Team B. Points 40. Games 0. Sets 0. | TEAM B | 🔥 3 IN A ROW
+[smoke] screenshot 11: game-to-b
+[smoke] screenshot 12: after-undo
+[screen] This device only | Menu | Team A. Points 40. Games 0. Sets 0. Serving. | TEAM A | PLAYER 1 |  · RIGHT SIDE | 40 | 0 | GAMES | SETS | GOLDEN POINT | 0:24   7:15 | Undo | Team B. Points 40. Games 0. Sets 0. | TEAM B | 🔥 3 IN A ROW
+[smoke] screenshot 13: set-won
+[screen] This device only | Menu | Team A. Points 0. Games 0. Sets 1. Serving. | TEAM A | 🔥 21 IN A ROW | PLAYER 1 |  · RIGHT SIDE | 0 | GAMES | 1 | SETS | SET 2 | 6-0   0:41   7:15 | Undo | Team B. Points 0. Games 0. Sets 0. | TEAM B
+[smoke] screenshot 14: match-decided
+[screen] This device only | Menu | Team A. Points 0. Games 0. Sets 2. Serving. | TEAM A | 🔥 45 IN A ROW | PLAYER 1 |  · RIGHT SIDE | 0 | GAMES | 2 | SETS | TEAM A WON · PLAYING SET 3 | 6-0 6-0   0:55   7:15 | Undo | Team B. Points 0. Games 0. Sets 0. | TEAM B
+[smoke] screenshot 15: last-set-point
+[smoke] screenshot 16: match-won
+[screen] 🏆 | CONGRATULATIONS | Team A win! | 6-0 6-0 0-6 | Played in 1 min | Team A | Team B | 48 | Points won | 27 | 12 | Games won | 6 | Breaks of serve | 3 | 45 | Best run of points | 24 | Share the result | Rematch, same players | New match | Scoreboard | Undo last point
+[smoke] screenshot 17: match-reopened
+[screen] This device only | Menu | Team A. Points 0. Games 0. Sets 2. | TEAM A | 0 | GAMES | 2 | SETS | SET POINT · TEAM B | 6-0 6-0   1:22   7:16 | Undo | Team B. Points 40. Games 5. Sets 0. Serving. | 40 | 5 | PLAYER 1 |  · LEFT SIDE | TEAM B | 🔥 23 IN A ROW
+[smoke] screenshot 18: final-scoreboard
+[screen] This device only | Menu | Team A. Points 0. Games 0. Sets 2. | TEAM A | 0 | GAMES | 2 | SETS | TEAM A WON | 6-0 6-0 0-6   7:16 | Undo | Team B. Points 0. Games 0. Sets 1. | 1 | TEAM B | 🔥 24 IN A ROW | Result | New match
+[smoke] screenshot 19: menu
+[smoke] screenshot 20: voice
+[screen] Voice | Call the score out loud | On this phone only. Uses the media volume. | Every point | "30 15", "Deuce" | Games, sets and match | "Game, Ana and Leo" | Big points | Break, set and match point | Who serves | At the start of each game | Change ends | Repeat the whole score every | Never | 2 min | 5 min | 10 min | Say the score now | Done
+[smoke] screenshot 21: who-can-score
+[smoke] screenshot 22: court-open-attempt
+[screen] Court open · Code 7693 · 1 device | Menu | Team A. Points 0. Games 0. Sets 2. | TEAM A | 0 | GAMES | 2 | SETS | TEAM A WON | 6-0 6-0 0-6   7:17 | Undo | Team B. Points 0. Games 0. Sets 1. | 1 | TEAM B | 🔥 24 IN A ROW | Result | New match
+[smoke] PASS: a new match starts from the format that was kept
+[smoke] screenshot 23: setup-names
+[smoke] screenshot 24: named-start
+[screen] Court open · Code 7693 · 1 device | Menu | Ana. Points 0. Games 0. Sets 0. Serving. | ANA |  · RIGHT SIDE | 0 | GAMES | SETS | SET 1 | 0:04   7:17 | Undo | Team B. Points 0. Games 0. Sets 0. | TEAM B
+[smoke] screenshot 25: named-game
+[screen] Court open · Code 7693 · 1 device | Menu | Ana. Points 0. Games 1. Sets 0. | ANA | 🔥 4 IN A ROW | 0 | 1 | GAMES | SETS | CHANGE ENDS | 0:11   7:17 | Undo | Team B. Points 0. Games 0. Sets 0. Serving. | PLAYER 1 |  · RIGHT SIDE | TEAM B | GAME · ANA
+[smoke] screenshot 26: format-americano
+[smoke] PASS: the card describes an Americano match
+[smoke] screenshot 27: setup-americano
+[screen] Back | New match | MY FORMAT | Padel · Doubles | Change | Americano to 16 points | Every rally is one point | The serve changes every 4 points | Team A players | Ana | Player 1 | Player 2 | Team B players | Names are optional. In doubles, player 1 serves first for their team. | First to serve | Team B | Others can score | Every phone and watch that joins can add points | Start match
+[smoke] PASS: an Americano match counts its points
+[smoke] screenshot 28: americano-start
+[smoke] screenshot 29: americano-last-point
+[screen] Court open · Code 7693 · 1 device | Menu | Ana. Points 8. Games 0. Sets 0. | ANA | 8 | MATCH POINT · ANA | 0:15   7:18 | Undo | Team B. Points 7. Games 0. Sets 0. Serving. | 7 | PLAYER 2 |  · LEFT SIDE | TEAM B | 🔥 7 IN A ROW
+[smoke] PASS: eight points each is a draw
+[smoke] screenshot 30: americano-draw
+[screen] 🤝 | ALL SQUARE | It's a draw! | 8-8 | Ana | Team B | 8 | Points won | Best run of points | Share the result | Rematch, same players | New match | Scoreboard | Undo last point
+[smoke] PASS: nine points to seven wins the match
+[smoke] screenshot 31: americano-won
+[screen] 🏆 | CONGRATULATIONS | Ana wins! | 9-7 | Ana | Team B | 9 | Points won | 7 | 8 | Best run of points | Share the result | Rematch, same players | New match | Scoreboard | Undo last point
+[smoke] screenshot 32: setup-timed
+[smoke] PASS: a timed match counts its points
+[smoke] screenshot 33: timed-playing
+[smoke] PASS: finishing a timed match gives the result
+[smoke] screenshot 34: timed-finished
+[screen] 🏆 | CONGRATULATIONS | Team B win! | 2-3 | Ana | Team B | 2 | Points won | 3 | Best run of points | Share the result | Rematch, same players | New match | Scoreboard | Carry on playing
+[smoke] PASS: a finished timed match can be carried on
+[smoke] screenshot 35: timed-reopened
+[smoke] screenshot 36: end-confirm
+[smoke] screenshot 37: home-again
+[smoke] screenshot 38: host-setup
+[smoke] screenshot 39: join
+[screen] Back | Join a court | Looking for courts nearby… | On the host's device, open the match menu and choose "Play with others".
+[smoke] no crashes
+[smoke] RESULT: all checks passed
