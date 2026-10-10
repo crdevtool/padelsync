@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.TimeText
 import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
 import com.netsports.core.sync.ClientStatus
@@ -138,65 +139,71 @@ fun ScoreScreen(
     // is where the serve line goes.
     val compact = LocalConfiguration.current.screenWidthDp < COMPACT_BELOW_DP
 
-    Column(Modifier.fillMaxSize()) {
-        Half(
-            team = Team.A,
-            label = Labels.shortName(score, Team.A),
-            name = score.nameA,
-            color = WearPalette.TeamA,
-            points = score.pointsA,
-            games = score.gamesA,
-            sets = score.setsA,
-            serving = score.server == Team.A,
-            serve = score.serveLine(Team.A, compact),
-            compact = compact,
-            countsShown = !score.pointsMatch,
-            enabled = !finished,
-            alignBottom = true,
-            onClick = { tap(Action.POINT_A) },
-            modifier = Modifier.weight(1f),
-        )
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                // Inset so the keys clear the curve of a round screen.
-                .padding(horizontal = 12.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            PillKey("UNDO", enabled = score.canUndo && ui.canScore) { tap(Action.UNDO) }
-            Text(
-                strip.orEmpty(),
-                color = if (note != null || offline) WearPalette.Danger else WearPalette.Accent,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Black,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 4.dp),
+    Box(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            Half(
+                team = Team.A,
+                label = Labels.shortName(score, Team.A),
+                name = score.nameA,
+                color = WearPalette.TeamA,
+                points = score.pointsA,
+                games = score.gamesA,
+                sets = score.setsA,
+                serving = score.server == Team.A,
+                serve = score.serveLine(Team.A, compact),
+                compact = compact,
+                countsShown = !score.pointsMatch,
+                enabled = !finished,
+                alignBottom = true,
+                onClick = { tap(Action.POINT_A) },
+                modifier = Modifier.weight(1f),
             )
-            PillKey("MENU", onClick = onMenu)
-        }
 
-        Half(
-            team = Team.B,
-            label = Labels.shortName(score, Team.B),
-            name = score.nameB,
-            color = WearPalette.TeamB,
-            points = score.pointsB,
-            games = score.gamesB,
-            sets = score.setsB,
-            serving = score.server == Team.B,
-            serve = score.serveLine(Team.B, compact),
-            compact = compact,
-            countsShown = !score.pointsMatch,
-            enabled = !finished,
-            alignBottom = false,
-            onClick = { tap(Action.POINT_B) },
-            modifier = Modifier.weight(1f),
-        )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    // Inset so the keys clear the curve of a round screen.
+                    .padding(horizontal = 12.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PillKey("UNDO", enabled = score.canUndo && ui.canScore) { tap(Action.UNDO) }
+                Text(
+                    strip.orEmpty(),
+                    color = if (note != null || offline) WearPalette.Danger else WearPalette.Accent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 4.dp),
+                )
+                PillKey("MENU", onClick = onMenu)
+            }
+
+            Half(
+                team = Team.B,
+                label = Labels.shortName(score, Team.B),
+                name = score.nameB,
+                color = WearPalette.TeamB,
+                points = score.pointsB,
+                games = score.gamesB,
+                sets = score.setsB,
+                serving = score.server == Team.B,
+                serve = score.serveLine(Team.B, compact),
+                compact = compact,
+                countsShown = !score.pointsMatch,
+                enabled = !finished,
+                alignBottom = false,
+                onClick = { tap(Action.POINT_B) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        // The time of day along the top edge, curved on a round watch, in the
+        // watch's own 12- or 24-hour style: the scoreboard covers the watch
+        // face, and players keep an eye on their court booking.
+        TimeText(Modifier.align(Alignment.TopCenter))
     }
 }
 

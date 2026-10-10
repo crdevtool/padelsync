@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.os.SystemClock
 import com.netsports.core.engine.MatchConfig
@@ -111,13 +112,29 @@ data class CourtUiState(
  * transports, and publishes [ui]. One instance lives for the whole process,
  * so a match carries on when the screen rotates or the activity is recreated.
  *
- * Everything runs on the main thread: call every method from it.
+ * Its work runs on a thread of its own (see [handler]): every public method
+ * may be called from the main thread and returns at once, and the result
+ * shows up in [ui].
  */
 class CourtController private constructor(
     private val app: Context,
     private val kind: DeviceKind,
 ) {
-    private val handler = Handler(Looper.getMainLooper())
+    /**
+     * Every piece of the controller's work runs on this one thread, in order:
+     * the match, the saved files, and above all the Bluetooth calls. Android's
+     * Bluetooth calls can block for seconds while the radio is busy, for
+     * example when a phone call reaches a watch; on the main thread that
+     * froze the whole screen of a joined Galaxy Watch8 Classic for about two
+     * minutes. Here they only delay the Bluetooth work, never the screen.
+     */
+    private val worker = HandlerThread("padelsync-court").apply { start() }
+    private val handler = Handler(worker.looper)
+
+    /** Runs [block] on the controller's thread: now if already on it, otherwise next in line. */
+    private fun onWorker(block: () -> Unit) {
+        if (Looper.myLooper() == worker.looper) block() else handler.post(block)
+    }
     private val identity = DeviceIdentity(app)
     private val store = MatchStore(app)
     private val settings = SettingsStore(app)
@@ -215,6 +232,7 @@ class CourtController private constructor(
      * never by retrying the address joined. On an emulator the host's address
      * never changes, so without this the scanning path would not be exercised.
      */
+    @Volatile
     var scanReconnectOnly = false
 
     private var scanner: CourtScanner? = null
@@ -261,7 +279,9 @@ class CourtController private constructor(
     fun startMatch(config: MatchConfig) = startMatch(MatchSetup(config))
 
     /** Starts a new match on this device. Nothing is shared until [openCourt]. */
-    fun startMatch(setup: MatchSetup) {
+    fun startMatch(setup: MatchSetup) = onWorker { startMatchNow(setup) }
+
+    private fun startMatchNow(setup: MatchSetup) {
         leaveInternal()
         settings.saveSetup(setup)
         joinCode = Random.nextInt(1000, 10000)
@@ -287,6 +307,12 @@ class CourtController private constructor(
      * so that guests still looking for the court are let back in.
      */
     fun resumeSavedMatch(): Boolean {
+        val wasOpen = store.load() != null && store.loadOpen()
+        onWorker { resumeSavedMatchNow() }
+        return wasOpen
+    }
+
+    private fun resumeSavedMatchNow(): Boolean {
         val snapshot = store.load() ?: return false
         val wasOpen = store.loadOpen()
         leaveInternal()
@@ -316,12 +342,15 @@ class CourtController private constructor(
     }
 
     /** Replaces the hosted match with a fresh one with default options, keeping connected devices. */
-    fun startNewMatch(config: MatchConfig) =
-        startNewMatch(MatchSetup(config, guestsCanScore = host?.guestsCanScore ?: true))
+    fun startNewMatch(config: MatchConfig) = onWorker {
+        startNewMatchNow(MatchSetup(config, guestsCanScore = host?.guestsCanScore ?: true))
+    }
 
     /** Replaces the hosted match with a fresh one, keeping connected devices. */
-    fun startNewMatch(setup: MatchSetup) {
-        val session = host ?: return startMatch(setup)
+    fun startNewMatch(setup: MatchSetup) = onWorker { startNewMatchNow(setup) }
+
+    private fun startNewMatchNow(setup: MatchSetup) {
+        val session = host ?: return startMatchNow(setup)
         settings.saveSetup(setup)
         deliver(session.startNewMatch(setup.config, now(), setup.roster))
         if (session.guestsCanScore != setup.guestsCanScore) deliver(session.setGuestsCanScore(setup.guestsCanScore))
@@ -329,7 +358,9 @@ class CourtController private constructor(
     }
 
     /** Host only: plays again with the same format and the same players. */
-    fun rematch() {
+    fun rematch() = onWorker { rematchNow() }
+
+    private fun rematchNow() {
         val session = host ?: return
         val snapshot = session.snapshot()
         deliver(session.startNewMatch(snapshot.config, now(), snapshot.roster))
@@ -337,7 +368,9 @@ class CourtController private constructor(
     }
 
     /** Host only: changes the players' names mid-match. */
-    fun updateRoster(roster: Roster) {
+    fun updateRoster(roster: Roster) = onWorker { updateRosterNow(roster) }
+
+    private fun updateRosterNow(roster: Roster) {
         val session = host ?: return
         deliver(session.updateRoster(roster))
         settings.saveSetup(MatchSetup(session.state.config, roster, session.guestsCanScore))
@@ -346,14 +379,18 @@ class CourtController private constructor(
     }
 
     /** Host only: lets one joined device score, or makes it view-only. */
-    fun setCanScore(deviceId: Long, allowed: Boolean) {
+    fun setCanScore(deviceId: Long, allowed: Boolean) = onWorker { setCanScoreNow(deviceId, allowed) }
+
+    private fun setCanScoreNow(deviceId: Long, allowed: Boolean) {
         val session = host ?: return
         deliver(session.setCanScore(deviceId, allowed))
         publish()
     }
 
     /** Host only: lets every joined device score, or makes them all view-only. */
-    fun setGuestsCanScore(allowed: Boolean) {
+    fun setGuestsCanScore(allowed: Boolean) = onWorker { setGuestsCanScoreNow(allowed) }
+
+    private fun setGuestsCanScoreNow(allowed: Boolean) {
         val session = host ?: return
         deliver(session.setGuestsCanScore(allowed))
         val snapshot = session.snapshot()
@@ -362,7 +399,9 @@ class CourtController private constructor(
     }
 
     /** Lets other devices find and join this court. Needs Bluetooth permissions. */
-    fun openCourt() {
+    fun openCourt() = onWorker { openCourtNow() }
+
+    private fun openCourtNow() {
         if (host == null || hostTransport != null) return
         if (!checkBluetooth()) return
 
@@ -397,7 +436,9 @@ class CourtController private constructor(
     }
 
     /** Stops sharing the court and disconnects every guest. The match carries on locally. */
-    fun closeCourt() {
+    fun closeCourt() = onWorker { closeCourtNow() }
+
+    private fun closeCourtNow() {
         reopenWhenBluetoothReturns = false
         if (hostTransport == null) return
         shutDownHostTransport()
@@ -482,7 +523,9 @@ class CourtController private constructor(
      * fact still playing, the two courts find each other and one of them
      * gives way (see [onRival]).
      */
-    fun takeOverAsHost() {
+    fun takeOverAsHost() = onWorker { takeOverAsHostNow() }
+
+    private fun takeOverAsHostNow() {
         val session = client ?: return
         val snapshot = session.confirmed ?: return
         // The offer may have been on screen for a while; the host may be back.
@@ -545,7 +588,9 @@ class CourtController private constructor(
     // --- Joining -----------------------------------------------------------
 
     /** Starts looking for nearby courts. Results arrive in [nearby]. */
-    fun startScan() {
+    fun startScan() = onWorker { startScanNow() }
+
+    private fun startScanNow() {
         if (!checkBluetooth()) return
         val active = scanner ?: CourtScanner(app, handler) { _nearby.value = it }.also { scanner = it }
         if (!active.start()) {
@@ -556,12 +601,10 @@ class CourtController private constructor(
         publish()
     }
 
-    fun stopScan() {
-        scanner?.stop()
-    }
+    fun stopScan() = onWorker { scanner?.stop() }
 
     /** Joins [court] as a guest. [code] is the join code shown on the host's screen. */
-    fun join(court: NearbyCourt, code: Int?) = joinInternal(court, code, keepService = false)
+    fun join(court: NearbyCourt, code: Int?) = onWorker { joinInternal(court, code, keepService = false) }
 
     /**
      * @param keepService leave the foreground service running across a
@@ -666,7 +709,9 @@ class CourtController private constructor(
     // --- Scoring -----------------------------------------------------------
 
     /** A player tapped on this device. */
-    fun tap(action: Action) {
+    fun tap(action: Action) = onWorker { tapNow(action) }
+
+    private fun tapNow(action: Action) {
         host?.let { session ->
             deliver(session.submit(action, now()))
             if (session.lastSubmitOutcome == CommandOutcome.SAME_RALLY) {
@@ -687,7 +732,9 @@ class CourtController private constructor(
         get() = settings.speech(hosting = client == null)
 
     /** Changes how this device announces the score. Remembered between matches. */
-    fun setSpeech(value: SpeechSettings) {
+    fun setSpeech(value: SpeechSettings) = onWorker { setSpeechNow(value) }
+
+    private fun setSpeechNow(value: SpeechSettings) {
         settings.saveSpeech(value, hosting = client == null)
         // Switching the voice on is a good moment to look again for one
         // that was missing before, in case the player has since installed it.
@@ -697,7 +744,9 @@ class CourtController private constructor(
     }
 
     /** Reads out the whole score now, whatever the settings say. */
-    fun sayScore() {
+    fun sayScore() = onWorker { sayScoreNow() }
+
+    private fun sayScoreNow() {
         announcer.retry()
         currentSnapshot()?.let { announcer.say(ScoreSpeech.reminder(it)) }
     }
@@ -737,7 +786,9 @@ class CourtController private constructor(
     }
 
     /** Ends the match (host) or leaves the court (guest) and returns to idle. */
-    fun leave() {
+    fun leave() = onWorker { leaveNow() }
+
+    private fun leaveNow() {
         val wasHost = host != null
         recordIfDecided()
         leaveInternal()
@@ -745,7 +796,9 @@ class CourtController private constructor(
         publish()
     }
 
-    fun clearError() {
+    fun clearError() = onWorker { clearErrorNow() }
+
+    private fun clearErrorNow() {
         error = null
         publish()
     }
@@ -806,6 +859,8 @@ class CourtController private constructor(
             app,
             bluetoothSwitch,
             IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED),
+            null,
+            handler,
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
     }

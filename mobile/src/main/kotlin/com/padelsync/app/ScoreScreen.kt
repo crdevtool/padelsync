@@ -3,6 +3,7 @@ package com.padelsync.app
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -51,9 +52,12 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.netsports.core.engine.Sport
@@ -569,21 +573,27 @@ private fun NetStrip(ui: CourtUiState, score: ScoreView, note: String?, onUndo: 
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            val details = listOfNotNull(
+            val now = ticker()
+            val lead = listOfNotNull(
                 score.setSummary.takeIf { it.isNotEmpty() },
-                if (!score.isOver) ui.startedAtMillis?.let { matchClock(it) } else null,
+                if (!score.isOver) ui.startedAtMillis?.let { Labels.clock(now - it) } else null,
             ).joinToString("   ")
-            if (details.isNotEmpty()) {
-                Text(
-                    details,
-                    color = Palette.OnBackground,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            // The time of day, so players can see how much of their court
+            // booking is left without leaving the scoreboard.
+            val clock = timeOfDay(LocalContext.current, now)
+            val details = buildAnnotatedString {
+                if (lead.isNotEmpty()) append("$lead   ")
+                withStyle(SpanStyle(color = Palette.Accent)) { append(clock) }
             }
+            Text(
+                details,
+                color = Palette.OnBackground,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         Spacer(Modifier.width(8.dp))
         OutlinedButton(onClick = onUndo, enabled = score.canUndo && ui.canScore, modifier = Modifier.height(48.dp)) {
@@ -592,17 +602,21 @@ private fun NetStrip(ui: CourtUiState, score: ScoreView, note: String?, onUndo: 
     }
 }
 
-/** Time since the match started on this device, ticking once a second. */
+/** The current time in milliseconds, ticking once a second. */
 @Composable
-private fun matchClock(startedAtMillis: Long): String {
-    val now by produceState(System.currentTimeMillis(), startedAtMillis) {
+private fun ticker(): Long {
+    val now by produceState(System.currentTimeMillis()) {
         while (true) {
             delay(1000)
             value = System.currentTimeMillis()
         }
     }
-    return Labels.clock(now - startedAtMillis)
+    return now
 }
+
+/** The time of day as the phone shows it, without AM or PM: `21:42` or `9:42`. */
+private fun timeOfDay(context: Context, millis: Long): String =
+    DateFormat.format(if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm", millis).toString()
 
 // --- Games and sets as they are won -----------------------------------------
 

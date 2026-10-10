@@ -127,6 +127,8 @@ internal class GuestLink(
     private var up = false
     private var closed = false
     private var retryDelayMs = FIRST_RETRY_MS
+    /** Attempts since the link was last up, to slow down when the host stays away. */
+    private var failedAttempts = 0
 
     private val outbox = ArrayDeque<ByteArray>()
     private var writing = false
@@ -201,7 +203,16 @@ internal class GuestLink(
         if (closed) return
         handler.removeCallbacks(reconnect)
         handler.postDelayed(reconnect, retryDelayMs)
-        retryDelayMs = (retryDelayMs * 2).coerceAtMost(MAX_RETRY_MS)
+        failedAttempts++
+        // Quick at first, so a short drop heals at once. A host that stays
+        // away for long (a phone call holding the watch's Bluetooth, a phone
+        // left in a bag) is tried less often, so the attempts do not crowd a
+        // radio that is busy with something else.
+        retryDelayMs = if (failedAttempts >= SLOW_AFTER_ATTEMPTS) {
+            SLOW_RETRY_MS
+        } else {
+            (retryDelayMs * 2).coerceAtMost(MAX_RETRY_MS)
+        }
     }
 
     private fun linkLost() {
@@ -312,6 +323,7 @@ internal class GuestLink(
                 }
                 up = true
                 retryDelayMs = FIRST_RETRY_MS
+                failedAttempts = 0
                 listener.onLinkUp(CourtUuids.packetSizeFor(mtu))
             }
         }
@@ -364,5 +376,9 @@ internal class GuestLink(
         const val ONE_ATTEMPT_LIMIT_MS = 12_000L
         const val FIRST_RETRY_MS = 500L
         const val MAX_RETRY_MS = 4_000L
+
+        /** About half a minute of quick attempts (0.5, 1, 2, then every 4 seconds) before slowing down. */
+        const val SLOW_AFTER_ATTEMPTS = 9
+        const val SLOW_RETRY_MS = 10_000L
     }
 }

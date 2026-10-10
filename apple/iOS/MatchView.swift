@@ -459,14 +459,13 @@ private struct NetStrip: View {
                     .foregroundStyle(headline.color)
                     .lineLimit(2)
                     .animation(.easeInOut(duration: 0.2), value: headline.text)
-                if !score.isOver, let startedAt = store.startedAtMillis {
-                    // Time since the match started on this device, ticking once a second.
-                    TimelineView(.periodic(from: Date(), by: 1)) { timeline in
-                        let now = Int64(timeline.date.timeIntervalSince1970 * 1000)
-                        detailsText(clock: Labels.clock(now - startedAt))
-                    }
-                } else if !score.setSummary.isEmpty {
-                    detailsText(clock: nil)
+                // The sets, the time since the match started on this device, and
+                // the time of day, ticking once a second. The time of day lets
+                // players see how much of their court booking is left.
+                TimelineView(.periodic(from: Date(), by: 1)) { timeline in
+                    let now = Int64(timeline.date.timeIntervalSince1970 * 1000)
+                    let clock: String? = score.isOver ? nil : store.startedAtMillis.map { Labels.clock(now - $0) }
+                    detailsText(clock: clock, timeOfDay: timeline.date.formatted(date: .omitted, time: .shortened))
                 }
             }
             Spacer(minLength: 0)
@@ -509,14 +508,14 @@ private struct NetStrip: View {
         return ("SET \(score.setNumber)", Palette.muted)
     }
 
-    private func detailsText(clock: String?) -> some View {
+    private func detailsText(clock: String?, timeOfDay: String) -> some View {
         var parts: [String] = []
         if !score.setSummary.isEmpty { parts.append(score.setSummary) }
         if let clock = clock { parts.append(clock) }
-        return Text(parts.joined(separator: "   "))
+        let lead = parts.isEmpty ? "" : parts.joined(separator: "   ") + "   "
+        return (Text(lead).foregroundColor(.white) + Text(timeOfDay).foregroundColor(Palette.accent))
             .font(.system(size: 17, weight: .bold))
             .monospacedDigit()
-            .foregroundStyle(.white)
             .lineLimit(1)
     }
 }

@@ -161,7 +161,7 @@ with **New match** stays on that phone; it can be opened to others later from
 | Who can score | Hosting only. **Others can score** on the setup screen, then per device in **Menu > Who can score**. A view-only device shows the score but its taps do not count. |
 | Voice | **Call the score out loud** on the setup screen; details in **Menu > Voice**: every point, games and sets, big points, who serves, change ends, and a full-score reminder every 2, 5 or 10 minutes. It uses the media volume. The voice is **off** until it is switched on, and the choice is remembered. |
 | End of match | Confetti, the winners, set scores, points won, breaks of serve, best run, **Share the result** and **Rematch**. |
-| During play | A banner for each game and set, a flash on the half that won the point, a "3 in a row" badge, a change-ends call, and a match clock. |
+| During play | A banner for each game and set, a flash on the half that won the point, a "3 in a row" badge, a change-ends call, the match time and the time of day (in yellow, after the match time), so players can watch their court booking. On a Wear OS watch the time of day runs along the top edge; an Apple Watch shows it in its usual corner. |
 
 Also new:
 

@@ -110,6 +110,19 @@ that throws 200,000 events at a simulated eight-device court (taps, server
 swaps, permission changes, renames, lost packets, dropped links) and checks
 that every device ends up on the host's score.
 
+### Threads on Android
+
+`CourtController` does all its work on one thread of its own
+(`padelsync-court`): the match, the saved files and every Bluetooth call,
+with the transports' callbacks posted to the same thread. The screens call
+its methods from the main thread; each returns at once and the result
+arrives through `ui`. Android's Bluetooth calls can block for seconds while
+the radio is busy. On 10 October 2026 a joined Galaxy Watch8 Classic took a
+phone call during a match and its whole screen froze for about two minutes,
+because those calls then ran on the main thread. A guest that cannot reach
+its host also slows its attempts after about half a minute (every 10 seconds
+instead of every 4), so it does not crowd a radio that a call is using.
+
 ### Voice
 
 Each device decides for itself what to say; nothing about speech is sent
