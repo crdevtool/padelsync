@@ -832,6 +832,26 @@ final class CourtStore: ObservableObject {
         }
     }
 
+    /// Sets a published value only when it changed. Every assignment to a
+    /// published property redraws the screens that use it, even with the
+    /// same value, and a guest republishes on every message from the host,
+    /// about every 2 seconds. Kotlin values compare by content here.
+    private func assign<Value: Equatable>(_ keyPath: ReferenceWritableKeyPath<CourtStore, Value>, _ value: Value) {
+        if self[keyPath: keyPath] != value { self[keyPath: keyPath] = value }
+    }
+
+    /// The statistics of a match, worked out again only when the match changed.
+    private func statsOf(_ snapshot: MatchSnapshot) -> MatchStats {
+        if let cached = statsCache, let source = statsSource, source == snapshot { return cached }
+        let fresh = MatchStats.companion.of(snapshot: snapshot)
+        statsSource = snapshot
+        statsCache = fresh
+        return fresh
+    }
+
+    private var statsSource: MatchSnapshot?
+    private var statsCache: MatchStats?
+
     private func publish() {
         if let host {
             // Persist only when the match actually changed.
@@ -851,87 +871,87 @@ final class CourtStore: ObservableObject {
 
         let wasIdle = mode == .idle
         announce(currentSnapshot())
-        speech = currentSpeech
-        voiceAvailable = !announcer.unavailable
+        assign(\.speech, currentSpeech)
+        assign(\.voiceAvailable, !announcer.unavailable)
         let savedMatchExists = UserDefaults.standard.data(forKey: CourtStore.savedMatchKey) != nil
 
         if let host {
             let snapshot = host.snapshot()
-            mode = .host
-            score = ScoreView.companion.of(snapshot: snapshot)
-            config = snapshot.config
-            deviceCount = Int(host.deviceCount)
+            assign(\.mode, .host)
+            assign(\.score, ScoreView.companion.of(snapshot: snapshot))
+            assign(\.config, snapshot.config)
+            assign(\.deviceCount, Int(host.deviceCount))
             #if os(iOS)
-            courtOpen = hostTransport != nil && !courtSuspended
+            assign(\.courtOpen, hostTransport != nil && !courtSuspended)
             #else
-            courtOpen = false
+            assign(\.courtOpen, false)
             #endif
-            guestSynced = false
-            guestRejected = false
-            guestEnded = false
-            rejection = nil
-            hasSavedMatch = true
-            canScore = true
-            canTakeOver = false
-            guests = host.guests
-            guestsCanScore = host.guestsCanScore
-            stats = MatchStats.companion.of(snapshot: snapshot)
-            startedAtMillis = host.log.startedAtMillis
-            durationMillis = recordedDuration(snapshot)
+            assign(\.guestSynced, false)
+            assign(\.guestRejected, false)
+            assign(\.guestEnded, false)
+            assign(\.rejection, nil)
+            assign(\.hasSavedMatch, true)
+            assign(\.canScore, true)
+            assign(\.canTakeOver, false)
+            assign(\.guests, host.guests)
+            assign(\.guestsCanScore, host.guestsCanScore)
+            assign(\.stats, statsOf(snapshot))
+            assign(\.startedAtMillis, host.log.startedAtMillis)
+            assign(\.durationMillis, recordedDuration(snapshot))
         } else if let client {
             let display = client.displayState
             let confirmed = client.confirmed
-            mode = .guest
+            assign(\.mode, .guest)
             if let display, let confirmed {
                 // The host's names, with this device's own unconfirmed taps on top.
-                score = ScoreView.companion.of(
+                assign(\.score, ScoreView.companion.of(
                     state: display,
                     roster: confirmed.roster,
                     serveFlipA: client.displayServeFlip(team: Team.a),
                     serveFlipB: client.displayServeFlip(team: Team.b)
-                )
+                ))
             } else {
-                score = nil
+                assign(\.score, nil)
             }
-            config = display?.config
-            deviceCount = Int(client.deviceCount)
-            courtOpen = false
-            guestSynced = client.status == ClientStatus.synced
-            guestRejected = client.status == ClientStatus.rejected
-            guestEnded = client.status == ClientStatus.ended
-            rejection = client.rejection
-            hasSavedMatch = savedMatchExists
-            canScore = client.canScore
-            canTakeOver = holdsOffer(client)
-            guests = []
-            guestsCanScore = true
+            assign(\.config, display?.config)
+            assign(\.deviceCount, Int(client.deviceCount))
+            assign(\.courtOpen, false)
+            assign(\.guestSynced, client.status == ClientStatus.synced)
+            assign(\.guestRejected, client.status == ClientStatus.rejected)
+            assign(\.guestEnded, client.status == ClientStatus.ended)
+            assign(\.rejection, client.rejection)
+            assign(\.hasSavedMatch, savedMatchExists)
+            assign(\.canScore, client.canScore)
+            assign(\.canTakeOver, holdsOffer(client))
+            assign(\.guests, [])
+            assign(\.guestsCanScore, true)
             if let confirmed {
-                stats = MatchStats.companion.of(snapshot: confirmed)
-                startedAtMillis = firstSeen[confirmed.matchId]
-                durationMillis = recordedDuration(confirmed)
+                assign(\.stats, statsOf(confirmed))
+                assign(\.startedAtMillis, firstSeen[confirmed.matchId])
+                assign(\.durationMillis, recordedDuration(confirmed))
             } else {
-                stats = nil
-                startedAtMillis = nil
-                durationMillis = nil
+                assign(\.stats, nil)
+                assign(\.startedAtMillis, nil)
+                assign(\.durationMillis, nil)
             }
         } else {
-            mode = .idle
-            score = nil
-            config = nil
-            deviceCount = 1
-            courtOpen = false
-            guestSynced = false
-            guestRejected = false
-            guestEnded = false
-            rejection = nil
-            hasSavedMatch = savedMatchExists
-            canScore = true
-            canTakeOver = false
-            guests = []
-            guestsCanScore = true
-            stats = nil
-            startedAtMillis = nil
-            durationMillis = nil
+            assign(\.mode, .idle)
+            assign(\.score, nil)
+            assign(\.config, nil)
+            assign(\.deviceCount, 1)
+            assign(\.courtOpen, false)
+            assign(\.guestSynced, false)
+            assign(\.guestRejected, false)
+            assign(\.guestEnded, false)
+            assign(\.rejection, nil)
+            assign(\.hasSavedMatch, savedMatchExists)
+            assign(\.canScore, true)
+            assign(\.canTakeOver, false)
+            assign(\.guests, [])
+            assign(\.guestsCanScore, true)
+            assign(\.stats, nil)
+            assign(\.startedAtMillis, nil)
+            assign(\.durationMillis, nil)
         }
         // A match has just begun on this device: start the reminder clock.
         if wasIdle && mode != .idle { scheduleReminder() }

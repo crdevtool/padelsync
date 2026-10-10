@@ -3,12 +3,8 @@ package com.padelsync.app
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -255,22 +251,27 @@ private fun serverLabel(team: Team, score: ScoreView): String {
     }
 }
 
-/** A tennis ball that never quite sits still. */
+/**
+ * A tennis ball that bounces a few times when its team takes the serve, then
+ * sits still. A ball bouncing for the whole match kept the screen redrawing
+ * every frame for an hour or more, which costs battery.
+ */
 @Composable
 private fun BouncingBall() {
-    val transition = rememberInfiniteTransition(label = "ball")
-    val scale by transition.animateFloat(
-        initialValue = 0.82f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(tween(durationMillis = 620), RepeatMode.Reverse),
-        label = "ball bounce",
-    )
+    val scale = remember { Animatable(0.82f) }
+    LaunchedEffect(Unit) {
+        repeat(BALL_BOUNCES) {
+            scale.animateTo(1.08f, tween(durationMillis = 620))
+            scale.animateTo(0.82f, tween(durationMillis = 620))
+        }
+        scale.animateTo(1f, tween(durationMillis = 300))
+    }
     Canvas(
         Modifier
             .size(20.dp)
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
+                scaleX = scale.value
+                scaleY = scale.value
             }
             // The seam is drawn as two wide arcs; this trims them to the ball.
             .clip(CircleShape),
@@ -355,3 +356,6 @@ private fun Counter(label: String, value: Int) {
         Text(label, color = Palette.OnBackground.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
+
+/** Bounces of the serve ball when a team takes the serve. */
+private const val BALL_BOUNCES = 4

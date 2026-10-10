@@ -170,7 +170,9 @@ private struct ServeRow: View {
     }
 }
 
-/// A tennis ball that never quite sits still.
+/// A tennis ball that bounces a few times when its team takes the serve,
+/// then sits still. A ball bouncing for the whole match kept the screen
+/// redrawing every frame for an hour or more, which costs battery.
 private struct BouncingBall: View {
     @State private var grown = false
 
@@ -190,9 +192,12 @@ private struct BouncingBall: View {
         .scaleEffect(Motion.still ? 1 : (grown ? 1.08 : 0.82))
         .onAppear {
             if Motion.still { return }
-            withAnimation(.easeInOut(duration: 0.62).repeatForever(autoreverses: true)) { grown = true }
+            // An odd count, so it comes to rest grown rather than jumping there.
+            withAnimation(.easeInOut(duration: 0.62).repeatCount(BouncingBall.bounces, autoreverses: true)) { grown = true }
         }
     }
+
+    private static let bounces = 7
 }
 
 /// The big number for the current game, with games and sets beside it.

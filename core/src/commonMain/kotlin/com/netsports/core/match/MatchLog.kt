@@ -57,19 +57,27 @@ class MatchLog private constructor(
     val durationMillis: Long?
         get() = completedAtMillis?.let { it - startedAtMillis }
 
-    /** The replicated view of this log, as sent to every other device. */
-    fun snapshot(): MatchSnapshot = MatchSnapshot(
-        matchId = matchId,
-        epoch = epoch,
-        version = version,
-        config = config,
-        points = points.map { it.team },
-        lastCommandId = lastCommandId,
-        roster = roster,
-        serveFlipA = serveFlipA,
-        serveFlipB = serveFlipB,
-        finished = finishedAtMillis != null,
-    )
+    /**
+     * The replicated view of this log, as sent to every other device. Built
+     * once per log: a snapshot works the score out again from every point, and
+     * the host asks for it several times per point and on every heartbeat.
+     */
+    fun snapshot(): MatchSnapshot = cachedSnapshot
+
+    private val cachedSnapshot: MatchSnapshot by lazy {
+        MatchSnapshot(
+            matchId = matchId,
+            epoch = epoch,
+            version = version,
+            config = config,
+            points = points.map { it.team },
+            lastCommandId = lastCommandId,
+            roster = roster,
+            serveFlipA = serveFlipA,
+            serveFlipB = serveFlipB,
+            finished = finishedAtMillis != null,
+        )
+    }
 
     /**
      * The same match with the players' names replaced. Names are labels only,

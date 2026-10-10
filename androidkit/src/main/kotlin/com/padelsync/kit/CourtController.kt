@@ -149,7 +149,7 @@ class CourtController private constructor(
     private val reminder = Runnable { remind() }
 
     private val _ui = MutableStateFlow(
-        CourtUiState(hasSavedMatch = store.load() != null, speech = settings.speech(hosting = true)),
+        CourtUiState(speech = settings.speech(hosting = true)),
     )
     val ui: StateFlow<CourtUiState> = _ui.asStateFlow()
 
@@ -159,7 +159,17 @@ class CourtController private constructor(
     val nearby: StateFlow<List<NearbyCourt>> = _nearby.asStateFlow()
 
     private val historyStore = HistoryStore(app)
-    private val _history = MutableStateFlow(historyStore.load())
+    // Loaded on the controller's thread (see init): decoding the history and
+    // the saved match works out every point of every match again, which is
+    // too slow for the main thread when a watch app starts.
+    private val _history = MutableStateFlow<List<MatchRecord>>(emptyList())
+
+    /** Whether a hosted match is saved, kept in step with [store] so it is not decoded on every update. */
+    private var savedMatchPresent = false
+
+    /** The statistics last worked out, and the match they belong to. */
+    private var statsSource: MatchSnapshot? = null
+    private var statsCache: MatchStats? = null
 
     /** Finished matches this device took part in, newest first. */
     val history: StateFlow<List<MatchRecord>> = _history.asStateFlow()
@@ -307,7 +317,8 @@ class CourtController private constructor(
      * so that guests still looking for the court are let back in.
      */
     fun resumeSavedMatch(): Boolean {
-        val wasOpen = store.load() != null && store.loadOpen()
+        // Only the flag is read here, on the caller's thread; the match is decoded on the controller's.
+        val wasOpen = store.loadOpen()
         onWorker { resumeSavedMatchNow() }
         return wasOpen
     }
@@ -319,7 +330,7 @@ class CourtController private constructor(
         val log = try {
             MatchLog.takeOver(snapshot, now())
         } catch (e: IllegalArgumentException) {
-            store.clear()
+            clearSavedMatch()
             publish()
             return false
         }
@@ -375,6 +386,7 @@ class CourtController private constructor(
         deliver(session.updateRoster(roster))
         settings.saveSetup(MatchSetup(session.state.config, roster, session.guestsCanScore))
         store.save(session)
+        savedMatchPresent = true
         publish()
     }
 
@@ -669,7 +681,7 @@ class CourtController private constructor(
                 handler.removeCallbacks(offerTakeOver)
                 if (clearSavedMatchOnceSynced) {
                     clearSavedMatchOnceSynced = false
-                    store.clear()
+                    clearSavedMatch()
                 }
             }
             publish()
@@ -792,7 +804,7 @@ class CourtController private constructor(
         val wasHost = host != null
         recordIfDecided()
         leaveInternal()
-        if (wasHost) store.clear()
+        if (wasHost) clearSavedMatch()
         publish()
     }
 
@@ -855,6 +867,11 @@ class CourtController private constructor(
     }
 
     init {
+        handler.post {
+            savedMatchPresent = store.load() != null
+            _history.value = historyStore.load()
+            publish()
+        }
         ContextCompat.registerReceiver(
             app,
             bluetoothSwitch,
@@ -897,6 +914,21 @@ class CourtController private constructor(
         return error == null
     }
 
+    /** The statistics of a match, worked out again only when the match changed. */
+    private fun clearSavedMatch() {
+        store.clear()
+        savedMatchPresent = false
+    }
+
+    private fun statsOf(snapshot: MatchSnapshot): MatchStats {
+        val cached = statsCache
+        if (cached != null && statsSource == snapshot) return cached
+        return MatchStats.of(snapshot).also {
+            statsSource = snapshot
+            statsCache = it
+        }
+    }
+
     private fun publish() {
         val hostSession = host
         val guestSession = client
@@ -906,6 +938,7 @@ class CourtController private constructor(
             val log = hostSession.log
             if (log.version != savedVersion || log.matchId != savedMatchId) {
                 store.save(hostSession)
+                savedMatchPresent = true
                 savedVersion = log.version
                 savedMatchId = log.matchId
                 trackHistory(hostSession.snapshot(), log.startedAtMillis)
@@ -938,7 +971,7 @@ class CourtController private constructor(
                     canScore = true,
                     guests = hostSession.guests,
                     guestsCanScore = hostSession.guestsCanScore,
-                    stats = MatchStats.of(snapshot),
+                    stats = statsOf(snapshot),
                     startedAtMillis = hostSession.log.startedAtMillis,
                     durationMillis = recordedDuration(snapshot),
                     speech = voice,
@@ -970,10 +1003,10 @@ class CourtController private constructor(
                     lastFeedback = lastFeedback,
                     feedbackCount = feedbackCount,
                     remoteScoreCount = remoteScoreCount,
-                    hasSavedMatch = store.load() != null,
+                    hasSavedMatch = savedMatchPresent,
                     canScore = guestSession.canScore,
                     canTakeOver = canTakeOver(guestSession),
-                    stats = confirmed?.let { MatchStats.of(it) },
+                    stats = confirmed?.let { statsOf(it) },
                     startedAtMillis = confirmed?.let { firstSeen[it.matchId] },
                     durationMillis = confirmed?.let { recordedDuration(it) },
                     speech = voice,
@@ -982,7 +1015,7 @@ class CourtController private constructor(
             }
             else -> CourtUiState(
                 error = error,
-                hasSavedMatch = store.load() != null,
+                hasSavedMatch = savedMatchPresent,
                 speech = voice,
                 voiceAvailable = voiceAvailable,
             )

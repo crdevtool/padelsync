@@ -3,8 +3,10 @@ import SwiftUI
 
 /// Confetti falling over whatever is behind it.
 ///
-/// With `endless` it keeps falling for as long as it is on screen. Without,
-/// every piece falls once, which makes a short burst.
+/// With `endless` it rains for `rainSeconds`, then the last pieces fall out
+/// of sight. Without, every piece falls once, which makes a short burst.
+/// Either way the drawing stops once nothing is left to fall, so a result
+/// left on screen does not keep the phone redrawing every frame.
 struct Confetti: View {
     /// One piece of confetti. Positions are fractions of the width; speeds are in points per second.
     private struct Piece {
@@ -31,6 +33,13 @@ struct Confetti: View {
     private let endless: Bool
     @State private var pieces: [Piece]
     @State private var start = Date()
+    /// Set once the last piece has fallen: the timeline stops.
+    @State private var done = false
+
+    /// How long endless confetti keeps raining.
+    nonisolated private static let rainSeconds = 12.0
+    /// Long enough for every piece to fall out of sight after it stops raining.
+    private var lifetime: Double { endless ? Confetti.rainSeconds + 8 : 5 }
 
     init(pieces: Int = 110, endless: Bool = true) {
         self.endless = endless
@@ -65,13 +74,17 @@ struct Confetti: View {
                     Confetti.draw(&context, size: size, seconds: 1.4, pieces: pieces, endless: endless)
                 }
             } else {
-                TimelineView(.animation) { timeline in
+                TimelineView(.animation(minimumInterval: nil, paused: done)) { timeline in
                     let seconds = timeline.date.timeIntervalSince(start)
                     Canvas { context, size in
                         Confetti.draw(&context, size: size, seconds: seconds, pieces: pieces, endless: endless)
                     }
                 }
             }
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(lifetime))
+            done = true
         }
         // Decoration only: taps go through it, and VoiceOver skips it.
         .allowsHitTesting(false)
@@ -92,6 +105,11 @@ struct Confetti: View {
             if elapsed < 0 { continue }
             let fallen = CGFloat(elapsed) * piece.fallSpeed
             if !endless && fallen > distance { continue }
+            // After the rain stops, a piece finishes the fall it is on and is not seen again.
+            if endless {
+                let lap = (fallen / distance).rounded(.down)
+                if piece.delay + Double(lap * distance / piece.fallSpeed) > Confetti.rainSeconds { continue }
+            }
             let y = fallen.truncatingRemainder(dividingBy: distance) - margin
             let swing = CGFloat(sin(elapsed * 2.2 + piece.swayPhase))
             let x = piece.x * size.width + swing * piece.sway

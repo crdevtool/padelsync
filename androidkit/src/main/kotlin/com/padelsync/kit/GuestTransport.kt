@@ -17,6 +17,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.ParcelUuid
+import android.os.SystemClock
 
 /** A court found nearby. */
 class NearbyCourt internal constructor(
@@ -28,6 +29,9 @@ class NearbyCourt internal constructor(
     val rssi: Int,
     internal val device: BluetoothDevice,
 )
+
+/** How often a scan passes on a change of signal strength alone. */
+private const val REPORT_EVERY_MS = 1_000L
 
 /** Finds courts being hosted nearby. All callbacks arrive on [handler]'s thread. */
 @SuppressLint("MissingPermission") // Callers check BlePermissions first.
@@ -41,6 +45,7 @@ internal class CourtScanner(
     private val manager: BluetoothManager? = context.getSystemService(BluetoothManager::class.java)
     private val found = LinkedHashMap<String, NearbyCourt>()
     private var scanning = false
+    private var lastReported = 0L
 
     /** Returns false if scanning could not start. */
     fun start(): Boolean {
@@ -82,8 +87,17 @@ internal class CourtScanner(
                     ?: record?.deviceName
                     ?: "Court"
                 val address = result.device.address
+                val before = found[address]
                 found[address] = NearbyCourt(address, label, result.rssi, result.device)
-                onChange(found.values.sortedByDescending { it.rssi })
+                // A host advertises several times a second. A new court or a
+                // new name is passed on at once; a change of signal strength
+                // alone at most once a second, so a list on screen does not
+                // redraw and reorder itself at the rate of the advertisements.
+                val now = SystemClock.uptimeMillis()
+                if (before == null || before.name != label || now - lastReported >= REPORT_EVERY_MS) {
+                    lastReported = now
+                    onChange(found.values.sortedByDescending { it.rssi })
+                }
             }
         }
     }

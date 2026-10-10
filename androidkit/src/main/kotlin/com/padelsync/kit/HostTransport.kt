@@ -115,8 +115,12 @@ internal class HostTransport(
             return
         }
         val settings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+            // About four times a second at medium power: found within a second
+            // or two anywhere on a court, for a fraction of the radio time and
+            // battery of the fastest setting, which a host would otherwise
+            // spend for the whole match.
+            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
             .setConnectable(true)
             .setTimeout(0)
             .build()

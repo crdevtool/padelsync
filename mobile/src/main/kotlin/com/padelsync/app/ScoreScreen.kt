@@ -573,26 +573,9 @@ private fun NetStrip(ui: CourtUiState, score: ScoreView, note: String?, onUndo: 
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            val now = ticker()
-            val lead = listOfNotNull(
-                score.setSummary.takeIf { it.isNotEmpty() },
-                if (!score.isOver) ui.startedAtMillis?.let { Labels.clock(now - it) } else null,
-            ).joinToString("   ")
-            // The time of day, so players can see how much of their court
-            // booking is left without leaving the scoreboard.
-            val clock = timeOfDay(LocalContext.current, now)
-            val details = buildAnnotatedString {
-                if (lead.isNotEmpty()) append("$lead   ")
-                withStyle(SpanStyle(color = Palette.Accent)) { append(clock) }
-            }
-            Text(
-                details,
-                color = Palette.OnBackground,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
+            DetailsLine(
+                setSummary = score.setSummary,
+                startedAtMillis = if (score.isOver) null else ui.startedAtMillis,
             )
         }
         Spacer(Modifier.width(8.dp))
@@ -600,6 +583,35 @@ private fun NetStrip(ui: CourtUiState, score: ScoreView, note: String?, onUndo: 
             Text("Undo", fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
     }
+}
+
+/**
+ * The sets so far, the time since the match started on this device, and the
+ * time of day, so players can see how much of their court booking is left.
+ * On its own so that only this line redraws every second.
+ */
+@Composable
+private fun DetailsLine(setSummary: String, startedAtMillis: Long?) {
+    val now = ticker()
+    val context = LocalContext.current
+    val twentyFourHour = remember { DateFormat.is24HourFormat(context) }
+    val lead = listOfNotNull(
+        setSummary.takeIf { it.isNotEmpty() },
+        startedAtMillis?.let { Labels.clock(now - it) },
+    ).joinToString("   ")
+    val details = buildAnnotatedString {
+        if (lead.isNotEmpty()) append("$lead   ")
+        withStyle(SpanStyle(color = Palette.Accent)) { append(timeOfDay(now, twentyFourHour)) }
+    }
+    Text(
+        details,
+        color = Palette.OnBackground,
+        fontSize = 17.sp,
+        fontWeight = FontWeight.Bold,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 /** The current time in milliseconds, ticking once a second. */
@@ -615,8 +627,8 @@ private fun ticker(): Long {
 }
 
 /** The time of day as the phone shows it, without AM or PM: `21:42` or `9:42`. */
-private fun timeOfDay(context: Context, millis: Long): String =
-    DateFormat.format(if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm", millis).toString()
+private fun timeOfDay(millis: Long, twentyFourHour: Boolean): String =
+    DateFormat.format(if (twentyFourHour) "HH:mm" else "h:mm", millis).toString()
 
 // --- Games and sets as they are won -----------------------------------------
 

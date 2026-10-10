@@ -47,6 +47,7 @@ import com.netsports.core.engine.Team
 import com.netsports.core.ui.MatchStats
 import com.netsports.core.ui.ScoreView
 import com.padelsync.kit.Labels
+import kotlin.math.floor
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -74,8 +75,10 @@ private val ConfettiColors = listOf(
 /**
  * Confetti falling over whatever is behind it.
  *
- * @param endless keep it falling for as long as this is on screen. When
- * false every piece falls once, which makes a short burst.
+ * @param endless rain for [CONFETTI_RAIN_SECONDS], then let the last pieces
+ * fall out of sight. When false every piece falls once, which makes a short
+ * burst. Either way it stops drawing once nothing is left to fall, so a
+ * result left on screen does not keep the phone redrawing every frame.
  */
 @Composable
 fun Confetti(modifier: Modifier = Modifier, pieces: Int = 110, endless: Boolean = true) {
@@ -101,7 +104,8 @@ fun Confetti(modifier: Modifier = Modifier, pieces: Int = 110, endless: Boolean 
     var seconds by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(Unit) {
         val start = withFrameNanos { it }
-        while (true) {
+        val lifetime = if (endless) CONFETTI_RAIN_SECONDS + 8f else 5f
+        while (seconds < lifetime) {
             withFrameNanos { now -> seconds = (now - start) / 1_000_000_000f }
         }
     }
@@ -112,8 +116,11 @@ fun Confetti(modifier: Modifier = Modifier, pieces: Int = 110, endless: Boolean 
         for (piece in confetti) {
             val elapsed = seconds - piece.delaySeconds
             if (elapsed < 0f) continue
-            val fallen = elapsed * piece.fallSpeed.dp.toPx()
+            val speed = piece.fallSpeed.dp.toPx()
+            val fallen = elapsed * speed
             if (!endless && fallen > distance) continue
+            // After the rain stops, a piece finishes the fall it is on and is not seen again.
+            if (endless && piece.delaySeconds + floor(fallen / distance) * distance / speed > CONFETTI_RAIN_SECONDS) continue
             val y = fallen % distance - margin
             val x = piece.x * size.width + sin(elapsed * 2.2f + piece.swayPhase) * piece.sway.dp.toPx()
             val width = piece.size.dp.toPx()
@@ -290,3 +297,6 @@ private fun StatCell(text: String, color: Color, align: TextAlign, modifier: Mod
         modifier = modifier,
     )
 }
+
+/** How long endless confetti keeps raining. */
+private const val CONFETTI_RAIN_SECONDS = 12f
