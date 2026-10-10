@@ -1,0 +1,99 @@
+== Xcode ==
+Xcode 16.4
+Build version 16F6
+iOS SDKs:
+	iOS 18.5                      	-sdk iphoneos18.5
+iOS Simulator SDKs:
+	Simulator - iOS 18.5          	-sdk iphonesimulator18.5
+watchOS SDKs:
+	watchOS 11.5                  	-sdk watchos11.5
+watchOS Simulator SDKs:
+	Simulator - watchOS 11.5      	-sdk watchsimulator11.5
+== Shared core (simulator slices) ==
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:pluginDescriptors
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:compileKotlin
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+
+> Task :buildSrc:jar
+:jar: No valid plugin descriptors were found in META-INF/gradle-plugins
+
+> Task :core:kmpPartiallyResolvedDependenciesChecker
+> Task :core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+
+> Task :core:compileKotlinIosSimulatorArm64
+Kotlin/Native bundle directory /Users/runner/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.20 is not empty. Native bundle files will be overwritten.
+Downloading native dependencies (LLVM, sysroot etc). This is a one-time action performed only on the first run of the compiler.
+Downloading dependency https://download.jetbrains.com/kotlin/native/resources/llvm/19-aarch64-macos/llvm-19-aarch64-macos-essentials-79.tar.gz to /Users/runner/.konan/dependencies/cache/llvm-19-aarch64-macos-essentials-79.tar.gz
+Done.
+Extracting dependency: /Users/runner/.konan/dependencies/cache/llvm-19-aarch64-macos-essentials-79.tar.gz into /Users/runner/.konan/dependencies
+Downloading dependency https://download.jetbrains.com/kotlin/native/libffi-3.3-1-macos-arm64.tar.gz to /Users/runner/.konan/dependencies/cache/libffi-3.3-1-macos-arm64.tar.gz
+Done.
+Extracting dependency: /Users/runner/.konan/dependencies/cache/libffi-3.3-1-macos-arm64.tar.gz into /Users/runner/.konan/dependencies
+
+> Task :core:linkDebugFrameworkIosSimulatorArm64
+> Task :core:compileKotlinWatchosSimulatorArm64
+> Task :core:linkDebugFrameworkWatchosSimulatorArm64
+gradle/actions: Writing build results to /Users/runner/work/_temp/.gradle-actions/build-results/__run-1791658365796.json
+
+BUILD SUCCESSFUL in 2m 1s
+8 actionable tasks: 8 executed
+xcframework successfully written out to: /Users/runner/work/padelsync/padelsync/apple/Frameworks/PadelSyncCore.xcframework
+== Xcode project ==
+[32m==>[0m [1mDownloading bottle manifests[0m
+✔︎ Bottle Manifest xcodegen (2.46.0)
+[34m==>[0m [1mWould install 1 formula:[0m
+xcodegen
+[32m==>[0m [1mFetching downloads for: [32mxcodegen[39m[0m
+✔︎ Bottle xcodegen (2.46.0)
+[34m==>[0m [1mPouring xcodegen--2.46.0.arm64_sequoia.bottle.1.tar.gz[0m
+🍺  /opt/homebrew/Cellar/xcodegen/2.46.0: 38 files, 7.5MB
+⚙️  Generating plists...
+⚙️  Generating project...
+⚙️  Writing project...
+Created project at /Users/runner/work/padelsync/padelsync/apple/PadelSync.xcodeproj
+== iPhone app, with the watch app inside it ==
+note: Building targets in dependency order
+note: Target dependency graph (2 targets)
+/Users/runner/work/padelsync/padelsync/apple/Shared/Announcer.swift:14:17: warning: stored property 'synthesizer' of 'Sendable'-conforming class 'Announcer' has non-sendable type 'AVSpeechSynthesizer'; this is an error in the Swift 6 language mode
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator11.5.sdk/System/Library/Frameworks/AVFAudio.framework/Headers/AVSpeechSynthesis.h:227:12: note: class 'AVSpeechSynthesizer' does not conform to the 'Sendable' protocol
+/Users/runner/work/padelsync/padelsync/apple/Shared/Announcer.swift:14:17: warning: stored property 'synthesizer' of 'Sendable'-conforming class 'Announcer' has non-sendable type 'AVSpeechSynthesizer'; this is an error in the Swift 6 language mode
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/WatchSimulator.platform/Developer/SDKs/WatchSimulator11.5.sdk/System/Library/Frameworks/AVFAudio.framework/Headers/AVSpeechSynthesis.h:227:12: note: class 'AVSpeechSynthesizer' does not conform to the 'Sendable' protocol
+/Users/runner/work/padelsync/padelsync/apple/Shared/Announcer.swift:14:17: warning: stored property 'synthesizer' of 'Sendable'-conforming class 'Announcer' has non-sendable type 'AVSpeechSynthesizer'; this is an error in the Swift 6 language mode
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/System/Library/Frameworks/AVFAudio.framework/Headers/AVSpeechSynthesis.h:227:12: note: class 'AVSpeechSynthesizer' does not conform to the 'Sendable' protocol
+/Users/runner/work/padelsync/padelsync/apple/Shared/Announcer.swift:14:17: warning: stored property 'synthesizer' of 'Sendable'-conforming class 'Announcer' has non-sendable type 'AVSpeechSynthesizer'; this is an error in the Swift 6 language mode
+/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/System/Library/Frameworks/AVFAudio.framework/Headers/AVSpeechSynthesis.h:227:12: note: class 'AVSpeechSynthesizer' does not conform to the 'Sendable' protocol
+note: Emplaced /Users/runner/work/padelsync/padelsync/build/apple/Build/Products/Debug-watchsimulator/PadelSyncWatch.app/Assets.car (in target 'PadelSyncWatch' from project 'PadelSync')
+note: Emplaced /Users/runner/work/padelsync/padelsync/build/apple/Build/Products/Debug-iphonesimulator/PadelSync.app/Assets.car (in target 'PadelSync' from project 'PadelSync')
+note: Emplaced /Users/runner/work/padelsync/padelsync/build/apple/Build/Products/Debug-iphonesimulator/PadelSync.app/AppIcon60x60@2x.png (in target 'PadelSync' from project 'PadelSync')
+note: Emplaced /Users/runner/work/padelsync/padelsync/build/apple/Build/Products/Debug-iphonesimulator/PadelSync.app/AppIcon76x76@2x~ipad.png (in target 'PadelSync' from project 'PadelSync')
+** BUILD SUCCEEDED **
+ok: the iPhone app's ID is com.crdevtool.padelsync
+ok: the iPhone app's encryption answer is false
+ok: the iPhone app's icon is named in its Info.plist
+ok: the watch app's ID is com.crdevtool.padelsync.watchkitapp
+ok: the iPhone app the watch app belongs to is com.crdevtool.padelsync
+ok: the watch app running on its own is true
+ok: the watch app's encryption answer is false
+ok: the watch app's icon is named in its Info.plist
+ok: CFBundleShortVersionString is 1.0 in both apps
+ok: CFBundleVersion is 1 in both apps
+ok: PadelSync.app has its compiled icons
+ok: PadelSync.app has its privacy declaration
+ok: PadelSyncWatch.app has its compiled icons
+ok: PadelSyncWatch.app has its privacy declaration
+ok: PadelSync.app 1.0 (1) has what an upload needs
+== Package the iPhone simulator build ==
+-rw-r--r--  1 runner  staff  2591666 Oct 10 18:57 PadelSync-iOS-simulator.zip
+== Apple Watch app ==
+note: Building targets in dependency order
+note: Target dependency graph (1 target)
+** BUILD SUCCEEDED **
+== iPhone walkthrough ==
+walkthrough simulator: E952A9B0-CC78-435C-BF08-06AD47FE1076
+IOServiceMatchingfailed for: AppleM2ScalerParavirtDriver
+Recording started
