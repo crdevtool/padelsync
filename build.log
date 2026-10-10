@@ -1,0 +1,29 @@
+[smoke] system 'not responding' dialogs switched off on emulator-5554
+Performing Streamed Install
+Success
+[smoke] 'New padel match' is not on screen yet; starting the app again
+[smoke] screenshot 1: home
+[screen] PadelSync | New padel match | New tennis match | Join a court
+[smoke] screenshot 2: score-start
+[screen] Team A. Points 0. Games 0. Sets 0. Serving. | PLAYER 1 |  · RIGHT | A | GAMES | 0 | SETS | UNDO | MENU | Team B. Points 0. Games 0. Sets 0. | B | 7:14
+[smoke] screenshot 3: deuce
+[screen] Team A. Points 40. Games 0. Sets 0. Serving. | PLAYER 1 |  · RIGHT | A | GAMES | 0 | SETS | 40 | UNDO | DEUCE | MENU | Team B. Points 40. Games 0. Sets 0. | B | 7:14
+[smoke] screenshot 4: advantage-b
+[smoke] screenshot 5: after-undo
+[smoke] screenshot 6: set-in-progress
+[screen] Team A. Points 0. Games 0. Sets 1. Serving. | PLAYER 1 |  · RIGHT | A | GAMES | 0 | SETS | 1 | UNDO | 6-0 | MENU | Team B. Points 0. Games 0. Sets 0. | B | 7:14
+[smoke] screenshot 7: match-decided
+[screen] Team A. Points 0. Games 0. Sets 2. Serving. | PLAYER 1 |  · RIGHT | A | GAMES | 0 | SETS | 2 | UNDO | A WON | MENU | Team B. Points 0. Games 0. Sets 0. | B | 7:14
+[smoke] screenshot 8: match-won
+[screen] 🏆 | Team A win! | 6-0 6-0 0-6 | Rematch | Scoreboard
+[smoke] screenshot 9: final-scoreboard
+[smoke] screenshot 10: menu
+[screen] Back to score | Voice: off | Others can score: yes | Play with others
+[smoke] screenshot 11: court-open-attempt
+[screen] Code 6835 | Waiting for players | Back to score | Voice: off
+[smoke] screenshot 12: back-to-score
+[smoke] screenshot 13: home-again
+[smoke] screenshot 14: join
+[screen] Join a court | Looking nearby… | Back
+[smoke] no crashes
+[smoke] RESULT: all checks passed
