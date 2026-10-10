@@ -255,7 +255,7 @@ class CourtController private constructor(
         override fun run() {
             val session = host ?: return
             if (hostTransport == null) return
-            deliver(session.heartbeat())
+            deliverHeartbeat(session.heartbeat())
             handler.postDelayed(this, HEARTBEAT_MS)
         }
     }
@@ -589,6 +589,20 @@ class CourtController private constructor(
         override fun onAdvertisingFailed(reason: String) {
             error = reason
             closeCourt()
+        }
+    }
+
+    /**
+     * Sends the regular repeat of the match, except to a guest that has not
+     * taken in what it was already sent: a watch on a phone call, say. Its
+     * queue would otherwise fill up with out-of-date copies every 2 seconds,
+     * and the scores behind them would reach it later and later. It gets the
+     * next one once its queue has emptied.
+     */
+    private fun deliverHeartbeat(outgoing: List<Outgoing>) {
+        val transport = hostTransport ?: return
+        for (item in outgoing) {
+            if (!transport.hasPending(item.peerId)) transport.send(item.peerId, item.packets)
         }
     }
 

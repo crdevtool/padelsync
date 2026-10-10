@@ -415,7 +415,7 @@ final class CourtStore: ObservableObject {
         heartbeat?.invalidate()
         heartbeat = Timer.scheduledTimer(withTimeInterval: CourtStore.heartbeatSeconds, repeats: true) { [weak self] _ in
             guard let self, let host = self.host else { return }
-            self.deliver(host.heartbeat())
+            self.deliverHeartbeat(host.heartbeat())
         }
         let code = joinCode
         rivalWatch?.stop()
@@ -573,6 +573,19 @@ final class CourtStore: ObservableObject {
         openCourt()
     }
     #endif
+
+    /// Sends the regular repeat of the match, except to a guest that has not
+    /// taken in what it was already sent: a device on a phone call, say. Its
+    /// queue would otherwise fill up with out-of-date copies every 2 seconds,
+    /// and the scores behind them would reach it later and later.
+    private func deliverHeartbeat(_ outgoing: [Outgoing]) {
+        #if os(iOS)
+        guard let transport = hostTransport else { return }
+        for item in outgoing where !transport.hasPending(peerId: item.peerId) {
+            transport.send(peerId: item.peerId, packets: item.packets.map { $0.toData() })
+        }
+        #endif
+    }
 
     private func deliver(_ outgoing: [Outgoing]) {
         #if os(iOS)

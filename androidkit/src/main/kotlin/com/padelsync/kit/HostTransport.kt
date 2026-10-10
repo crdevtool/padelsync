@@ -152,6 +152,9 @@ internal class HostTransport(
         }
     }
 
+    /** Whether packets for [peerId] are still waiting to go out. */
+    fun hasPending(peerId: String): Boolean = outbox.any { it.first == peerId }
+
     /** Queues [packets] for one guest. Packets for a guest that has gone are dropped. */
     fun send(peerId: String, packets: List<ByteArray>) {
         for (packet in packets) outbox.addLast(peerId to packet)

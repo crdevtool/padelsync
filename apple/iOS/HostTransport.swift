@@ -71,6 +71,11 @@ final class HostTransport: NSObject, CBPeripheralManagerDelegate {
         onBluetoothOff?()
     }
 
+    /// Whether packets for `peerId` are still waiting to go out.
+    func hasPending(peerId: String) -> Bool {
+        outbox.contains { $0.peerId == peerId }
+    }
+
     /// Queues packets for one guest. Packets for a guest that has gone are dropped.
     func send(peerId: String, packets: [Data]) {
         for packet in packets { outbox.append((peerId, packet)) }
