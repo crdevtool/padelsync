@@ -107,6 +107,8 @@ dependencies {
     implementation(libs.androidx.wear.compose.foundation)
     // Lets the phone app see that this watch has PadelSync; see res/values/wear.xml.
     implementation(libs.play.services.wearable)
+    // Replaces the outdated fragment 1.1.0 that play-services-wearable brings in.
+    implementation(libs.androidx.fragment)
 }
 
 apply(from = rootProject.file("gradle/export-classpath.gradle.kts"))

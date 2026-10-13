@@ -107,6 +107,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.play.services.wearable)
     implementation(libs.androidx.wear.remote.interactions)
+    // Replaces the outdated fragment 1.1.0 that play-services-wearable brings in.
+    implementation(libs.androidx.fragment)
 }
 
 apply(from = rootProject.file("gradle/export-classpath.gradle.kts"))

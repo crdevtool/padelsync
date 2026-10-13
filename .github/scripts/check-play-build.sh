@@ -224,6 +224,18 @@ if [ "$native" != 0 ]; then
   fi
 fi
 
+# Play Console reads the library versions each AndroidX library leaves in
+# META-INF, and warns about outdated ones. Fragment 1.1.0 came in with Play
+# services; the apps now ask for a current fragment instead (libs.versions.toml).
+fragment=$(unzip -p "$apk" META-INF/androidx.fragment_fragment.version 2>/dev/null | tr -d '[:space:]' || true)
+if [ -z "$fragment" ]; then
+  echo "ok: no fragment library"
+elif [ "$(printf '%s\n' 1.8.0 "$fragment" | sort -V | head -1)" = 1.8.0 ]; then
+  echo "ok: fragment $fragment"
+else
+  problem "fragment $fragment is outdated, and Play Console warns about it; check what overrides the version in libs.versions.toml"
+fi
+
 echo "sizes: bundle $(( $(stat -c %s "$aab") / 1024 )) KB, APK $(( $(stat -c %s "$apk") / 1024 )) KB"
 if [ "$problems" != 0 ]; then
   echo "FAILED: $problems problem(s) in the $kind app's release build"

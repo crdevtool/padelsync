@@ -698,6 +698,11 @@ have to be worked out again.
   upload. Release builds ask for symbol tables (`debugSymbolLevel`) and use
   the build server's NDK, which also strips the library; the release check
   reports whether any symbols made it into the bundle. Ignore the warning.
+- **"Outdated SDK: androidx.fragment 1.1.0" is fixed from release 9.**
+  Play services (added for Install on watch in release 7) asks for
+  fragment 1.1.0. Both apps now ask for a current fragment
+  (`fragment` in `libs.versions.toml`), and the release check fails if an
+  older one ends up in the build. Builds 71/72 and 81/82 carry the warning.
 - **A copy installed from an APK blocks the Play version.** It is signed with
   a different key. Uninstall it from the watch (or phone) before installing
   from the Play Store.
