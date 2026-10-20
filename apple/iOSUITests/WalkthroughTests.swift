@@ -229,6 +229,23 @@ final class WalkthroughTests: XCTestCase {
         XCTAssertTrue(app.buttons["New match"].waitForExistence(timeout: 5))
     }
 
+    /// PadelSync Pro: once the trial is over, hosting opens the Pro sheet.
+    /// Runs after testAFullMatch (tests run in name order).
+    func testBProAfterTheTrial() {
+        app.terminate()
+        app.launchArguments.append("-trialEnded")
+        app.launch()
+        XCTAssertTrue(app.buttons["Host a match"].waitForExistence(timeout: 30), "home screen did not appear")
+        shot("home-trial-ended")
+        choose("Host a match")
+        XCTAssertTrue(app.staticTexts["PadelSync Pro"].waitForExistence(timeout: 10), "the Pro sheet did not open")
+        XCTAssertTrue(
+            app.staticTexts["Your free trial has ended. Get Pro to keep hosting."].exists,
+            "the Pro sheet should say the trial ended"
+        )
+        shot("pro-sheet")
+    }
+
     // MARK: Helpers
 
     /// A team's half of the scoreboard, found by its spoken description.

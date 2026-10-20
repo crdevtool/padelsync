@@ -5,11 +5,13 @@ import UIKit
 @main
 struct PadelSyncApp: App {
     @StateObject private var store = CourtStore()
+    @StateObject private var pro = ProStore()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(store)
+                .environmentObject(pro)
                 .preferredColorScheme(.dark)
                 .tint(Palette.accent)
                 .onAppear {
@@ -24,7 +26,10 @@ struct RootView: View {
     private enum Screen { case home, setupSolo, setupHost, join, history }
 
     @EnvironmentObject private var store: CourtStore
+    @EnvironmentObject private var pro: ProStore
     @Environment(\.scenePhase) private var scenePhase
+    /// The Pro sheet, shown when hosting is asked for after the trial.
+    @State private var proSheet = false
     @State private var screen: Screen = .home
     /// Set when the host picks "New match" from the scoreboard.
     @State private var replacingMatch = false
@@ -60,8 +65,11 @@ struct RootView: View {
             } else {
                 HomeView(
                     hasSavedMatch: store.hasSavedMatch,
+                    pro: pro.status,
                     onNewMatch: { screen = .setupSolo },
-                    onHostMatch: { screen = .setupHost },
+                    onHostMatch: {
+                        if pro.canHost { screen = .setupHost } else { proSheet = true }
+                    },
                     onJoin: { screen = .join },
                     onResume: { store.resumeSavedMatch() },
                     onHistory: { screen = .history }
@@ -73,7 +81,15 @@ struct RootView: View {
         .onChange(of: keepAwake) { _, awake in
             UIApplication.shared.isIdleTimerDisabled = awake
         }
+        .sheet(isPresented: $proSheet) {
+            ProSheetView().environmentObject(pro)
+        }
         .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                // The trial's day count, and plans bought or lapsed meanwhile.
+                pro.publishStatus()
+                Task { await pro.refreshOwned() }
+            }
             if phase == .background {
                 if store.courtOpen { hiddenWithCourtOpen = true }
             } else if phase == .active && hiddenWithCourtOpen {
@@ -100,7 +116,10 @@ struct RootView: View {
                     store.startNewMatch(chosen)
                 } else {
                     store.startMatch(chosen)
-                    if hosting { store.openCourt() }
+                    // The trial starts here; it was checked on the home screen.
+                    if hosting {
+                        if pro.beginHosting() { store.openCourt() } else { proSheet = true }
+                    }
                 }
                 replacingMatch = false
                 screen = .home

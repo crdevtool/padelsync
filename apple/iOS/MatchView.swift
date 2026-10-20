@@ -118,6 +118,7 @@ private enum MatchSheet: String, Identifiable {
     case whoCanScore
     case voice
     case players
+    case pro
 
     var id: String { rawValue }
 }
@@ -125,6 +126,7 @@ private enum MatchSheet: String, Identifiable {
 /// The court with both halves, the net strip, the status line and the menu.
 private struct Scoreboard: View {
     @EnvironmentObject private var store: CourtStore
+    @EnvironmentObject private var pro: ProStore
     let score: ScoreView
     let onNewMatch: () -> Void
     let onLeave: () -> Void
@@ -201,9 +203,11 @@ private struct Scoreboard: View {
                 case .whoCanScore: WhoCanScoreSheet()
                 case .voice: VoiceSheet()
                 case .players: PlayersSheet(score: score)
+                case .pro: ProSheetView()
                 }
             }
             .environmentObject(store)
+            .environmentObject(pro)
         }
     }
 
@@ -254,6 +258,11 @@ private struct Scoreboard: View {
                 Button("Stop sharing this court") { store.closeCourt() }
             } else {
                 Button("Play with others") {
+                    // Needs Pro, or the trial, which starts here.
+                    guard pro.beginHosting() else {
+                        openSheet = .pro
+                        return
+                    }
                     if Walkthrough.pretendCourtOpen { pretendingOpen = true }
                     store.openCourt()
                 }

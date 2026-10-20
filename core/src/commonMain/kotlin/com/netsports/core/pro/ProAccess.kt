@@ -86,6 +86,10 @@ object ProText {
     const val PENDING = "Your payment is pending. Pro switches on as soon as the store confirms it."
     const val NOTHING_TO_RESTORE = "No Pro purchase was found for this store account."
 
+    /** Linked from the Pro sheet; Apple requires both next to a subscription. */
+    const val PRIVACY_URL = "https://crdevtool.github.io/padelsync-privacy/"
+    const val TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+
     /** Under "Join a court" and "New match" on the home screen. */
     const val FREE = "free"
 
