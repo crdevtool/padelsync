@@ -1,0 +1,509 @@
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin FROM-CACHE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+
+> Task :buildSrc:jar
+:jar: No valid plugin descriptors were found in META-INF/gradle-plugins
+
+> Task :mobile:preBuild UP-TO-DATE
+> Task :mobile:preDebugBuild UP-TO-DATE
+> Task :mobile:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :core:kmpPartiallyResolvedDependenciesChecker
+> Task :core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:jvmProcessResources NO-SOURCE
+> Task :core:processJvmMainResources SKIPPED
+> Task :androidkit:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :androidkit:preBuild UP-TO-DATE
+> Task :androidkit:preDebugBuild UP-TO-DATE
+> Task :androidkit:generateDebugResValues
+> Task :androidkit:generateDebugResources
+> Task :androidkit:packageDebugResources
+> Task :mobile:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :androidkit:javaPreCompileDebug
+> Task :androidkit:parseDebugLocalResources
+> Task :androidkit:writeDebugAarMetadata
+> Task :androidkit:compileDebugLibraryResources
+> Task :androidkit:generateDebugRFile
+> Task :mobile:generateDebugResValues FROM-CACHE
+> Task :mobile:checkDebugAarMetadata
+> Task :mobile:mapDebugSourceSetPaths
+> Task :mobile:generateDebugResources
+> Task :mobile:packageDebugResources
+> Task :mobile:parseDebugLocalResources
+> Task :mobile:createDebugCompatibleScreenManifests
+> Task :androidkit:extractDeepLinksDebug
+> Task :mobile:extractDeepLinksDebug
+> Task :mobile:javaPreCompileDebug FROM-CACHE
+> Task :androidkit:mergeDebugShaders
+> Task :androidkit:compileDebugShaders NO-SOURCE
+> Task :androidkit:generateDebugAssets UP-TO-DATE
+> Task :androidkit:mergeDebugAssets
+> Task :mobile:mergeDebugShaders
+> Task :mobile:compileDebugShaders NO-SOURCE
+> Task :mobile:generateDebugAssets UP-TO-DATE
+> Task :androidkit:processDebugManifest
+> Task :mobile:mergeDebugAssets
+> Task :mobile:mergeDebugResources
+> Task :mobile:processDebugMainManifest
+> Task :mobile:processDebugManifest
+> Task :mobile:compressDebugAssets
+> Task :mobile:desugarDebugFileDependencies
+> Task :androidkit:mergeDebugJniLibFolders
+> Task :mobile:checkDebugDuplicateClasses
+> Task :mobile:processDebugManifestForPackage
+> Task :mobile:processDebugResources
+> Task :core:compileKotlinJvm
+> Task :mobile:mergeExtDexDebug
+> Task :core:compileJvmMainJava NO-SOURCE
+> Task :core:jvmMainClasses
+> Task :core:jvmJar
+> Task :androidkit:mergeDebugNativeLibs NO-SOURCE
+> Task :androidkit:copyDebugJniLibsProjectOnly
+> Task :mobile:mergeDebugJniLibFolders
+> Task :mobile:validateSigningDebug
+> Task :mobile:mergeDebugNativeLibs
+> Task :mobile:writeDebugAppMetadata
+> Task :mobile:writeDebugSigningConfigVersions
+> Task :wear:preBuild UP-TO-DATE
+> Task :wear:preDebugBuild UP-TO-DATE
+> Task :wear:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :wear:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :wear:checkDebugAarMetadata
+> Task :mobile:stripDebugDebugSymbols
+> Task :wear:generateDebugResValues FROM-CACHE
+> Task :wear:mapDebugSourceSetPaths
+> Task :wear:generateDebugResources
+> Task :wear:packageDebugResources
+> Task :wear:parseDebugLocalResources
+> Task :wear:createDebugCompatibleScreenManifests
+> Task :wear:extractDeepLinksDebug FROM-CACHE
+> Task :wear:processDebugMainManifest
+> Task :wear:processDebugManifest
+> Task :wear:processDebugManifestForPackage
+> Task :wear:javaPreCompileDebug FROM-CACHE
+> Task :wear:mergeDebugShaders
+> Task :wear:compileDebugShaders NO-SOURCE
+> Task :wear:generateDebugAssets UP-TO-DATE
+> Task :wear:mergeDebugAssets
+> Task :wear:compressDebugAssets FROM-CACHE
+> Task :wear:desugarDebugFileDependencies
+> Task :wear:mergeDebugResources
+> Task :wear:checkDebugDuplicateClasses
+> Task :wear:processDebugResources
+> Task :androidkit:compileDebugKotlin
+> Task :androidkit:compileDebugJavaWithJavac NO-SOURCE
+> Task :androidkit:bundleLibRuntimeToJarDebug
+> Task :androidkit:bundleLibCompileToJarDebug
+> Task :androidkit:processDebugJavaRes
+> Task :androidkit:bundleLibRuntimeToDirDebug
+> Task :mobile:mergeLibDexDebug
+> Task :wear:mergeLibDexDebug
+> Task :wear:mergeDebugJniLibFolders
+> Task :wear:mergeDebugNativeLibs
+> Task :wear:stripDebugDebugSymbols
+> Task :wear:validateSigningDebug
+> Task :wear:writeDebugAppMetadata
+> Task :wear:writeDebugSigningConfigVersions
+> Task :wear:mergeExtDexDebug
+> Task :wear:compileDebugKotlin
+> Task :wear:compileDebugJavaWithJavac NO-SOURCE
+> Task :wear:dexBuilderDebug
+> Task :wear:mergeDebugGlobalSynthetics
+> Task :wear:processDebugJavaRes
+> Task :wear:mergeProjectDexDebug
+> Task :wear:mergeDebugJavaResource
+> Task :wear:packageDebug
+> Task :wear:createDebugApkListingFileRedirect
+> Task :wear:assembleDebug
+> Task :mobile:compileDebugKotlin
+> Task :mobile:compileDebugJavaWithJavac NO-SOURCE
+> Task :mobile:dexBuilderDebug
+> Task :mobile:mergeDebugGlobalSynthetics
+> Task :mobile:processDebugJavaRes
+> Task :mobile:mergeProjectDexDebug
+> Task :mobile:mergeDebugJavaResource
+> Task :mobile:packageDebug
+> Task :mobile:createDebugApkListingFileRedirect
+> Task :mobile:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run-1792529735929.json
+
+BUILD SUCCESSFUL in 2m 14s
+95 actionable tasks: 88 executed, 7 from cache
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin UP-TO-DATE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+> Task :mobile:preBuild UP-TO-DATE
+> Task :mobile:preDebugBuild UP-TO-DATE
+> Task :mobile:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :core:kmpPartiallyResolvedDependenciesChecker
+> Task :core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:compileKotlinJvm UP-TO-DATE
+> Task :core:compileJvmMainJava NO-SOURCE
+> Task :core:jvmProcessResources NO-SOURCE
+> Task :core:processJvmMainResources SKIPPED
+> Task :core:jvmMainClasses UP-TO-DATE
+> Task :core:jvmJar UP-TO-DATE
+> Task :androidkit:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :androidkit:preBuild UP-TO-DATE
+> Task :androidkit:preDebugBuild UP-TO-DATE
+> Task :androidkit:generateDebugResValues UP-TO-DATE
+> Task :androidkit:generateDebugResources UP-TO-DATE
+> Task :androidkit:packageDebugResources UP-TO-DATE
+> Task :androidkit:parseDebugLocalResources UP-TO-DATE
+> Task :androidkit:generateDebugRFile UP-TO-DATE
+> Task :androidkit:compileDebugKotlin UP-TO-DATE
+> Task :androidkit:javaPreCompileDebug UP-TO-DATE
+> Task :androidkit:compileDebugJavaWithJavac NO-SOURCE
+> Task :androidkit:bundleLibCompileToJarDebug UP-TO-DATE
+> Task :mobile:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :androidkit:compileDebugLibraryResources UP-TO-DATE
+> Task :androidkit:writeDebugAarMetadata UP-TO-DATE
+> Task :mobile:checkDebugAarMetadata UP-TO-DATE
+> Task :mobile:generateDebugResValues UP-TO-DATE
+> Task :mobile:mapDebugSourceSetPaths UP-TO-DATE
+> Task :mobile:generateDebugResources UP-TO-DATE
+> Task :mobile:mergeDebugResources UP-TO-DATE
+> Task :mobile:packageDebugResources UP-TO-DATE
+> Task :mobile:parseDebugLocalResources UP-TO-DATE
+> Task :mobile:createDebugCompatibleScreenManifests
+> Task :androidkit:extractDeepLinksDebug UP-TO-DATE
+> Task :androidkit:processDebugManifest UP-TO-DATE
+> Task :mobile:extractDeepLinksDebug
+> Task :mobile:processDebugMainManifest
+> Task :mobile:processDebugManifest
+> Task :mobile:javaPreCompileDebug UP-TO-DATE
+> Task :androidkit:mergeDebugShaders UP-TO-DATE
+> Task :androidkit:compileDebugShaders NO-SOURCE
+> Task :mobile:processDebugManifestForPackage
+> Task :androidkit:generateDebugAssets UP-TO-DATE
+> Task :androidkit:mergeDebugAssets UP-TO-DATE
+> Task :mobile:mergeDebugShaders UP-TO-DATE
+> Task :mobile:compileDebugShaders NO-SOURCE
+> Task :mobile:generateDebugAssets UP-TO-DATE
+> Task :mobile:mergeDebugAssets UP-TO-DATE
+> Task :mobile:compressDebugAssets UP-TO-DATE
+> Task :androidkit:bundleLibRuntimeToJarDebug UP-TO-DATE
+> Task :mobile:desugarDebugFileDependencies UP-TO-DATE
+> Task :androidkit:processDebugJavaRes UP-TO-DATE
+> Task :mobile:checkDebugDuplicateClasses UP-TO-DATE
+> Task :mobile:mergeExtDexDebug UP-TO-DATE
+> Task :androidkit:bundleLibRuntimeToDirDebug UP-TO-DATE
+> Task :androidkit:mergeDebugJniLibFolders UP-TO-DATE
+> Task :androidkit:mergeDebugNativeLibs NO-SOURCE
+> Task :mobile:mergeLibDexDebug UP-TO-DATE
+> Task :androidkit:copyDebugJniLibsProjectOnly UP-TO-DATE
+> Task :mobile:mergeDebugJniLibFolders UP-TO-DATE
+> Task :mobile:mergeDebugNativeLibs UP-TO-DATE
+> Task :mobile:stripDebugDebugSymbols UP-TO-DATE
+> Task :mobile:validateSigningDebug UP-TO-DATE
+> Task :mobile:writeDebugAppMetadata UP-TO-DATE
+> Task :mobile:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :wear:preBuild UP-TO-DATE
+> Task :wear:preDebugBuild UP-TO-DATE
+> Task :wear:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :wear:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :wear:checkDebugAarMetadata UP-TO-DATE
+> Task :wear:generateDebugResValues UP-TO-DATE
+> Task :wear:mapDebugSourceSetPaths UP-TO-DATE
+> Task :wear:generateDebugResources UP-TO-DATE
+> Task :wear:mergeDebugResources UP-TO-DATE
+> Task :wear:packageDebugResources UP-TO-DATE
+> Task :wear:parseDebugLocalResources UP-TO-DATE
+> Task :wear:createDebugCompatibleScreenManifests
+> Task :wear:extractDeepLinksDebug FROM-CACHE
+> Task :wear:processDebugMainManifest
+> Task :wear:processDebugManifest
+> Task :wear:javaPreCompileDebug UP-TO-DATE
+> Task :wear:mergeDebugShaders UP-TO-DATE
+> Task :wear:compileDebugShaders NO-SOURCE
+> Task :wear:processDebugManifestForPackage
+> Task :wear:generateDebugAssets UP-TO-DATE
+> Task :wear:mergeDebugAssets UP-TO-DATE
+> Task :wear:compressDebugAssets UP-TO-DATE
+> Task :wear:desugarDebugFileDependencies UP-TO-DATE
+> Task :wear:checkDebugDuplicateClasses UP-TO-DATE
+> Task :wear:mergeExtDexDebug UP-TO-DATE
+> Task :wear:mergeLibDexDebug UP-TO-DATE
+> Task :wear:mergeDebugJniLibFolders UP-TO-DATE
+> Task :wear:mergeDebugNativeLibs UP-TO-DATE
+> Task :wear:stripDebugDebugSymbols UP-TO-DATE
+> Task :wear:validateSigningDebug UP-TO-DATE
+> Task :wear:writeDebugAppMetadata UP-TO-DATE
+> Task :wear:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :mobile:processDebugResources
+> Task :mobile:compileDebugKotlin UP-TO-DATE
+> Task :mobile:compileDebugJavaWithJavac NO-SOURCE
+> Task :mobile:dexBuilderDebug UP-TO-DATE
+> Task :mobile:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :mobile:processDebugJavaRes UP-TO-DATE
+> Task :mobile:mergeDebugJavaResource UP-TO-DATE
+> Task :mobile:mergeProjectDexDebug UP-TO-DATE
+> Task :wear:processDebugResources
+> Task :wear:compileDebugKotlin UP-TO-DATE
+> Task :wear:compileDebugJavaWithJavac NO-SOURCE
+> Task :wear:dexBuilderDebug UP-TO-DATE
+> Task :wear:mergeDebugGlobalSynthetics UP-TO-DATE
+> Task :wear:processDebugJavaRes UP-TO-DATE
+> Task :wear:mergeDebugJavaResource UP-TO-DATE
+> Task :wear:mergeProjectDexDebug UP-TO-DATE
+> Task :wear:packageDebug
+> Task :wear:createDebugApkListingFileRedirect
+> Task :wear:assembleDebug
+> Task :mobile:packageDebug
+> Task :mobile:createDebugApkListingFileRedirect
+> Task :mobile:assembleDebug
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_3-1792529868544.json
+
+BUILD SUCCESSFUL in 3s
+95 actionable tasks: 16 executed, 1 from cache, 78 up-to-date
+== Upload key ==
+made a throwaway key for this rehearsal
+the key opens and signs. Its SHA-256 fingerprint: 71:3E:76:03:C9:AC:2D:FE:A4:50:5A:83:48:5E:8F:DE:C5:FC:98:2B:42:72:C4:2C:3D:25:77:EB:FD:A8:E0:E0
+== Build the bundles, and the same build as APKs for checking ==
+> Task :buildSrc:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :buildSrc:compileKotlin UP-TO-DATE
+> Task :buildSrc:compileJava NO-SOURCE
+> Task :buildSrc:compileGroovy NO-SOURCE
+> Task :buildSrc:pluginDescriptors UP-TO-DATE
+> Task :buildSrc:processResources NO-SOURCE
+> Task :buildSrc:classes UP-TO-DATE
+> Task :buildSrc:jar UP-TO-DATE
+> Task :mobile:preBuild UP-TO-DATE
+> Task :mobile:preReleaseBuild UP-TO-DATE
+> Task :mobile:extractReleaseVersionControlInfo
+> Task :androidkit:preBuild UP-TO-DATE
+> Task :androidkit:preReleaseBuild UP-TO-DATE
+> Task :androidkit:mergeReleaseShaders
+> Task :androidkit:compileReleaseShaders NO-SOURCE
+> Task :androidkit:generateReleaseAssets UP-TO-DATE
+> Task :androidkit:mergeReleaseAssets
+> Task :mobile:mergeReleaseShaders
+> Task :mobile:compileReleaseShaders NO-SOURCE
+> Task :mobile:generateReleaseAssets UP-TO-DATE
+> Task :mobile:mergeReleaseAssets
+> Task :core:kmpPartiallyResolvedDependenciesChecker
+> Task :core:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :core:compileKotlinJvm UP-TO-DATE
+> Task :core:compileJvmMainJava NO-SOURCE
+> Task :core:jvmProcessResources NO-SOURCE
+> Task :core:processJvmMainResources SKIPPED
+> Task :core:jvmMainClasses UP-TO-DATE
+> Task :core:jvmJar UP-TO-DATE
+> Task :androidkit:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :androidkit:generateReleaseResValues FROM-CACHE
+> Task :androidkit:generateReleaseResources
+> Task :androidkit:packageReleaseResources
+> Task :androidkit:parseReleaseLocalResources FROM-CACHE
+> Task :androidkit:generateReleaseRFile FROM-CACHE
+> Task :androidkit:javaPreCompileRelease FROM-CACHE
+> Task :mobile:buildKotlinToolingMetadata
+> Task :mobile:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :mobile:generateReleaseResValues FROM-CACHE
+> Task :androidkit:writeReleaseAarMetadata
+> Task :mobile:checkReleaseAarMetadata
+> Task :mobile:mapReleaseSourceSetPaths
+> Task :mobile:generateReleaseResources
+> Task :mobile:checkReleaseDuplicateClasses
+> Task :mobile:packageReleaseResources
+> Task :mobile:parseReleaseLocalResources FROM-CACHE
+> Task :mobile:createReleaseCompatibleScreenManifests
+> Task :androidkit:extractDeepLinksRelease FROM-CACHE
+> Task :androidkit:processReleaseManifest FROM-CACHE
+> Task :mobile:extractDeepLinksRelease FROM-CACHE
+> Task :mobile:processReleaseMainManifest
+> Task :mobile:processReleaseManifest
+> Task :mobile:javaPreCompileRelease FROM-CACHE
+> Task :androidkit:prepareReleaseArtProfile
+> Task :mobile:processReleaseManifestForPackage
+> Task :mobile:mergeReleaseArtProfile
+> Task :mobile:extractProguardFiles
+> Task :mobile:mergeReleaseStartupProfile
+> Task :androidkit:mergeReleaseJniLibFolders
+> Task :androidkit:mergeReleaseNativeLibs NO-SOURCE
+> Task :androidkit:copyReleaseJniLibsProjectOnly
+> Task :mobile:mergeReleaseJniLibFolders
+> Task :mobile:writeReleaseAppMetadata
+> Task :mobile:mergeReleaseNativeLibs
+> Task :mobile:collectReleaseDependencies
+> Task :mobile:stripReleaseDebugSymbols
+> Task :mobile:configureReleaseDependencies
+> Task :androidkit:extractProguardFiles
+> Task :mobile:extractReleaseNativeSymbolTables
+> Task :androidkit:prepareLintJarForPublish
+> Task :androidkit:stripReleaseDebugSymbols NO-SOURCE
+> Task :androidkit:copyReleaseJniLibsProjectAndLocalJars
+> Task :androidkit:extractDeepLinksForAarRelease
+> Task :androidkit:writeReleaseLintModelMetadata
+> Task :mobile:validateSigningRelease
+> Task :wear:preBuild UP-TO-DATE
+> Task :wear:preReleaseBuild UP-TO-DATE
+> Task :mobile:parseReleaseIntegrityConfig
+> Task :wear:extractReleaseVersionControlInfo
+> Task :wear:mergeReleaseShaders
+> Task :wear:compileReleaseShaders NO-SOURCE
+> Task :wear:generateReleaseAssets UP-TO-DATE
+> Task :wear:mergeReleaseAssets
+> Task :wear:buildKotlinToolingMetadata
+> Task :wear:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :wear:checkReleaseDuplicateClasses
+> Task :wear:checkReleaseAarMetadata
+> Task :wear:generateReleaseResValues FROM-CACHE
+> Task :wear:mapReleaseSourceSetPaths
+> Task :wear:generateReleaseResources
+> Task :mobile:mergeReleaseResources
+> Task :wear:packageReleaseResources
+> Task :wear:parseReleaseLocalResources FROM-CACHE
+> Task :wear:createReleaseCompatibleScreenManifests
+> Task :wear:extractDeepLinksRelease FROM-CACHE
+> Task :wear:processReleaseMainManifest
+> Task :wear:processReleaseManifest
+> Task :wear:processReleaseManifestForPackage
+> Task :wear:javaPreCompileRelease FROM-CACHE
+> Task :wear:mergeReleaseArtProfile
+> Task :wear:extractProguardFiles
+> Task :wear:mergeReleaseStartupProfile
+> Task :wear:mergeReleaseJniLibFolders
+> Task :wear:mergeReleaseNativeLibs
+> Task :wear:stripReleaseDebugSymbols
+> Task :wear:writeReleaseAppMetadata
+> Task :wear:collectReleaseDependencies
+> Task :wear:configureReleaseDependencies
+> Task :wear:extractReleaseNativeSymbolTables FROM-CACHE
+> Task :wear:parseReleaseIntegrityConfig FROM-CACHE
+> Task :wear:validateSigningRelease
+> Task :mobile:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :mobile:compressReleaseAssets
+> Task :wear:mergeReleaseResources
+> Task :mobile:processReleaseResources
+> Task :mobile:sdkReleaseDependencyData
+> Task :mobile:writeReleaseSigningConfigVersions
+> Task :wear:mergeReleaseNativeDebugMetadata NO-SOURCE
+> Task :wear:compressReleaseAssets FROM-CACHE
+> Task :wear:sdkReleaseDependencyData
+> Task :wear:writeReleaseSigningConfigVersions
+> Task :wear:processReleaseResources
+> Task :androidkit:compileReleaseKotlin
+> Task :androidkit:compileReleaseJavaWithJavac NO-SOURCE
+> Task :androidkit:mergeReleaseGeneratedProguardFiles
+> Task :androidkit:exportReleaseConsumerProguardFiles
+> Task :androidkit:bundleLibCompileToJarRelease
+> Task :androidkit:processReleaseJavaRes
+> Task :androidkit:bundleLibRuntimeToJarRelease
+> Task :androidkit:generateReleaseLintVitalModel
+> Task :androidkit:createFullJarRelease
+> Task :androidkit:generateReleaseLintModel
+> Task :androidkit:extractReleaseAnnotations
+> Task :androidkit:mergeReleaseConsumerProguardFiles
+> Task :androidkit:mergeReleaseJavaResource
+> Task :androidkit:syncReleaseLibJars
+> Task :androidkit:bundleReleaseLocalLintAar
+> Task :wear:compileReleaseKotlin
+> Task :wear:compileReleaseJavaWithJavac NO-SOURCE
+> Task :wear:mergeReleaseGeneratedProguardFiles
+> Task :wear:processReleaseJavaRes
+> Task :wear:mergeReleaseJavaResource
+> Task :wear:generateReleaseLintVitalReportModel
+> Task :wear:expandReleaseArtProfileWildcards
+> Task :mobile:compileReleaseKotlin
+> Task :mobile:compileReleaseJavaWithJavac NO-SOURCE
+> Task :mobile:mergeReleaseGeneratedProguardFiles
+> Task :mobile:processReleaseJavaRes
+> Task :mobile:mergeReleaseJavaResource
+> Task :mobile:generateReleaseLintVitalReportModel
+> Task :mobile:expandReleaseArtProfileWildcards
+> Task :androidkit:lintVitalAnalyzeRelease
+> Task :wear:lintVitalAnalyzeRelease
+> Task :wear:minifyReleaseWithR8
+> Task :wear:lintVitalReportRelease
+> Task :wear:lintVitalRelease
+> Task :mobile:lintVitalAnalyzeRelease
+> Task :mobile:lintVitalReportRelease
+> Task :mobile:lintVitalRelease
+> Task :wear:buildReleasePreBundle
+> Task :wear:convertShrunkResourcesToBinaryRelease
+> Task :wear:optimizeReleaseResources
+> Task :wear:compileReleaseArtProfile
+> Task :wear:packageRelease
+> Task :wear:createReleaseApkListingFileRedirect
+> Task :wear:assembleRelease
+> Task :wear:packageReleaseBundle
+> Task :wear:signReleaseBundle
+> Task :wear:produceReleaseBundleIdeListingFile
+> Task :wear:createReleaseBundleListingFileRedirect
+> Task :wear:bundleRelease
+> Task :mobile:minifyReleaseWithR8
+> Task :mobile:buildReleasePreBundle
+> Task :mobile:convertShrunkResourcesToBinaryRelease
+> Task :mobile:optimizeReleaseResources
+> Task :mobile:compileReleaseArtProfile
+> Task :mobile:packageRelease
+> Task :mobile:createReleaseApkListingFileRedirect
+> Task :mobile:assembleRelease
+> Task :mobile:packageReleaseBundle
+> Task :mobile:signReleaseBundle
+> Task :mobile:produceReleaseBundleIdeListingFile
+> Task :mobile:createReleaseBundleListingFileRedirect
+> Task :mobile:bundleRelease
+gradle/actions: Writing build results to /home/runner/work/_temp/.gradle-actions/build-results/__run_5-1792529878218.json
+
+[Incubating] Problems report is available at: file:///home/runner/work/padelsync/padelsync/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14.3/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 2m 19s
+148 actionable tasks: 126 executed, 17 from cache, 5 up-to-date
+== Check them ==
+ok: the app ID is com.crdevtool.padelsync
+ok: version 1.0, version code 1
+ok: the version code ends in 1, as the phone app's must
+ok: it targets API 36 (Google Play asks for 36 or newer)
+ok: the build is not debuggable
+ok: it has a launcher icon (res/BW.xml) and is called 'PadelSync'
+ok: it does not ask for a watch, so Play offers it to phones
+ok: the bundle is signed with the upload key
+ok: the APK of the same build is signed with the upload key
+ok: the bundle carries the file Play uses to make crash reports readable
+ok: its 4 native libraries are built for 16 KB pages
+note: the bundle has native code and no debug symbols; Play Console shows a warning, which is expected
+::notice::The phone bundle has native code without debug symbols (the Android library ships them stripped). Play Console shows a warning; the upload works.
+ok: fragment 1.8.9
+sizes: bundle 3703 KB, APK 1616 KB
+RESULT 1.0 1
+ok: the app ID is com.crdevtool.padelsync
+ok: version 1.0, version code 2
+ok: the version code ends in 2, as the watch app's must
+ok: it targets API 35 (Google Play asks for 35 or newer)
+ok: the build is not debuggable
+ok: it has a launcher icon (res/BW.xml) and is called 'PadelSync'
+ok: it declares itself a watch app, so Play offers it to watches only
+ok: it declares that it works without a phone (standalone)
+ok: the bundle is signed with the upload key
+ok: the APK of the same build is signed with the upload key
+ok: the bundle carries the file Play uses to make crash reports readable
+ok: its 4 native libraries are built for 16 KB pages
+note: the bundle has native code and no debug symbols; Play Console shows a warning, which is expected
+::notice::The watch bundle has native code without debug symbols (the Android library ships them stripped). Play Console shows a warning; the upload works.
+ok: fragment 1.8.9
+sizes: bundle 2781 KB, APK 2250 KB
+RESULT 1.0 2
+ok: version 1.0; version codes 1 (phone) and 2 (watch) differ
+total 6496
+drwxr-xr-x  2 runner runner    4096 Oct 20 21:00 .
+drwxr-xr-x 18 runner runner    4096 Oct 20 21:00 ..
+-rw-r--r--  1 runner runner 3792231 Oct 20 21:00 PadelSync-phone-1.0-1.aab
+-rw-r--r--  1 runner runner 2848244 Oct 20 21:00 PadelSync-watch-1.0-2.aab
+== Done: the release build signs and passes the checks. These bundles carry a throwaway key and are not for upload. ==
