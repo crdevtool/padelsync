@@ -260,6 +260,10 @@ broadcast, so someone on the next court cannot join by accident.
 | iPhone | Yes | Yes | Yes, while the app is on screen (see below) | Yes |
 | Apple Watch | Yes | Yes | **No** | **No**: it asks for a phone |
 
+Hosting a court needs PadelSync Pro after a 14-day trial on each device;
+scoring alone and joining stay free. Taking over a court that lost its host
+is free, as the court was opened with Pro. See [pro.md](pro.md).
+
 **Apple Watch cannot host.** watchOS lets an app connect to Bluetooth devices
 but not advertise as one, and a host has to advertise. This is an Apple
 platform rule, not something the app can work around. In practice it means a
