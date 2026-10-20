@@ -15,13 +15,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.padelsync.kit.CourtController
 import com.padelsync.kit.CourtMode
+import com.padelsync.kit.ProStore
 
 private enum class Screen { HOME, SETUP_SOLO, SETUP_HOST, JOIN, HISTORY }
 
 /** Chooses the screen. A live match always wins, so the app reopens on the scoreboard. */
 @Composable
-fun AppRoot(controller: CourtController) {
+fun AppRoot(controller: CourtController, pro: ProStore) {
     val ui by controller.ui.collectAsState()
+    val proUi by pro.ui.collectAsState()
+    var proSheet by rememberSaveable { mutableStateOf(false) }
     var screen by rememberSaveable { mutableStateOf(Screen.HOME) }
     // Set when the host picks "New match" from the scoreboard.
     var replacingMatch by rememberSaveable { mutableStateOf(false) }
@@ -29,6 +32,15 @@ fun AppRoot(controller: CourtController) {
     // Lives here, above every screen, so a permission answer still arrives
     // after the screen that asked has been replaced by the scoreboard.
     val gate = rememberBluetoothGate()
+
+    // Opening a court for others needs Pro, or the trial, which starts here.
+    val openCourt: () -> Unit = {
+        if (pro.beginHosting()) {
+            gate { controller.openCourt() }
+        } else {
+            proSheet = true
+        }
+    }
 
     Box(
         Modifier
@@ -41,6 +53,7 @@ fun AppRoot(controller: CourtController) {
                 ui = ui,
                 controller = controller,
                 gate = gate,
+                openCourt = openCourt,
                 onNewMatch = { replacingMatch = true },
                 onLeft = { screen = Screen.HOME },
             )
@@ -71,7 +84,7 @@ fun AppRoot(controller: CourtController) {
                             controller.startNewMatch(setup)
                         } else {
                             controller.startMatch(setup)
-                            if (hosting) gate { controller.openCourt() }
+                            if (hosting) openCourt()
                         }
                         replacingMatch = false
                         screen = Screen.HOME
@@ -93,16 +106,26 @@ fun AppRoot(controller: CourtController) {
 
             else -> HomeScreen(
                 hasSavedMatch = ui.hasSavedMatch,
+                pro = proUi.status,
                 onNewMatch = { screen = Screen.SETUP_SOLO },
-                onHostMatch = { screen = Screen.SETUP_HOST },
+                onHostMatch = {
+                    if (pro.canHost) {
+                        screen = Screen.SETUP_HOST
+                    } else {
+                        proSheet = true
+                    }
+                },
                 onJoin = { screen = Screen.JOIN },
                 onResume = {
                     // A court that was open when the app closed opens again,
-                    // so the guests still looking for it get back in.
+                    // so the guests still looking for it get back in. It was
+                    // opened with Pro or the trial, so the match may finish.
                     if (controller.resumeSavedMatch()) gate { controller.openCourt() }
                 },
                 onHistory = { screen = Screen.HISTORY },
             )
         }
+
+        if (proSheet) ProSheet(store = pro, onDismiss = { proSheet = false })
     }
 }

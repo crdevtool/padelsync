@@ -78,6 +78,8 @@ fun ScoreScreen(
     ui: CourtUiState,
     controller: CourtController,
     gate: (action: () -> Unit) -> Unit,
+    /** "Play with others": opens the court, or the Pro sheet once the trial is over. */
+    openCourt: () -> Unit,
     onNewMatch: () -> Unit,
     onLeft: () -> Unit,
 ) {
@@ -126,7 +128,7 @@ fun ScoreScreen(
             ui = ui,
             score = score,
             controller = controller,
-            gate = gate,
+            openCourt = openCourt,
             onNewMatch = onNewMatch,
             onLeave = { confirmLeave = true },
             onTakeOver = { confirmTakeOver = true },
@@ -214,7 +216,7 @@ private fun Scoreboard(
     ui: CourtUiState,
     score: ScoreView,
     controller: CourtController,
-    gate: (action: () -> Unit) -> Unit,
+    openCourt: () -> Unit,
     onNewMatch: () -> Unit,
     onLeave: () -> Unit,
     onTakeOver: () -> Unit,
@@ -283,7 +285,7 @@ private fun Scoreboard(
                 ui = ui,
                 score = score,
                 hosting = hosting,
-                gate = gate,
+                openCourt = openCourt,
                 controller = controller,
                 onOpen = { sheet = it },
                 onSwapServer = { score.server?.let { tap(Action.swapServerFor(it)) } },
@@ -452,7 +454,7 @@ private fun StatusBar(
     ui: CourtUiState,
     score: ScoreView,
     hosting: Boolean,
-    gate: (action: () -> Unit) -> Unit,
+    openCourt: () -> Unit,
     controller: CourtController,
     onOpen: (Sheet) -> Unit,
     onSwapServer: () -> Unit,
@@ -504,7 +506,7 @@ private fun StatusBar(
                     if (ui.courtOpen) {
                         item("Stop sharing this court") { controller.closeCourt() }
                     } else {
-                        item("Play with others") { gate { controller.openCourt() } }
+                        item("Play with others") { openCourt() }
                     }
                     item("Who can score") { onOpen(Sheet.WHO_CAN_SCORE) }
                     item("Players") { onOpen(Sheet.PLAYERS) }

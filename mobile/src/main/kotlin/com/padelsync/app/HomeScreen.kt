@@ -31,10 +31,14 @@ import androidx.compose.ui.unit.sp
 import com.netsports.core.engine.ServeSide
 import com.netsports.core.engine.Sport
 import com.netsports.core.engine.Team
+import com.netsports.core.pro.ProStatus
+import com.netsports.core.pro.ProText
 
 @Composable
 fun HomeScreen(
     hasSavedMatch: Boolean,
+    /** Shows PRO and the trial on "Host a match". */
+    pro: ProStatus,
     onNewMatch: () -> Unit,
     onHostMatch: () -> Unit,
     onJoin: () -> Unit,
@@ -74,7 +78,7 @@ fun HomeScreen(
 
         HomeAction(
             title = "New match",
-            caption = "Keep score on this phone",
+            caption = "Keep score on this phone · ${ProText.FREE}",
             background = Palette.Accent,
             titleColor = Palette.OnAccent,
             captionColor = Palette.OnAccent.copy(alpha = 0.75f),
@@ -88,11 +92,13 @@ fun HomeScreen(
             titleColor = Palette.OnBackground,
             captionColor = Palette.Muted,
             onClick = onHostMatch,
+            proMark = pro.showsProMark,
+            line = pro.homeLine,
         )
         Spacer(Modifier.height(14.dp))
         HomeAction(
             title = "Join a court",
-            caption = "Follow or score a match someone nearby is hosting",
+            caption = "Follow or score a match someone nearby is hosting · ${ProText.FREE}",
             background = Palette.TeamB.copy(alpha = 0.22f),
             titleColor = Palette.OnBackground,
             captionColor = Palette.Muted,
@@ -124,6 +130,10 @@ private fun HomeAction(
     titleColor: Color,
     captionColor: Color,
     onClick: () -> Unit,
+    /** A small PRO label after the title. */
+    proMark: Boolean = false,
+    /** A third line in the accent colour, for the trial. */
+    line: String? = null,
 ) {
     Row(
         Modifier
@@ -135,10 +145,34 @@ private fun HomeAction(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 22.sp, fontWeight = FontWeight.Black, color = titleColor)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, fontSize = 22.sp, fontWeight = FontWeight.Black, color = titleColor)
+                if (proMark) {
+                    Spacer(Modifier.width(8.dp))
+                    ProMark()
+                }
+            }
             Text(caption, fontSize = 15.sp, color = captionColor)
+            if (line != null) {
+                Text(line, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Palette.Accent)
+            }
         }
         Box(Modifier.width(8.dp))
         Text("›", fontSize = 30.sp, fontWeight = FontWeight.Black, color = titleColor)
     }
+}
+
+/** The small PRO label next to a feature that needs Pro. */
+@Composable
+fun ProMark() {
+    Text(
+        "PRO",
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Black,
+        color = Palette.OnAccent,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Palette.Accent)
+            .padding(horizontal = 7.dp, vertical = 1.dp),
+    )
 }

@@ -29,4 +29,6 @@ dependencies {
     api(project(":core"))
     api(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.core.ktx)
+    // ProStore: PadelSync Pro on Google Play, for the phone and the watch.
+    implementation(libs.play.billing)
 }

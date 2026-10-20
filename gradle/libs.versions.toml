@@ -12,6 +12,8 @@ wear-remote-interactions = "1.2.0"
 # Play services still asks for fragment 1.1.0, which Play Console flags as
 # outdated. Asking for a current one here makes Gradle pick it instead.
 fragment = "1.8.9"
+# Google Play requires version 8 or newer of the billing library.
+billing = "8.3.0"
 
 [libraries]
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
@@ -25,6 +27,8 @@ androidx-wear-compose-material = { group = "androidx.wear.compose", name = "comp
 androidx-wear-compose-foundation = { group = "androidx.wear.compose", name = "compose-foundation", version.ref = "wear-compose" }
 # Phone and watch finding each other: which watches are connected, and which have the app.
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "play-services-wearable" }
+# Buying PadelSync Pro on Google Play.
+play-billing = { group = "com.android.billingclient", name = "billing", version.ref = "billing" }
 androidx-fragment = { group = "androidx.fragment", name = "fragment", version.ref = "fragment" }
 # Opening a page on the watch from the phone (the watch's Play Store).
 androidx-wear-remote-interactions = { group = "androidx.wear", name = "wear-remote-interactions", version.ref = "wear-remote-interactions" }

@@ -165,6 +165,21 @@ tap "Join a court"; sleep 3
 shot join
 texts
 
+# PadelSync Pro. "Play with others" above opened a court, which started this
+# phone's trial. A debug build can be told the trial ended, to show the rest.
+adb shell input keyevent KEYCODE_BACK; sleep 1
+wait_for "Join a court"
+expect "Free trial · 14 days left" "opening a court starts the 14-day trial"
+shot home-trial
+adb shell am start -S -n "$PHONE_ACTIVITY" --ez trial_ended true
+wait_for "Join a court" 60
+expect "Free trial ended" "the home screen says when the trial is over"
+shot home-trial-ended
+tap "Host a match"
+expect "PadelSync Pro" "hosting after the trial opens the Pro sheet"
+shot pro-sheet
+texts
+
 check_crashes
 log "RESULT: $([ "$FAILED" = 0 ] && echo all checks passed || echo the app crashed)"
 exit $FAILED

@@ -37,6 +37,7 @@ import androidx.wear.compose.material.Text
 import com.netsports.core.engine.MatchConfig
 import com.netsports.core.engine.Team
 import com.netsports.core.match.Action
+import com.netsports.core.pro.ProText
 import com.netsports.core.sync.Sessions
 import com.netsports.core.ui.ScoreView
 import com.padelsync.kit.BlePermissions
@@ -45,6 +46,7 @@ import com.padelsync.kit.CourtMode
 import com.padelsync.kit.CourtUiState
 import com.padelsync.kit.Labels
 import com.padelsync.kit.NearbyCourt
+import com.padelsync.kit.ProStore
 import kotlinx.coroutines.delay
 
 @Composable
@@ -260,6 +262,11 @@ fun CodeScreen(onBack: () -> Unit, onDone: (Int?) -> Unit) {
 fun MenuScreen(ui: CourtUiState, controller: CourtController, onTakeOver: () -> Unit, onClose: () -> Unit) {
     val gate = rememberBluetoothGate()
     val hosting = ui.mode == CourtMode.HOST
+    val pro = ProStore.get(LocalContext.current)
+    // Set when "Play with others" was refused for want of Pro.
+    var needsPro by remember { mutableStateOf(false) }
+    // Pro bought on the phone since this watch last asked Google Play.
+    LaunchedEffect(Unit) { pro.refresh() }
 
     // A problem is shown for a while, then cleared.
     LaunchedEffect(ui.error) {
@@ -329,7 +336,26 @@ fun MenuScreen(ui: CourtUiState, controller: CourtController, onTakeOver: () -> 
             if (ui.courtOpen) {
                 item { SecondaryChip("Stop sharing") { controller.closeCourt() } }
             } else {
-                item { SecondaryChip("Play with others") { gate { controller.openCourt() } } }
+                item {
+                    SecondaryChip("Play with others") {
+                        // The trial starts here; once it is over, Pro is bought on the phone.
+                        if (pro.beginHosting()) {
+                            gate { controller.openCourt() }
+                        } else {
+                            needsPro = true
+                        }
+                    }
+                }
+                if (needsPro) {
+                    item {
+                        Text(
+                            "${ProText.TRIAL_ENDED} Buy it in PadelSync on your phone, with the same Google account.",
+                            color = WearPalette.Accent,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
             }
             item {
                 SecondaryChip("New padel match") {
